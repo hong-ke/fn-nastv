@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="@dimen/tv_grid_item_width"
+    android:layout_height="@dimen/tv_grid_item_height"
+    android:layout_margin="@dimen/tv_margin_small"
+    android:focusable="true"
+    android:clickable="true"
+    app:cardCornerRadius="@dimen/tv_card_corner_radius"
+    app:cardElevation="@dimen/tv_card_elevation"
+    app:cardBackgroundColor="@color/tv_card_background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="@dimen/tv_margin_medium">
+
+        <!-- 📺 类型标签 -->
+        <TextView
+            android:id="@+id/media_type"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🎬 电影"
+            android:textSize="@dimen/tv_text_size_small"
+            android:textColor="@color/tv_accent_primary"
+            android:fontFamily="@font/tv_font_medium"
+            android:layout_marginBottom="@dimen/tv_margin_small" />
+
+        <!-- 🏷️ 标题 -->
+        <TextView
+            android:id="@+id/media_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="媒体标题"
+            android:textSize="@dimen/tv_text_size_medium"
+            android:textColor="@color/tv_text_primary"
+            android:fontFamily="@font/tv_font_bold"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:layout_marginBottom="@dimen/tv_margin_tiny" />
+
+        <!-- 📝 副标题 -->
+        <TextView
+            android:id="@+id/media_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="2023 · 动作, 科幻"
+            android:textSize="@dimen/tv_text_size_small"
+            android:textColor="@color/tv_text_secondary"
+            android:fontFamily="@font/tv_font_regular"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:layout_marginBottom="@dimen/tv_margin_small" />
+
+        <!-- 空白区域占位 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- 底部信息区域 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- ⭐ 评分 -->
+            <TextView
+                android:id="@+id/media_rating"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⭐ 8.5"
+                android:textSize="@dimen/tv_text_size_small"
+                android:textColor="@color/tv_accent_yellow"
+                android:fontFamily="@font/tv_font_medium"
+                android:layout_marginBottom="@dimen/tv_margin_tiny" />
+
+            <!-- 📊 进度信息 -->
+            <TextView
+                android:id="@+id/media_progress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="第5/20集"
+                android:textSize="@dimen/tv_text_size_tiny"
+                android:textColor="@color/tv_text_hint"
+                android:fontFamily="@font/tv_font_regular"
+                android:background="@drawable/tv_button_background"
+                android:paddingLeft="@dimen/tv_margin_small"
+                android:paddingRight="@dimen/tv_margin_small"
+                android:paddingTop="@dimen/tv_margin_tiny"
+                android:paddingBottom="@dimen/tv_margin_tiny" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>

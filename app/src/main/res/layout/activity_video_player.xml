@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/black"
+    android:focusable="true"
+    android:focusableInTouchMode="true">
+
+    <!-- 🎬 视频播放器 -->
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/player_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        app:use_controller="true"
+        app:show_buffering="when_playing"
+        app:surface_type="texture_view" />
+
+
+    <!-- 🖼️ 海报背景 -->
+    <ImageView
+        android:id="@+id/poster_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:alpha="0.3"
+        android:src="@drawable/ic_default_backdrop" />
+
+    <!-- 📊 媒体信息覆盖层 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:orientation="vertical"
+        android:padding="@dimen/tv_margin_medium"
+        android:background="@drawable/gradient_bottom_overlay">
+
+        <TextView
+            android:id="@+id/title_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="媒体标题"
+            android:textColor="@color/white"
+            android:textSize="@dimen/tv_text_size_large"
+            android:fontFamily="@font/tv_font_bold"
+            android:shadowColor="@color/black"
+            android:shadowDx="2"
+            android:shadowDy="2"
+            android:shadowRadius="4" />
+
+        <TextView
+            android:id="@+id/info_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/tv_margin_small"
+            android:text="年份 · 类型"
+            android:textColor="@color/tv_text_secondary"
+            android:textSize="@dimen/tv_text_size_medium"
+            android:fontFamily="@font/tv_font_regular"
+            android:shadowColor="@color/black"
+            android:shadowDx="1"
+            android:shadowDy="1"
+            android:shadowRadius="2" />
+
+    </LinearLayout>
+
+    <!-- 🔄 加载状态 -->
+    <LinearLayout
+        android:id="@+id/loading_layout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="visible">
+
+        <ProgressBar
+            android:layout_width="@dimen/tv_progress_size"
+            android:layout_height="@dimen/tv_progress_size"
+            android:indeterminateTint="@color/tv_accent_primary" />
+
+        <TextView
+            android:id="@+id/loading_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/tv_margin_medium"
+            android:text="正在加载..."
+            android:textColor="@color/white"
+            android:textSize="@dimen/tv_text_size_medium"
+            android:fontFamily="@font/tv_font_regular"
+            android:gravity="center" />
+
+    </LinearLayout>
+
+    <!-- ❌ 错误状态 -->
+    <LinearLayout
+        android:id="@+id/error_layout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="@dimen/tv_icon_size_large"
+            android:layout_height="@dimen/tv_icon_size_large"
+            android:src="@drawable/ic_play_arrow"
+            android:tint="@color/tv_text_secondary"
+            android:alpha="0.6" />
+
+        <TextView
+            android:id="@+id/error_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/tv_margin_medium"
+            android:text="播放出错"
+            android:textColor="@color/tv_text_secondary"
+            android:textSize="@dimen/tv_text_size_medium"
+            android:fontFamily="@font/tv_font_regular"
+            android:gravity="center"
+            android:maxWidth="400dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/tv_margin_small"
+            android:text="按返回键退出"
+            android:textColor="@color/tv_text_tertiary"
+            android:textSize="@dimen/tv_text_size_small"
+            android:fontFamily="@font/tv_font_regular"
+            android:gravity="center" />
+
+    </LinearLayout>
+
+    <!-- 🎬 弹幕容器层 - 放在最上层，确保不被遮挡 -->
+    <FrameLayout
+        android:id="@+id/danmu_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clickable="false"
+        android:background="@android:color/transparent"
+        android:visibility="visible">
+        
+        <!-- 弹幕将在这里动态添加 -->
+        
+    </FrameLayout>
+
+</RelativeLayout>

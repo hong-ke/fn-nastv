@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NasTV</string>
+    <string name="hello">Hello World</string>
+    <string name="login">Login</string>
+    <string name="settings">Settings</string>
+    <string name="poster_description">影片海报</string>
+    <string name="continue_watching_title">继续观看</string>
+</resources>

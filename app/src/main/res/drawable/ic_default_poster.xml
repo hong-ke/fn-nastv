@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="36dp"
+    android:viewportWidth="24"
+    android:viewportHeight="36">
+    
+    <!-- 🖼️ 默认海报图标 - 简单的图片框架设计 -->
+    <path
+        android:fillColor="#FF6B7280"
+        android:pathData="M2,2 L22,2 A2,2 0 0,1 24,4 L24,32 A2,2 0 0,1 22,34 L2,34 A2,2 0 0,1 0,32 L0,4 A2,2 0 0,1 2,2 Z" />
+    
+    <!-- 内部图像图标 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M6,10 L18,10 L18,26 L6,26 Z M8,12 L16,12 L16,24 L8,24 Z" />
+    
+    <!-- 山形图案 -->
+    <path
+        android:fillColor="#FFC4B4B4"
+        android:pathData="M8,20 L10,16 L12,18 L14,14 L16,20 Z" />
+    
+    <!-- 太阳图案 -->
+    <path
+        android:fillColor="#FFF59E0B"
+        android:pathData="M8.5,15 A1.5,1.5 0 1,1 11.5,15 A1.5,1.5 0 1,1 8.5,15" />
+</vector>

@@ -1,0 +1,141 @@
+package com.mynas.nastv.adapter;
+
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.mynas.nastv.R;
+import com.mynas.nastv.model.MediaItem;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * 🔄 继续观看适配器
+ * 显示用户最近观看的内容
+ */
+public class ContinueWatchingAdapter extends RecyclerView.Adapter<ContinueWatchingAdapter.ContinueWatchingViewHolder> {
+    
+    private List<MediaItem> continueWatchingItems = new ArrayList<>();
+    private OnItemClickListener listener;
+    
+    public interface OnItemClickListener {
+        void onItemClick(MediaItem item, int position);
+    }
+    
+    public ContinueWatchingAdapter(OnItemClickListener listener) {
+        this.listener = listener;
+    }
+    
+    public void updateItems(List<MediaItem> items) {
+        this.continueWatchingItems.clear();
+        this.continueWatchingItems.addAll(items);
+        notifyDataSetChanged();
+    }
+    
+    @NonNull
+    @Override
+    public ContinueWatchingViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.item_continue_watching, parent, false);
+        return new ContinueWatchingViewHolder(view);
+    }
+    
+    @Override
+    public void onBindViewHolder(@NonNull ContinueWatchingViewHolder holder, int position) {
+        MediaItem item = continueWatchingItems.get(position);
+        holder.bind(item);
+    }
+    
+    @Override
+    public int getItemCount() {
+        return continueWatchingItems.size();
+    }
+    
+    class ContinueWatchingViewHolder extends RecyclerView.ViewHolder {
+        private ImageView posterImage;
+        private TextView titleText;
+        private TextView subtitleText;
+        private TextView progressText;
+        
+        public ContinueWatchingViewHolder(@NonNull View itemView) {
+            super(itemView);
+            posterImage = itemView.findViewById(R.id.continue_poster);
+            titleText = itemView.findViewById(R.id.continue_title);
+            subtitleText = itemView.findViewById(R.id.continue_subtitle);
+            progressText = itemView.findViewById(R.id.continue_progress);
+            
+            itemView.setOnClickListener(v -> {
+                int position = getAdapterPosition();
+                if (position != RecyclerView.NO_POSITION && listener != null) {
+                    listener.onItemClick(continueWatchingItems.get(position), position);
+                }
+            });
+        }
+        
+        public void bind(MediaItem item) {
+            // 🖼️ 加载海报图片
+            String posterUrl = item.getPosterUrl();
+            android.util.Log.d("ContinueWatching", "🖼️ [调试] 加载海报: " + item.getTitle() + " -> " + posterUrl);
+            
+            if (posterUrl != null && !posterUrl.isEmpty()) {
+                Glide.with(posterImage.getContext())
+                        .asBitmap()  // 明确指定为位图
+                        .load(posterUrl)
+                        .diskCacheStrategy(DiskCacheStrategy.DATA)  // 只缓存原始数据
+                        .placeholder(R.color.tv_card_background)
+                        .error(R.color.tv_card_background)
+                        .centerCrop()
+                        .format(com.bumptech.glide.load.DecodeFormat.PREFER_RGB_565)  // 使用RGB_565格式减少内存
+                        .listener(new com.bumptech.glide.request.RequestListener<android.graphics.Bitmap>() {
+                            @Override
+                            public boolean onLoadFailed(com.bumptech.glide.load.engine.GlideException e, Object model, 
+                                    com.bumptech.glide.request.target.Target<android.graphics.Bitmap> target, 
+                                    boolean isFirstResource) {
+                                android.util.Log.e("ContinueWatching", "❌ [调试] 海报加载失败: " + posterUrl);
+                                if (e != null) {
+                                    android.util.Log.e("ContinueWatching", "❌ [调试] 详细错误: " + e.getCause());
+                                }
+                                return false;
+                            }
+                            @Override
+                            public boolean onResourceReady(android.graphics.Bitmap resource, Object model, 
+                                    com.bumptech.glide.request.target.Target<android.graphics.Bitmap> target, 
+                                    com.bumptech.glide.load.DataSource dataSource, boolean isFirstResource) {
+                                android.util.Log.d("ContinueWatching", "✅ [调试] 海报加载成功: " + posterUrl);
+                                return false;
+                            }
+                        })
+                        .into(posterImage);
+            } else {
+                android.util.Log.w("ContinueWatching", "⚠️ [调试] 海报URL为空: " + item.getTitle());
+                // 没有海报图片时显示默认背景
+                posterImage.setImageResource(R.color.tv_card_background);
+            }
+            
+            titleText.setText(item.getTitle());
+            
+            String subtitle = item.getSubtitle();
+            if (subtitle == null || subtitle.isEmpty()) {
+                subtitle = item.getType();
+            }
+            subtitleText.setText(subtitle);
+            
+            // 显示观看进度
+            float progress = item.getWatchedProgress();
+            if (progress > 0 && progress < 100) {
+                progressText.setVisibility(View.VISIBLE);
+                progressText.setText(String.format("已观看 %.0f%%", progress));
+            } else {
+                progressText.setVisibility(View.GONE);
+            }
+        }
+    }
+}

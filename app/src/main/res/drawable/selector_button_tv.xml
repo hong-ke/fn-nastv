@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 🔥 焦点状态 -->
+    <item android:state_focused="true">
+        <shape android:shape="oval">
+            <solid android:color="@color/tv_focus_background" />
+            <stroke
+                android:width="2dp"
+                android:color="@color/tv_focus_color" />
+        </shape>
+    </item>
+    
+    <!-- 🔘 按下状态 -->
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="@color/button_background_pressed" />
+        </shape>
+    </item>
+    
+    <!-- 🚫 禁用状态 -->
+    <item android:state_enabled="false">
+        <shape android:shape="oval">
+            <solid android:color="@color/tv_text_disabled" />
+        </shape>
+    </item>
+    
+    <!-- 📱 默认状态 -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="@color/button_background" />
+        </shape>
+    </item>
+</selector>

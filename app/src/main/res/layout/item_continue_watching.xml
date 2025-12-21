@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="200dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layout_margin="@dimen/tv_margin_small"
+    android:background="@drawable/continue_watching_background"
+    android:padding="@dimen/tv_margin_medium"
+    android:focusable="true"
+    android:clickable="true">
+
+    <!-- 📱 内容封面 -->
+    <ImageView
+        android:id="@+id/continue_poster"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:background="@color/tv_card_background"
+        android:scaleType="centerCrop"
+        android:contentDescription="@string/poster_description"
+        android:layout_marginBottom="@dimen/tv_margin_small" />
+
+    <!-- 📝 标题 -->
+    <TextView
+        android:id="@+id/continue_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="电影标题"
+        android:textSize="@dimen/tv_text_size_medium"
+        android:textColor="@color/tv_text_primary"
+        android:fontFamily="@font/tv_font_medium"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:layout_marginBottom="4dp" />
+
+    <!-- 📝 副标题 -->
+    <TextView
+        android:id="@+id/continue_subtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="副标题信息"
+        android:textSize="@dimen/tv_text_size_small"
+        android:textColor="@color/tv_text_secondary"
+        android:fontFamily="@font/tv_font_regular"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:layout_marginBottom="4dp" />
+
+    <!-- 📊 观看进度 -->
+    <TextView
+        android:id="@+id/continue_progress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="已观看 60%"
+        android:textSize="@dimen/tv_text_size_small"
+        android:textColor="@color/tv_accent"
+        android:fontFamily="@font/tv_font_regular"
+        android:visibility="gone" />
+
+</LinearLayout>

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 📐 NasTV Android TV 尺寸资源 -->
+    
+    <!-- 🎯 间距定义 -->
+    <dimen name="tv_margin_tiny">4dp</dimen>
+    <dimen name="tv_margin_small">8dp</dimen>
+    <dimen name="tv_margin_medium">16dp</dimen>
+    <dimen name="tv_margin_large">24dp</dimen>
+    <dimen name="tv_margin_xlarge">32dp</dimen>
+    <dimen name="tv_margin_xxlarge">48dp</dimen>
+    
+    <!-- 📝 文字大小 -->
+    <dimen name="tv_text_size_extra_small">9sp</dimen>
+    <dimen name="tv_text_size_tiny">10sp</dimen>
+    <dimen name="tv_text_size_small">12sp</dimen>
+    <dimen name="tv_text_size_medium">14sp</dimen>
+    <dimen name="tv_text_size_large">16sp</dimen>
+    <dimen name="tv_text_size_xlarge">18sp</dimen>
+    <dimen name="tv_text_size_title">24sp</dimen>
+    <dimen name="tv_text_size_headline">32sp</dimen>
+    
+    <!-- 🎬 海报和封面尺寸 -->
+    <dimen name="tv_poster_width">120dp</dimen>
+    <dimen name="tv_poster_height">180dp</dimen>
+    <dimen name="tv_backdrop_width">320dp</dimen>
+    
+    <!-- 📺 季度海报尺寸 -->
+    
+    <!-- 📱 卡片设计 -->
+    <dimen name="tv_card_corner_radius">8dp</dimen>
+    <dimen name="tv_card_elevation">8dp</dimen>
+    <dimen name="tv_card_stroke_width">2dp</dimen>
+    
+    <!-- 🎮 按钮设计 -->
+    <dimen name="tv_button_height">48dp</dimen>
+    <dimen name="tv_button_min_width">120dp</dimen>
+    <dimen name="tv_button_corner_radius">6dp</dimen>
+    <dimen name="tv_button_elevation">4dp</dimen>
+    
+    <!-- 🔘 控件尺寸 -->
+    <dimen name="tv_icon_size_small">16dp</dimen>
+    <dimen name="tv_icon_size_medium">24dp</dimen>
+    <dimen name="tv_icon_size_large">32dp</dimen>
+    <dimen name="tv_icon_size_xlarge">48dp</dimen>
+    
+    <!-- 📊 进度条尺寸 -->
+    <dimen name="tv_progress_height">4dp</dimen>
+    <dimen name="tv_progress_thumb_size">16dp</dimen>
+    
+    <!-- 🔄 加载动画尺寸 -->
+    <dimen name="tv_loading_size">48dp</dimen>
+    
+    <!-- 🖼️ 图片边框 -->
+    <dimen name="tv_image_border_width">1dp</dimen>
+    <dimen name="tv_image_corner_radius">4dp</dimen>
+    
+    <!-- 📺 列表项尺寸 -->
+    <dimen name="tv_list_item_height">56dp</dimen>
+    <dimen name="tv_grid_item_width">160dp</dimen>
+    <dimen name="tv_grid_item_height">240dp</dimen>
+    
+    <!-- 🌊 阴影和高度 -->
+    <dimen name="tv_shadow_radius">8dp</dimen>
+    <dimen name="tv_shadow_dx">2dp</dimen>
+    <dimen name="tv_shadow_dy">2dp</dimen>
+    
+    <!-- 🔲 分割线 -->
+    <dimen name="tv_divider_height">1dp</dimen>
+    <dimen name="tv_divider_thickness">1dp</dimen>
+    
+    <!-- 📐 应用特定尺寸 -->
+    <dimen name="tv_toolbar_height">64dp</dimen>
+    <dimen name="tv_tab_height">48dp</dimen>
+    <dimen name="tv_navigation_height">72dp</dimen>
+    
+    <!-- 📱 焦点和选中状态 -->
+    <dimen name="tv_focus_stroke_width">4dp</dimen>
+    <dimen name="tv_focus_corner_radius">8dp</dimen>
+    <dimen name="tv_selected_indicator_height">4dp</dimen>
+    
+    <!-- 🎨 徽章尺寸 -->
+    <dimen name="tv_badge_size">20dp</dimen>
+    <dimen name="tv_badge_corner_radius">10dp</dimen>
+    <dimen name="tv_badge_padding">4dp</dimen>
+    
+    <!-- 🔧 工具提示 -->
+    <dimen name="tv_tooltip_corner_radius">4dp</dimen>
+    <dimen name="tv_tooltip_padding">8dp</dimen>
+    
+    <!-- 📺 特别为Android TV优化的尺寸 -->
+    <dimen name="tv_focus_scale">1.05</dimen>
+    <dimen name="tv_animation_duration">200</dimen>
+    
+    <!-- 🎬 播放器相关尺寸 -->
+    <dimen name="tv_progress_size">48dp</dimen>
+    <dimen name="tv_button_size">56dp</dimen>
+    <dimen name="tv_button_size_large">72dp</dimen>
+    
+    <!-- 📺 详情页相关尺寸 -->
+    <dimen name="tv_episode_button_size">48dp</dimen>
+    
+    <!-- 📺 季详情页相关尺寸 -->
+    <dimen name="tv_backdrop_height">240dp</dimen>
+    <dimen name="tv_season_card_width">120dp</dimen>
+    <dimen name="tv_season_poster_height">160dp</dimen>
+    
+</resources>

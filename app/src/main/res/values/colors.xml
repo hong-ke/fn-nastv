@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Colors -->
+    <color name="colorPrimary">#6200EE</color>
+    <color name="colorPrimaryDark">#3700B3</color>
+    <color name="colorAccent">#03DAC5</color>
+
+    <!-- Background Colors -->
+    <color name="background_leanback">#1A1A1A</color>
+    <color name="background_card">#2C2C2C</color>
+    <color name="background_focused">#424242</color>
+    <color name="background_selected">#03DAC5</color>
+    <color name="background_splash">#000000</color>
+
+    <!-- Text Colors -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#B0B0B0</color>
+    <color name="text_hint">#808080</color>
+    <color name="text_accent">#03DAC5</color>
+    <color name="text_error">#FF5252</color>
+
+    <!-- Icon Colors -->
+    <color name="icon_primary">#FFFFFF</color>
+    <color name="icon_secondary">#B0B0B0</color>
+    
+    <!-- 🎨 NasTV Android TV 配色方案 -->
+    
+    <!-- 🌙 主要背景色 -->
+    <color name="tv_background_primary">#FF0A0A0F</color>        <!-- 深蓝黑色 主背景 -->
+    <color name="tv_background_secondary">#FF1A1A23</color>      <!-- 稍浅蓝黑色 工具栏背景 -->
+    <color name="tv_background_tertiary">#FF2A2A35</color>       <!-- 更浅蓝黑色 筛选栏背景 -->
+    <color name="tv_background_overlay">#80000000</color>        <!-- 半透明黑色 遮罩 -->
+    
+    <!-- 📱 卡片和表面色 -->
+    <color name="tv_card_background">#FF242438</color>           <!-- 卡片背景色 -->
+    <color name="tv_card_focused">#FF3A3A52</color>              <!-- 焦点卡片背景色 -->
+    <color name="tv_card_elevated">#FF2F2F45</color>             <!-- 悬浮卡片背景 -->
+    <color name="tv_surface_primary">#FF1F1F2E</color>           <!-- 主表面色 -->
+    <color name="tv_surface_secondary">#FF2C2C3E</color>         <!-- 次表面色 -->
+    
+    <!-- ✨ 主题色调 -->
+    <color name="tv_accent_primary">#FF4A90E2</color>            <!-- 主强调色 蓝色 -->
+    <color name="tv_accent_secondary">#FF7B68EE</color>          <!-- 次强调色 紫色 -->
+    <color name="tv_accent_tertiary">#FF50C878</color>           <!-- 第三强调色 绿色 -->
+    
+    <!-- 🔥 状态色彩 -->
+    <color name="tv_accent_red">#FFE74C3C</color>                <!-- 红色 错误/删除 -->
+    <color name="tv_accent_green">#FF27AE60</color>              <!-- 绿色 成功/完成 -->
+    <color name="tv_accent_yellow">#FFF39C12</color>             <!-- 黄色 警告/评分 -->
+    <color name="tv_accent_blue">#FF3498DB</color>               <!-- 蓝色 信息/进行中 -->
+    <color name="tv_accent_orange">#FFE67E22</color>             <!-- 橙色 更新/新内容 -->
+    
+    <!-- 📝 文本颜色 -->
+    <color name="tv_text_primary">#FFFFFFFF</color>              <!-- 主要文本 白色 -->
+    <color name="tv_text_secondary">#FFBDC3C7</color>            <!-- 次要文本 浅灰 -->
+    <color name="tv_text_tertiary">#FF7F8C8D</color>             <!-- 第三级文本 深灰 -->
+    <color name="tv_text_disabled">#FF34495E</color>             <!-- 禁用文本 很深灰 -->
+    <color name="tv_text_on_accent">#FFFFFFFF</color>            <!-- 强调色上的文本 白色 -->
+    <color name="tv_text_on_surface">#FF2C3E50</color>           <!-- 浅色表面上的文本 深色 -->
+    
+    <!-- 🎯 焦点和选中状态 -->
+    <color name="tv_focus_color">#FF4A90E2</color>               <!-- 焦点边框色 -->
+    <color name="tv_focus_background">#204A90E2</color>          <!-- 焦点背景色 -->
+    <color name="tv_selected_color">#FF3F51B5</color>            <!-- 选中背景色 -->
+    <color name="tv_selected_text_color">#FFFFFFFF</color>       <!-- 选中文本色 -->
+    <color name="tv_playing_color">#FF9C27B0</color>             <!-- 正在播放状态色 -->
+    
+    <!-- 🏷️ 分类主题色 -->
+    <color name="category_movie">#FFE74C3C</color>               <!-- 电影分类 红色 -->
+    <color name="category_tv">#FF3498DB</color>                  <!-- 电视剧分类 蓝色 -->
+    <color name="category_anime">#FF9B59B6</color>               <!-- 动漫分类 紫色 -->
+    <color name="category_documentary">#FF27AE60</color>         <!-- 纪录片分类 绿色 -->
+    <color name="category_variety">#FFF39C12</color>             <!-- 综艺分类 黄色 -->
+    <color name="category_default">#FF95A5A6</color>             <!-- 默认分类 灰色 -->
+    
+    <!-- 📊 进度和状态指示器 -->
+    <color name="progress_background">#FF34495E</color>          <!-- 进度条背景 -->
+    <color name="progress_primary">#FF4A90E2</color>             <!-- 主进度条 -->
+    <color name="progress_secondary">#FF7B68EE</color>           <!-- 次进度条 -->
+    <color name="progress_watched">#FF27AE60</color>             <!-- 已观看进度 -->
+    <color name="progress_buffer">#FF95A5A6</color>              <!-- 缓冲进度 -->
+    
+    <!-- 🔘 控件和交互元素 -->
+    <color name="button_background">#FF34495E</color>            <!-- 按钮背景 -->
+    <color name="button_background_pressed">#FF2C3E50</color>    <!-- 按钮按下背景 -->
+    <color name="button_text">#FFFFFFFF</color>                  <!-- 按钮文本 -->
+    <color name="switch_track">#FF34495E</color>                 <!-- 开关轨道 -->
+    <color name="switch_thumb">#FF4A90E2</color>                 <!-- 开关拇指 -->
+    
+    <!-- 🎭 徽章和标签 -->
+    <color name="badge_background">#FF4A90E2</color>             <!-- 徽章背景 -->
+    <color name="badge_text">#FFFFFFFF</color>                   <!-- 徽章文本 -->
+    <color name="badge_new">#FFFF6B6B</color>                    <!-- 新内容徽章 -->
+    <color name="badge_hot">#FFFF6348</color>                    <!-- 热门徽章 -->
+    <color name="badge_4k">#FF4ECDC4</color>                     <!-- 4K徽章 -->
+    <color name="badge_hevc">#FF45B7D1</color>                   <!-- HEVC徽章 -->
+    
+    <!-- 🌟 渐变色端点 -->
+    <color name="gradient_start">#FF1A1A2E</color>               <!-- 渐变起始色 -->
+    <color name="gradient_center">#FF16213E</color>              <!-- 渐变中间色 -->
+    <color name="gradient_end">#FF0F3460</color>                 <!-- 渐变结束色 -->
+    
+    <!-- 🚨 错误和警告 -->
+    <color name="error_background">#FFDC143C</color>             <!-- 错误背景 -->
+    <color name="error_text">#FFFFFFFF</color>                   <!-- 错误文本 -->
+    <color name="warning_background">#FFFFA500</color>           <!-- 警告背景 -->
+    <color name="warning_text">#FF2C3E50</color>                 <!-- 警告文本 -->
+    
+    <!-- 🎪 特效和装饰 -->
+    <color name="shimmer_base">#FF2C3E50</color>                 <!-- 骨架屏基色 -->
+    <color name="shimmer_highlight">#FF34495E</color>            <!-- 骨架屏高亮 -->
+    <color name="divider_color">#FF34495E</color>                <!-- 分割线颜色 -->
+    <color name="shadow_color">#80000000</color>                 <!-- 阴影颜色 -->
+    
+    <!-- 📺 播放器专用色彩 -->
+    <color name="player_background">#FF000000</color>            <!-- 播放器背景 黑色 -->
+    <color name="player_control_background">#CC000000</color>    <!-- 播放器控制栏背景 -->
+    <color name="player_control_text">#FFFFFFFF</color>          <!-- 播放器控制栏文本 -->
+    <color name="player_progress_played">#FF4A90E2</color>       <!-- 已播放进度 -->
+    <color name="player_progress_buffered">#7F4A90E2</color>     <!-- 已缓冲进度 -->
+    <color name="player_progress_background">#7F333333</color>   <!-- 进度条背景 -->
+    
+    <!-- 🌐 弹幕专用色彩 -->
+    <color name="danmaku_white">#FFFFFFFF</color>                <!-- 白色弹幕 -->
+    <color name="danmaku_red">#FFFF6B6B</color>                  <!-- 红色弹幕 -->
+    <color name="danmaku_green">#FF4ECDC4</color>                <!-- 绿色弹幕 -->
+    <color name="danmaku_blue">#FF45B7D1</color>                 <!-- 蓝色弹幕 -->
+    <color name="danmaku_yellow">#FFFECA57</color>               <!-- 黄色弹幕 -->
+    <color name="danmaku_purple">#FFA55EEA</color>               <!-- 紫色弹幕 -->
+    <color name="danmaku_shadow">#CC000000</color>               <!-- 弹幕阴影 -->
+
+    <!-- 🔗 简化别名 (向后兼容) -->
+    <color name="tv_background">@color/tv_background_primary</color>
+    <color name="tv_accent">@color/tv_accent_primary</color>
+    <color name="tv_accent_light">#FF6DB3F2</color>          <!-- 浅蓝色 用于选中状态背景 -->
+    <color name="tv_accent_color">@color/tv_accent_primary</color>
+    <color name="tv_accent_color_dark">@color/tv_accent_secondary</color>
+    <color name="tv_text_hint">@color/tv_text_tertiary</color>
+    <color name="tv_divider">@color/divider_color</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+
+</resources>

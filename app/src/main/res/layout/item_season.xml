@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/season_card"
+    android:layout_width="@dimen/tv_season_card_width"
+    android:layout_height="wrap_content"
+    android:layout_margin="@dimen/tv_margin_small"
+    android:focusable="true"
+    android:clickable="true"
+    app:cardCornerRadius="@dimen/tv_card_corner_radius"
+    app:cardElevation="@dimen/tv_card_elevation"
+    app:cardBackgroundColor="@color/tv_card_background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/tv_margin_medium">
+
+        <!-- 🖼️ 季度海报 -->
+        <ImageView
+            android:id="@+id/season_poster"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/tv_season_poster_height"
+            android:layout_marginBottom="@dimen/tv_margin_small"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_default_poster" />
+
+        <!-- 📝 季度信息 -->
+        <TextView
+            android:id="@+id/season_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/tv_margin_tiny"
+            android:text="第1季"
+            android:textSize="@dimen/tv_text_size_medium"
+            android:textColor="@color/tv_text_primary"
+            android:fontFamily="@font/tv_font_medium"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/season_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/tv_margin_tiny"
+            android:text="2024"
+            android:textSize="@dimen/tv_text_size_small"
+            android:textColor="@color/tv_text_secondary"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/episode_count"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="24集"
+            android:textSize="@dimen/tv_text_size_small"
+            android:textColor="@color/tv_text_secondary"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <!-- 📊 观看进度 -->
+        <LinearLayout
+            android:id="@+id/progress_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/tv_margin_small"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <ProgressBar
+                android:id="@+id/progress_bar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:layout_marginBottom="@dimen/tv_margin_tiny"
+                android:progressTint="@color/tv_accent"
+                android:progressBackgroundTint="@color/tv_divider"
+                android:progress="60" />
+
+            <TextView
+                android:id="@+id/progress_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="已看60%"
+                android:textSize="@dimen/tv_text_size_tiny"
+                android:textColor="@color/tv_text_secondary" />
+
+        </LinearLayout>
+
+        <!-- 🔸 选中指示器 -->
+        <View
+            android:id="@+id/selected_indicator"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_marginTop="@dimen/tv_margin_small"
+            android:background="@color/tv_accent"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>

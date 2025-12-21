@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="@dimen/tv_margin_medium"
+    android:background="?attr/selectableItemBackground"
+    android:focusable="true"
+    android:clickable="true">
+
+    <!-- 📚 图标 -->
+    <ImageView
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_library"
+        android:layout_marginEnd="@dimen/tv_margin_small"
+        android:contentDescription="媒体库图标" />
+
+    <!-- 📝 库名称 -->
+    <TextView
+        android:id="@+id/library_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="movie"
+        android:textSize="@dimen/tv_text_size_medium"
+        android:textColor="@color/tv_text_primary"
+        android:fontFamily="@font/tv_font_medium" />
+
+    <!-- 📊 项目数量 -->
+    <TextView
+        android:id="@+id/library_count"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="40"
+        android:textSize="@dimen/tv_text_size_small"
+        android:textColor="@color/tv_text_secondary"
+        android:fontFamily="@font/tv_font_regular"
+        android:background="@drawable/count_badge_background"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="4dp" />
+
+</LinearLayout>

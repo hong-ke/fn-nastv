@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="160dp"
+    android:layout_height="280dp"
+    android:layout_marginEnd="@dimen/tv_margin_medium"
+    app:cardCornerRadius="@dimen/tv_card_corner_radius"
+    app:cardElevation="@dimen/tv_card_elevation"
+    android:focusable="true"
+    android:clickable="true"
+    android:foreground="?attr/selectableItemBackground"
+    android:background="@color/tv_card_background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- 📱 海报图片 -->
+        <ImageView
+            android:id="@+id/media_poster"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scaleType="centerCrop"
+            android:contentDescription="@string/poster_description"
+            tools:src="@color/tv_card_background" />
+
+        <!-- 📝 文本信息 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="@dimen/tv_margin_small"
+            android:background="@color/tv_card_background">
+
+            <!-- 标题 -->
+            <TextView
+                android:id="@+id/media_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="@dimen/tv_text_size_small"
+                android:textColor="@color/tv_text_primary"
+                android:fontFamily="@font/tv_font_medium"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:layout_marginBottom="4dp"
+                tools:text="电影标题" />
+
+            <!-- 副标题 -->
+            <TextView
+                android:id="@+id/media_subtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="@dimen/tv_text_size_extra_small"
+                android:textColor="@color/tv_text_secondary"
+                android:fontFamily="@font/tv_font_regular"
+                android:maxLines="1"
+                android:ellipsize="end"
+                tools:text="Movie · 2024" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>

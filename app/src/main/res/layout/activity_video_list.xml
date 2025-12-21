@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/tv_background"
+    android:padding="@dimen/tv_margin_medium">
+
+    <!-- 📋 顶部标题栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingBottom="@dimen/tv_margin_medium">
+
+        <TextView
+            android:id="@+id/title_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="媒体列表"
+            android:textSize="@dimen/tv_text_size_large"
+            android:textColor="@color/tv_text_primary"
+            android:fontFamily="@font/tv_font_bold"
+            android:gravity="start|center_vertical" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔍 搜索"
+            android:textSize="@dimen/tv_text_size_medium"
+            android:textColor="@color/tv_text_secondary"
+            android:background="@drawable/tv_button_background"
+            android:padding="@dimen/tv_margin_small"
+            android:focusable="true"
+            android:clickable="true"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+    <!-- 📺 内容区域 -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- 🔄 媒体列表 -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/video_recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:padding="@dimen/tv_margin_small"
+            android:focusable="true"
+            android:visibility="visible" />
+
+        <!-- 📝 空状态提示 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/empty_state_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="正在加载内容..."
+                android:textSize="@dimen/tv_text_size_large"
+                android:textColor="@color/tv_text_secondary"
+                android:fontFamily="@font/tv_font_medium"
+                android:gravity="center"
+                android:drawablePadding="@dimen/tv_margin_medium" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/tv_margin_medium"
+                android:text="📺 请稍等片刻"
+                android:textSize="@dimen/tv_text_size_medium"
+                android:textColor="@color/tv_text_hint"
+                android:fontFamily="@font/tv_font_regular"
+                android:gravity="center" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <!-- 🔧 底部操作栏 (暂时隐藏) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:paddingTop="@dimen/tv_margin_medium"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⬅️ 返回"
+            android:textSize="@dimen/tv_text_size_medium"
+            android:textColor="@color/tv_text_secondary"
+            android:background="@drawable/tv_button_background"
+            android:padding="@dimen/tv_margin_small"
+            android:layout_margin="@dimen/tv_margin_small"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔄 刷新"
+            android:textSize="@dimen/tv_text_size_medium"
+            android:textColor="@color/tv_text_secondary"
+            android:background="@drawable/tv_button_background"
+            android:padding="@dimen/tv_margin_small"
+            android:layout_margin="@dimen/tv_margin_small"
+            android:focusable="true"
+            android:clickable="true" />
+
+    </LinearLayout>
+
+</LinearLayout>

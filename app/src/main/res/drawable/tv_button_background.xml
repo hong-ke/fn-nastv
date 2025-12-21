@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <!-- 🎯 获得焦点状态 -->
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/tv_accent_color" />
+            <corners android:radius="@dimen/tv_button_corner_radius" />
+            <stroke android:width="2dp" android:color="@color/tv_text_primary" />
+        </shape>
+    </item>
+    
+    <!-- 📱 按下状态 -->
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/tv_accent_color_dark" />
+            <corners android:radius="@dimen/tv_button_corner_radius" />
+        </shape>
+    </item>
+    
+    <!-- 🔒 默认状态 -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/tv_card_background" />
+            <corners android:radius="@dimen/tv_button_corner_radius" />
+            <stroke android:width="1dp" android:color="@color/tv_text_secondary" />
+        </shape>
+    </item>
+    
+</selector>

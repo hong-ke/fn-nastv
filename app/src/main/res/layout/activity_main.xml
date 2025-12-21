@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@color/tv_background"
+    tools:context=".ui.MainActivity">
+
+    <!-- 🎯 左侧导航栏 -->
+    <LinearLayout
+        android:layout_width="280dp"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@color/tv_card_background"
+        android:padding="@dimen/tv_margin_medium">
+
+        <!-- 📱 应用标题 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="fn-nas"
+            android:textSize="@dimen/tv_text_size_title"
+            android:textColor="@color/tv_text_primary"
+            android:fontFamily="@font/tv_font_bold"
+            android:layout_marginBottom="@dimen/tv_margin_large"
+            android:gravity="center" />
+
+        <!-- 🏠 个人中心 -->
+        <TextView
+            android:id="@+id/nav_profile"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="个人中心"
+            android:textSize="@dimen/tv_text_size_medium"
+            android:textColor="@color/tv_text_secondary"
+            android:fontFamily="@font/tv_font_medium"
+            android:padding="@dimen/tv_margin_medium"
+            android:background="?attr/selectableItemBackground"
+            android:focusable="true"
+            android:clickable="true"
+            android:drawableStart="@drawable/ic_person"
+            android:drawablePadding="@dimen/tv_margin_small"
+            android:gravity="center_vertical" />
+
+        <!-- 🏠 主页 -->
+        <TextView
+            android:id="@+id/nav_home"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="主页"
+            android:textSize="@dimen/tv_text_size_medium"
+            android:textColor="@color/tv_text_primary"
+            android:fontFamily="@font/tv_font_medium"
+            android:padding="@dimen/tv_margin_medium"
+            android:background="@color/tv_accent_light"
+            android:focusable="true"
+            android:clickable="true"
+            android:drawableStart="@drawable/ic_home"
+            android:drawablePadding="@dimen/tv_margin_small"
+            android:gravity="center_vertical" />
+
+        <!-- 📚 媒体库标题 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="媒体库"
+            android:textSize="@dimen/tv_text_size_medium"
+            android:textColor="@color/tv_text_secondary"
+            android:fontFamily="@font/tv_font_medium"
+            android:padding="@dimen/tv_margin_medium"
+            android:layout_marginTop="@dimen/tv_margin_medium" />
+
+        <!-- 📚 媒体库列表 -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/media_library_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scrollbars="vertical" />
+
+        <!-- 👤 用户信息 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="@dimen/tv_margin_medium"
+            android:layout_marginTop="@dimen/tv_margin_medium">
+
+            <TextView
+                android:id="@+id/user_name_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="用户名"
+                android:textSize="@dimen/tv_text_size_small"
+                android:textColor="@color/tv_text_secondary"
+                android:fontFamily="@font/tv_font_regular" />
+
+            <TextView
+                android:id="@+id/logout_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="退出"
+                android:textSize="@dimen/tv_text_size_small"
+                android:textColor="@color/tv_accent"
+                android:fontFamily="@font/tv_font_medium"
+                android:background="?attr/selectableItemBackground"
+                android:focusable="true"
+                android:clickable="true"
+                android:padding="@dimen/tv_margin_small" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 📺 主内容区域 -->
+    <ScrollView
+        android:id="@+id/main_scroll_view"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:padding="@dimen/tv_margin_large"
+        android:scrollbars="vertical"
+        android:fadeScrollbars="false"
+        android:focusable="true"
+        android:focusableInTouchMode="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:focusable="false"
+            android:focusableInTouchMode="false">
+
+            <!-- 🔄 继续观看区域 -->
+            <TextView
+                android:id="@+id/continue_watching_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="继续观看"
+                android:textSize="@dimen/tv_text_size_large"
+                android:textColor="@color/tv_text_primary"
+                android:fontFamily="@font/tv_font_medium"
+                android:layout_marginBottom="@dimen/tv_margin_medium"
+                android:visibility="gone" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/continue_watching_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/tv_margin_xlarge"
+                android:visibility="gone" />
+
+            <!-- 📊 媒体库内容区域 -->
+            <LinearLayout
+                android:id="@+id/media_content_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+        </LinearLayout>
+
+    </ScrollView>
+
+</LinearLayout>

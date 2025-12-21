@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Basic button style -->
+    <style name="BasicButton" parent="Widget.AppCompat.Button">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:background">@color/colorPrimary</item>
+    </style>
+    
+    <!-- Basic text style -->
+    <style name="BasicText">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/text_primary</item>
+    </style>
+    
+    <!-- 🎮 Android TV 按钮样式 -->
+    
+    <!-- 主要按钮样式 -->
+    <style name="TVButtonPrimary" parent="Widget.AppCompat.Button">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">@dimen/tv_button_height</item>
+        <item name="android:background">@color/tv_accent_primary</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textSize">@dimen/tv_text_size_medium</item>
+        <item name="android:fontFamily">@font/tv_font_medium</item>
+        <item name="android:elevation">@dimen/tv_button_elevation</item>
+        <item name="android:focusable">true</item>
+        <item name="android:clickable">true</item>
+        <item name="android:gravity">center</item>
+        <item name="android:minWidth">@dimen/tv_button_min_width</item>
+        <item name="android:padding">@dimen/tv_margin_small</item>
+    </style>
+    
+    <!-- 次要按钮样式 -->
+    <style name="TVButtonSecondary" parent="Widget.AppCompat.Button">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">@dimen/tv_button_height</item>
+        <item name="android:background">@color/tv_card_background</item>
+        <item name="android:textColor">@color/tv_text_primary</item>
+        <item name="android:textSize">@dimen/tv_text_size_medium</item>
+        <item name="android:fontFamily">@font/tv_font_medium</item>
+        <item name="android:elevation">@dimen/tv_button_elevation</item>
+        <item name="android:focusable">true</item>
+        <item name="android:clickable">true</item>
+        <item name="android:gravity">center</item>
+        <item name="android:minWidth">@dimen/tv_button_min_width</item>
+        <item name="android:padding">@dimen/tv_margin_small</item>
+    </style>
+    
+</resources>

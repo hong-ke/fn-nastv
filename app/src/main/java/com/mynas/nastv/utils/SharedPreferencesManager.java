@@ -32,12 +32,14 @@ public class SharedPreferencesManager {
     private static final String KEY_SERVER_HOST = "server_host";
     private static final String KEY_SERVER_PORT = "server_port";
     private static final String KEY_DANMU_SERVER_PORT = "danmu_server_port";
+    private static final String KEY_DANMU_SERVER_HOST = "danmu_server_host";
     private static final String KEY_LAST_USERNAME = "last_username";
     
     // 默认服务器配置
     private static final String DEFAULT_SERVER_HOST = AppConfig.SERVER_IP;
     private static final String DEFAULT_SERVER_PORT = AppConfig.SERVER_PORT;
-    private static final String DEFAULT_DANMU_PORT = AppConfig.DANMU_PORT;
+    private static final String DEFAULT_DANMU_PORT = "5001"; // 本地弹幕服务器端口
+    private static final String DEFAULT_DANMU_HOST = "172.30.82.153"; // 本地弹幕服务器
     
     private static SharedPreferences sharedPreferences;
     private static Context context;
@@ -351,10 +353,31 @@ public class SharedPreferencesManager {
     }
     
     /**
-     * 获取弹幕服务器完整地址 (http://host:danmuPort)
+     * 获取弹幕服务器主机地址
+     */
+    public static String getDanmuServerHost() {
+        return sharedPreferences != null ? 
+                sharedPreferences.getString(KEY_DANMU_SERVER_HOST, DEFAULT_DANMU_HOST) : 
+                DEFAULT_DANMU_HOST;
+    }
+    
+    /**
+     * 设置弹幕服务器主机地址
+     */
+    public static void setDanmuServerHost(String host) {
+        if (sharedPreferences != null) {
+            sharedPreferences.edit()
+                    .putString(KEY_DANMU_SERVER_HOST, host)
+                    .apply();
+            Log.d(TAG, "弹幕服务器主机设置为: " + host);
+        }
+    }
+    
+    /**
+     * 获取弹幕服务器完整地址 (http://danmuHost:danmuPort)
      */
     public static String getDanmuServerBaseUrl() {
-        return "http://" + getServerHost() + ":" + getDanmuServerPort();
+        return "http://" + getDanmuServerHost() + ":" + getDanmuServerPort();
     }
     
     /**

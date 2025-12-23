@@ -40,6 +40,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     // UI
     private PlayerView playerView;
+    private androidx.media3.ui.SubtitleView subtitleView;
     private ImageView posterImageView;
     private TextView titleText;
     private TextView infoText;
@@ -71,6 +72,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private int currentSubtitleIndex = -1; // -1 表示关闭字幕
     private String currentVideoUrl; // 保存当前视频URL用于字幕重载
     private boolean isDirectLinkMode = false; // 是否为直连模式
+    
+    // 🚀 缓存预加载相关
+    private com.mynas.nastv.player.CachedDataSourceFactory cachedDataSourceFactory;
+    private com.mynas.nastv.player.VideoPrefetchService prefetchService;
     
     // Manager
     private MediaManager mediaManager;
@@ -131,6 +136,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     private void initializeViews() {
         playerView = findViewById(R.id.player_view);
+        subtitleView = findViewById(R.id.subtitle_view);
         posterImageView = findViewById(R.id.poster_image);
         titleText = findViewById(R.id.title_text);
         infoText = findViewById(R.id.info_text);
@@ -203,6 +209,39 @@ public class VideoPlayerActivity extends AppCompatActivity {
             playerView.setResizeMode(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT);
             playerView.setPlayer(exoPlayer);
             playerView.setUseController(false); // 禁用默认控制器，使用自定义菜单
+            
+            // 🔑 配置字幕输出到 SubtitleView
+            if (subtitleView != null) {
+                // 设置字幕样式 - 无背景，白色文字带黑色描边
+                androidx.media3.ui.CaptionStyleCompat captionStyle = new androidx.media3.ui.CaptionStyleCompat(
+                    android.graphics.Color.WHITE,           // 前景色（文字颜色）
+                    android.graphics.Color.TRANSPARENT,     // 背景色（透明）
+                    android.graphics.Color.TRANSPARENT,     // 窗口颜色（透明）
+                    androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_OUTLINE, // 边缘类型（描边）
+                    android.graphics.Color.BLACK,           // 边缘颜色（黑色描边）
+                    null                                    // 字体
+                );
+                subtitleView.setStyle(captionStyle);
+                subtitleView.setFractionalTextSize(0.05f); // 字幕大小（屏幕高度的5%）
+                subtitleView.setApplyEmbeddedStyles(false); // 不使用内嵌样式，使用我们的样式
+                subtitleView.setApplyEmbeddedFontSizes(false);
+                subtitleView.setVisibility(View.VISIBLE);
+                // 设置字幕位置 - 底部偏下
+                subtitleView.setBottomPaddingFraction(0.08f); // 距离底部8%的位置
+                
+                // 将字幕输出连接到 SubtitleView
+                exoPlayer.addListener(new Player.Listener() {
+                    @Override
+                    public void onCues(androidx.media3.common.text.CueGroup cueGroup) {
+                        subtitleView.setCues(cueGroup.cues);
+                    }
+                });
+                
+                Log.d(TAG, "📝 SubtitleView configured");
+            } else {
+                Log.e(TAG, "📝 SubtitleView is NULL!");
+            }
+            
             exoPlayer.addListener(new Player.Listener() {
                 @Override
                 public void onPlaybackStateChanged(int playbackState) {
@@ -380,26 +419,46 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             Log.e(TAG, "📝 Subtitle " + i + ": " + sub.getTitle() + " (" + sub.getLanguage() + ") external=" + sub.isExternal() + " guid=" + sub.getGuid());
                         }
                         
-                        // 自动加载第一个外挂字幕
-                        // 注意：内嵌字幕（is_external=0）不能通过 API 下载
-                        // 服务器 API /v/api/v1/subtitle/dl/{guid} 只支持外挂字幕
+                        // 🚀 新逻辑：使用 CacheDataSource + DefaultExtractorsFactory 后，
+                        // ExoPlayer 可以解析 MKV 内嵌字幕，优先使用内嵌字幕
+                        int firstSubtitleIndex = -1;
                         int firstExternalIndex = -1;
+                        int firstInternalIndex = -1;
                         
                         for (int i = 0; i < subtitleStreams.size(); i++) {
                             com.mynas.nastv.model.StreamListResponse.SubtitleStream sub = subtitleStreams.get(i);
                             if (sub.isExternal() && firstExternalIndex == -1) {
                                 firstExternalIndex = i;
-                                break;
+                            }
+                            if (!sub.isExternal() && firstInternalIndex == -1) {
+                                firstInternalIndex = i;
                             }
                         }
                         
-                        if (firstExternalIndex >= 0) {
-                            final int index = firstExternalIndex;
-                            Log.e(TAG, "📝 Auto-loading external subtitle at index " + index);
-                            runOnUiThread(() -> loadSubtitle(index));
+                        // 优先使用内嵌字幕（ExoPlayer 可以直接解析 MKV）
+                        if (firstInternalIndex >= 0) {
+                            firstSubtitleIndex = firstInternalIndex;
+                            Log.e(TAG, "📝 Will use internal subtitle at index " + firstSubtitleIndex);
+                        } else if (firstExternalIndex >= 0) {
+                            firstSubtitleIndex = firstExternalIndex;
+                            Log.e(TAG, "📝 Will use external subtitle at index " + firstSubtitleIndex);
+                        }
+                        
+                        if (firstSubtitleIndex >= 0) {
+                            final int index = firstSubtitleIndex;
+                            final boolean isInternal = !subtitleStreams.get(index).isExternal();
+                            
+                            if (isInternal) {
+                                // 内嵌字幕：等待 ExoPlayer 解析 MKV 后自动选择
+                                Log.e(TAG, "📝 Internal subtitle will be auto-selected by ExoPlayer");
+                                runOnUiThread(() -> enableInternalSubtitle(index));
+                            } else {
+                                // 外挂字幕：下载并加载
+                                Log.e(TAG, "📝 Auto-loading external subtitle at index " + index);
+                                runOnUiThread(() -> loadSubtitle(index));
+                            }
                         } else {
-                            // 没有外挂字幕，内嵌字幕在直连模式下不支持
-                            Log.e(TAG, "📝 No external subtitles found. Internal subtitles require HLS/transcoding mode.");
+                            Log.e(TAG, "📝 No subtitles found");
                         }
                     } else {
                         Log.e(TAG, "📝 No subtitle streams found in response");
@@ -711,11 +770,20 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     /**
      * 📝 创建直连视频 MediaSource（用于字幕合并）
+     * 使用缓存数据源，支持 MKV 内嵌字幕解析
      */
     private androidx.media3.exoplayer.source.MediaSource createDirectLinkMediaSource(String url) {
         if (url == null) return null;
         
         try {
+            // 如果已有缓存数据源工厂，直接使用
+            if (cachedDataSourceFactory != null) {
+                Log.d(TAG, "📝 Reusing existing CachedDataSourceFactory");
+                return new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(cachedDataSourceFactory)
+                    .createMediaSource(MediaItem.fromUri(url));
+            }
+            
+            // 否则创建新的
             boolean isProxyDirectLink = url.contains("direct_link_quality_index");
             
             // 提取域名用于 Referer
@@ -777,10 +845,12 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 .retryOnConnectionFailure(true)
                 .build();
             
-            com.mynas.nastv.player.ParallelDataSource.Factory parallelDataSourceFactory = 
-                new com.mynas.nastv.player.ParallelDataSource.Factory(directLinkClient, headers);
+            // 使用缓存数据源
+            String cacheKey = "video_" + url.hashCode();
+            com.mynas.nastv.player.CachedDataSourceFactory factory = 
+                new com.mynas.nastv.player.CachedDataSourceFactory(this, directLinkClient, headers, cacheKey);
             
-            return new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(parallelDataSourceFactory)
+            return new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(factory)
                 .createMediaSource(MediaItem.fromUri(url));
                 
         } catch (Exception e) {
@@ -906,8 +976,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
         isDirectLinkMode = isDirectLink;
         
         if (isDirectLink) {
-            // 🚀 直连URL - 使用优化的 OkHttp 数据源
-            Log.d(TAG, "🚀 Using optimized OkHttp for direct link");
+            // 🚀 直连URL - 使用缓存数据源 + 多线程预缓存
+            Log.d(TAG, "🚀 Using CachedDataSource with prefetch for direct link");
             
             // 提取域名用于 Referer
             String referer = "https://pan.quark.cn/";
@@ -976,19 +1046,24 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 .retryOnConnectionFailure(true)
                 .build();
             
-            // 🚀 使用并行下载数据源加速缓冲
-            Log.d(TAG, "🚀 Using ParallelDataSource for accelerated buffering");
+            // 🚀 使用缓存数据源
+            String cacheKey = "video_" + url.hashCode();
+            Log.d(TAG, "🚀 Using CachedDataSource, cacheKey=" + cacheKey);
             
-            com.mynas.nastv.player.ParallelDataSource.Factory parallelDataSourceFactory = 
-                new com.mynas.nastv.player.ParallelDataSource.Factory(directLinkClient, headers);
-                
-            // 使用 ProgressiveMediaSource
+            // 创建缓存数据源工厂
+            cachedDataSourceFactory = new com.mynas.nastv.player.CachedDataSourceFactory(
+                this, directLinkClient, headers, cacheKey);
+            
+            // 启动多线程预缓存服务
+            prefetchService = cachedDataSourceFactory.startPrefetch(url);
+            
+            // 使用 ProgressiveMediaSource（支持 MKV 解析）
             androidx.media3.exoplayer.source.ProgressiveMediaSource mediaSource = 
-                new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(parallelDataSourceFactory)
+                new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(cachedDataSourceFactory)
                     .createMediaSource(MediaItem.fromUri(url));
             exoPlayer.setMediaSource(mediaSource);
             
-            Log.d(TAG, "🚀 ParallelDataSource configured, isProxyDirectLink=" + isProxyDirectLink);
+            Log.d(TAG, "🚀 CachedDataSource + Prefetch configured");
             return null;
         }
         
@@ -1082,8 +1157,25 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private Runnable positionRunnable = new Runnable() {
         @Override
         public void run() {
-            if (exoPlayer != null && danmuController != null) {
-                danmuController.updatePlaybackPosition(exoPlayer.getCurrentPosition());
+            if (exoPlayer != null) {
+                long currentPosition = exoPlayer.getCurrentPosition();
+                
+                // 更新弹幕位置
+                if (danmuController != null) {
+                    danmuController.updatePlaybackPosition(currentPosition);
+                }
+                
+                // 🚀 更新预缓存服务的播放位置（用于调整下载优先级）
+                if (prefetchService != null && exoPlayer.getDuration() > 0) {
+                    // 将时间位置转换为字节位置（估算）
+                    long duration = exoPlayer.getDuration();
+                    long contentLength = prefetchService.getContentLength();
+                    if (contentLength > 0) {
+                        long bytePosition = (currentPosition * contentLength) / duration;
+                        prefetchService.updatePlaybackPosition(bytePosition);
+                    }
+                }
+                
                 positionHandler.postDelayed(this, 100);
             }
         }
@@ -1105,6 +1197,14 @@ public class VideoPlayerActivity extends AppCompatActivity {
         if (hideIconRunnable != null) {
             iconHandler.removeCallbacks(hideIconRunnable);
         }
+        
+        // 🚀 停止预缓存服务
+        if (cachedDataSourceFactory != null) {
+            cachedDataSourceFactory.stopPrefetch();
+            cachedDataSourceFactory = null;
+        }
+        prefetchService = null;
+        
         if (exoPlayer != null) {
             exoPlayer.release();
             exoPlayer = null;

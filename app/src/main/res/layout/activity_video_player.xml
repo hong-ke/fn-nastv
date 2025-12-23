@@ -25,7 +25,9 @@
         app:use_controller="true"
         app:controller_layout_id="@layout/custom_player_control"
         app:show_buffering="always"
-        app:surface_type="surface_view" />
+        app:surface_type="surface_view"
+        app:use_artwork="false"
+        app:show_subtitle_button="true" />
 
     <!-- 📊 媒体信息覆盖层 -->
     <LinearLayout
@@ -146,6 +148,14 @@
         <!-- 弹幕将在这里动态添加 -->
         
     </FrameLayout>
+    
+    <!-- 📝 字幕视图 - 放在弹幕之上，确保可见 -->
+    <androidx.media3.ui.SubtitleView
+        android:id="@+id/subtitle_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_alignParentBottom="true"
+        android:paddingHorizontal="40dp" />
 
     <!-- ▶️ 中央播放/暂停图标 -->
     <ImageView

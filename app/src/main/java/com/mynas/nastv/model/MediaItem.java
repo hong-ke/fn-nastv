@@ -28,6 +28,8 @@ public class MediaItem implements Parcelable {
     // 📖 播放相关
     private float watchedProgress;  // 观看进度 (0-100)
     private long lastWatchedTime;   // 最后观看时间戳
+    private long watchedTs;         // 已观看时长（秒）
+    private long totalDuration;     // 总时长（秒）
     private boolean isFavorite;     // 是否收藏
     private boolean isNew;          // 是否新增内容
     
@@ -35,6 +37,17 @@ public class MediaItem implements Parcelable {
     private int totalEpisodes;      // 总集数
     private int watchedEpisodes;    // 已观看集数
     private String currentEpisode;  // 当前集数信息
+    
+    // 🔗 关联信息 (用于继续观看导航)
+    private String parentGuid;      // 父级GUID (Episode -> Season)
+    private String ancestorGuid;    // 祖先GUID (Episode -> TV)
+    private String mediaGuid;       // 媒体文件GUID (用于直接播放)
+    
+    // 🎬 弹幕相关
+    private long doubanId;          // 豆瓣ID (用于获取弹幕)
+    private int seasonNumber;       // 季数
+    private int episodeNumber;      // 集数
+    private String tvTitle;         // 电视剧标题（用于弹幕搜索）
     
     // 🔧 构造函数
     public MediaItem() {}
@@ -76,11 +89,20 @@ public class MediaItem implements Parcelable {
         codec = in.readString();
         watchedProgress = in.readFloat();
         lastWatchedTime = in.readLong();
+        watchedTs = in.readLong();
+        totalDuration = in.readLong();
         isFavorite = in.readByte() != 0;
         isNew = in.readByte() != 0;
         totalEpisodes = in.readInt();
         watchedEpisodes = in.readInt();
         currentEpisode = in.readString();
+        parentGuid = in.readString();
+        ancestorGuid = in.readString();
+        mediaGuid = in.readString();
+        doubanId = in.readLong();
+        seasonNumber = in.readInt();
+        episodeNumber = in.readInt();
+        tvTitle = in.readString();
     }
     
     public static final Creator<MediaItem> CREATOR = new Creator<MediaItem>() {
@@ -117,11 +139,20 @@ public class MediaItem implements Parcelable {
         dest.writeString(codec);
         dest.writeFloat(watchedProgress);
         dest.writeLong(lastWatchedTime);
+        dest.writeLong(watchedTs);
+        dest.writeLong(totalDuration);
         dest.writeByte((byte) (isFavorite ? 1 : 0));
         dest.writeByte((byte) (isNew ? 1 : 0));
         dest.writeInt(totalEpisodes);
         dest.writeInt(watchedEpisodes);
         dest.writeString(currentEpisode);
+        dest.writeString(parentGuid);
+        dest.writeString(ancestorGuid);
+        dest.writeString(mediaGuid);
+        dest.writeLong(doubanId);
+        dest.writeInt(seasonNumber);
+        dest.writeInt(episodeNumber);
+        dest.writeString(tvTitle);
     }
     
     // 📖 Getter和Setter方法
@@ -173,6 +204,30 @@ public class MediaItem implements Parcelable {
     public long getLastWatchedTime() { return lastWatchedTime; }
     public void setLastWatchedTime(long lastWatchedTime) { this.lastWatchedTime = lastWatchedTime; }
     
+    public long getWatchedTs() { return watchedTs; }
+    public void setWatchedTs(long watchedTs) { 
+        this.watchedTs = watchedTs;
+        // 自动计算观看进度
+        if (totalDuration > 0) {
+            this.watchedProgress = (float) watchedTs / totalDuration * 100;
+        }
+    }
+    
+    public long getTotalDuration() { return totalDuration; }
+    public void setTotalDuration(long totalDuration) { this.totalDuration = totalDuration; }
+    
+    /**
+     * 设置时长（秒），同时更新 totalDuration
+     */
+    public void setDuration(long durationSeconds) { 
+        this.totalDuration = durationSeconds;
+        this.duration = (int)(durationSeconds / 60); // 转换为分钟
+        // 重新计算观看进度
+        if (totalDuration > 0 && watchedTs > 0) {
+            this.watchedProgress = (float) watchedTs / totalDuration * 100;
+        }
+    }
+    
     public boolean isFavorite() { return isFavorite; }
     public void setFavorite(boolean favorite) { isFavorite = favorite; }
     
@@ -187,6 +242,27 @@ public class MediaItem implements Parcelable {
     
     public String getCurrentEpisode() { return currentEpisode; }
     public void setCurrentEpisode(String currentEpisode) { this.currentEpisode = currentEpisode; }
+    
+    public String getParentGuid() { return parentGuid; }
+    public void setParentGuid(String parentGuid) { this.parentGuid = parentGuid; }
+    
+    public String getAncestorGuid() { return ancestorGuid; }
+    public void setAncestorGuid(String ancestorGuid) { this.ancestorGuid = ancestorGuid; }
+    
+    public String getMediaGuid() { return mediaGuid; }
+    public void setMediaGuid(String mediaGuid) { this.mediaGuid = mediaGuid; }
+    
+    public long getDoubanId() { return doubanId; }
+    public void setDoubanId(long doubanId) { this.doubanId = doubanId; }
+    
+    public int getSeasonNumber() { return seasonNumber; }
+    public void setSeasonNumber(int seasonNumber) { this.seasonNumber = seasonNumber; }
+    
+    public int getEpisodeNumber() { return episodeNumber; }
+    public void setEpisodeNumber(int episodeNumber) { this.episodeNumber = episodeNumber; }
+    
+    public String getTvTitle() { return tvTitle; }
+    public void setTvTitle(String tvTitle) { this.tvTitle = tvTitle; }
     
     // 🔧 辅助方法
     

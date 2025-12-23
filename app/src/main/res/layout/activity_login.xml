@@ -5,49 +5,168 @@
     android:orientation="vertical"
     android:gravity="center"
     android:background="@color/background_leanback"
-    android:padding="32dp">
+    android:padding="48dp"
+    android:descendantFocusability="afterDescendants">
 
+    <!-- 🎬 应用标题 -->
     <TextView
         android:id="@+id/tv_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/app_name"
-        android:textSize="32sp"
+        android:textSize="36sp"
         android:textColor="@color/text_primary"
-        android:layout_marginBottom="24dp" />
+        android:layout_marginBottom="8dp"
+        android:focusable="false" />
 
-    <ImageView
-        android:id="@+id/qr_code_image_view"
-        android:layout_width="300dp"
-        android:layout_height="300dp"
-        android:background="@android:color/white"
-        android:layout_marginBottom="16dp"
-        android:contentDescription="QR Code" />
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="飞牛影视 TV 版"
+        android:textSize="16sp"
+        android:textColor="@color/text_secondary"
+        android:layout_marginBottom="32dp"
+        android:focusable="false" />
 
+    <!-- 📝 登录表单 -->
+    <LinearLayout
+        android:layout_width="400dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/login_form_background"
+        android:padding="24dp"
+        android:descendantFocusability="afterDescendants">
+
+        <!-- 服务器地址 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="服务器地址"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="4dp"
+            android:focusable="false" />
+
+        <EditText
+            android:id="@+id/server_edit_text"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:hint="192.168.3.20:13381"
+            android:inputType="text"
+            android:imeOptions="actionNext"
+            android:textSize="16sp"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_hint"
+            android:background="@drawable/edit_text_background"
+            android:paddingHorizontal="12dp"
+            android:layout_marginBottom="4dp"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:nextFocusForward="@id/username_edit_text"
+            android:nextFocusDown="@id/username_edit_text" />
+
+        <TextView
+            android:id="@+id/server_hint_text_view"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="例如: 192.168.3.20:13381"
+            android:textSize="12sp"
+            android:textColor="@color/text_hint"
+            android:layout_marginBottom="16dp"
+            android:focusable="false" />
+
+        <!-- 用户名 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="用户名"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="4dp"
+            android:focusable="false" />
+
+        <EditText
+            android:id="@+id/username_edit_text"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:hint="请输入用户名"
+            android:inputType="text"
+            android:imeOptions="actionNext"
+            android:textSize="16sp"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_hint"
+            android:background="@drawable/edit_text_background"
+            android:paddingHorizontal="12dp"
+            android:layout_marginBottom="16dp"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:nextFocusForward="@id/password_edit_text"
+            android:nextFocusUp="@id/server_edit_text"
+            android:nextFocusDown="@id/password_edit_text" />
+
+        <!-- 密码 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="密码"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="4dp"
+            android:focusable="false" />
+
+        <EditText
+            android:id="@+id/password_edit_text"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:hint="请输入密码"
+            android:inputType="textPassword"
+            android:imeOptions="actionDone"
+            android:textSize="16sp"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_hint"
+            android:background="@drawable/edit_text_background"
+            android:paddingHorizontal="12dp"
+            android:layout_marginBottom="24dp"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:nextFocusForward="@id/login_button"
+            android:nextFocusUp="@id/username_edit_text"
+            android:nextFocusDown="@id/login_button" />
+
+        <!-- 登录按钮 -->
+        <Button
+            android:id="@+id/login_button"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="登 录"
+            android:textSize="18sp"
+            android:textColor="@color/white"
+            android:background="@drawable/login_button_background"
+            android:focusable="true"
+            android:nextFocusUp="@id/password_edit_text"
+            android:nextFocusDown="@id/server_edit_text" />
+
+        <!-- 加载指示器 -->
+        <ProgressBar
+            android:id="@+id/progress_bar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginTop="16dp"
+            android:visibility="gone"
+            android:indeterminateTint="@color/tv_accent_primary" />
+
+    </LinearLayout>
+
+    <!-- 状态文本 -->
     <TextView
         android:id="@+id/status_text_view"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Loading..."
-        android:textSize="16sp"
-        android:textColor="@color/text_secondary"
-        android:layout_marginBottom="8dp" />
-
-    <TextView
-        android:id="@+id/instruction_text_view"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Please scan QR code with your mobile device"
-        android:textSize="14sp"
-        android:textColor="@color/text_hint"
-        android:layout_marginBottom="8dp" />
-
-    <TextView
-        android:id="@+id/server_info_text_view"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
         android:text=""
-        android:textSize="12sp"
-        android:textColor="@color/text_hint" />
+        android:textSize="14sp"
+        android:textColor="@color/text_secondary"
+        android:layout_marginTop="16dp"
+        android:focusable="false" />
 
 </LinearLayout>

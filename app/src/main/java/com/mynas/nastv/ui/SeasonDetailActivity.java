@@ -3,7 +3,6 @@ package com.mynas.nastv.ui;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -12,79 +11,73 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.cardview.widget.CardView;
 
 import com.bumptech.glide.Glide;
 import com.mynas.nastv.R;
 import com.mynas.nastv.manager.MediaManager;
 import com.mynas.nastv.model.MediaDetailResponse;
+import com.mynas.nastv.model.EpisodeListResponse;
 import com.mynas.nastv.utils.SharedPreferencesManager;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 🎬 季详情页Activity
- * 显示某个剧集的所有季信息，用户可以选择具体的季进入剧集详情页
- * 流程：首页 -> 季详情页（这里） -> 剧集详情页（MediaDetailActivity）
+ * 📺 Season Detail Activity
+ * 显示季详情和剧集列表（第二层详情页）
+ * Web端URL格式: /v/tv/season/{season_guid}
  */
 public class SeasonDetailActivity extends AppCompatActivity {
     private static final String TAG = "SeasonDetailActivity";
     
-    public static final String EXTRA_MEDIA_GUID = "media_guid";
-    public static final String EXTRA_MEDIA_TITLE = "media_title";
-    public static final String EXTRA_MEDIA_TYPE = "media_type";
+    public static final String EXTRA_SEASON_GUID = "season_guid";
+    public static final String EXTRA_TV_TITLE = "tv_title";
+    public static final String EXTRA_SEASON_NUMBER = "season_number";
+    public static final String EXTRA_TV_GUID = "tv_guid";
     
-    // UI组件
-    private ImageView backdropImageView;
+    // UI
+    private ImageView posterImageView;
     private TextView titleTextView;
     private TextView subtitleTextView;
-    private TextView overviewTextView;
-    private LinearLayout seasonsContainer;
+    private TextView summaryTextView;
+    private TextView playButtonTextView;
+    private LinearLayout episodeContainer;
     
-    // 数据
-    private String mediaGuid;
-    private String mediaTitle;
-    private String mediaType;
+    // Data
+    private String seasonGuid;
+    private String tvTitle;
+    private String tvGuid;
+    private int seasonNumber;
+    private long doubanId; // 从TV传递过来的豆瓣ID
     private MediaManager mediaManager;
-    private MediaDetailResponse mediaDetail;
+    private MediaDetailResponse seasonDetail;
+    private List<EpisodeListResponse.Episode> episodes;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        Log.d(TAG, "🎬 SeasonDetailActivity启动");
-        
-        // 获取传入参数
         Intent intent = getIntent();
-        mediaGuid = intent.getStringExtra(EXTRA_MEDIA_GUID);
-        mediaTitle = intent.getStringExtra(EXTRA_MEDIA_TITLE);
-        mediaType = intent.getStringExtra(EXTRA_MEDIA_TYPE);
+        seasonGuid = intent.getStringExtra(EXTRA_SEASON_GUID);
+        tvTitle = intent.getStringExtra(EXTRA_TV_TITLE);
+        tvGuid = intent.getStringExtra(EXTRA_TV_GUID);
+        seasonNumber = intent.getIntExtra(EXTRA_SEASON_NUMBER, 1);
+        doubanId = intent.getLongExtra("douban_id", 0); // 从TV传递过来的豆瓣ID
         
-        if (mediaGuid == null || mediaGuid.isEmpty()) {
-            Log.e(TAG, "❌ 媒体GUID为空，退出季详情页");
-            Toast.makeText(this, "参数错误", Toast.LENGTH_SHORT).show();
+        if (seasonGuid == null || seasonGuid.isEmpty()) {
+            Toast.makeText(this, "Invalid Season GUID", Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
         
-        Log.d(TAG, "📺 准备显示季详情: " + mediaTitle + " (GUID: " + mediaGuid + ")");
-        
-        // 创建布局
+        // 🚀 优化：先显示简单布局，再异步加载数据
         createLayout();
-        
-        // 初始化数据管理器
         mediaManager = new MediaManager(this);
         
-        // 加载媒体详情
-        loadMediaDetail();
+        // 延迟加载数据，让UI先渲染
+        getWindow().getDecorView().post(this::loadSeasonDetail);
     }
     
-    /**
-     * 🎨 创建布局
-     */
     private void createLayout() {
-        // 创建可滚动的主布局
         ScrollView scrollView = new ScrollView(this);
         scrollView.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -93,9 +86,8 @@ public class SeasonDetailActivity extends AppCompatActivity {
         scrollView.setBackgroundColor(getColor(R.color.tv_background));
         scrollView.setFillViewport(true);
         
-        // 创建垂直主布局
         LinearLayout mainLayout = new LinearLayout(this);
-        mainLayout.setOrientation(LinearLayout.VERTICAL);
+        mainLayout.setOrientation(LinearLayout.HORIZONTAL);
         mainLayout.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -107,363 +99,292 @@ public class SeasonDetailActivity extends AppCompatActivity {
                 getResources().getDimensionPixelSize(R.dimen.tv_margin_large)
         );
         
-        // 背景图片
-        backdropImageView = new ImageView(this);
-        LinearLayout.LayoutParams backdropParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                getResources().getDimensionPixelSize(R.dimen.tv_backdrop_height)
+        // Poster
+        posterImageView = new ImageView(this);
+        LinearLayout.LayoutParams posterParams = new LinearLayout.LayoutParams(
+                getResources().getDimensionPixelSize(R.dimen.tv_poster_width),
+                getResources().getDimensionPixelSize(R.dimen.tv_poster_height)
         );
-        backdropParams.bottomMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_large);
-        backdropImageView.setLayoutParams(backdropParams);
-        backdropImageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        backdropImageView.setBackground(getDrawable(R.drawable.bg_card));
-        mainLayout.addView(backdropImageView);
+        posterParams.rightMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_large);
+        posterImageView.setLayoutParams(posterParams);
+        posterImageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        posterImageView.setBackground(getDrawable(R.drawable.bg_card));
+        mainLayout.addView(posterImageView);
         
-        // 标题
+        // Content
+        LinearLayout contentLayout = new LinearLayout(this);
+        contentLayout.setOrientation(LinearLayout.VERTICAL);
+        contentLayout.setLayoutParams(new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f
+        ));
+        
+        // Title
         titleTextView = new TextView(this);
         titleTextView.setTextSize(getResources().getDimension(R.dimen.tv_text_size_title));
         titleTextView.setTextColor(getColor(R.color.tv_text_primary));
-        titleTextView.setText(mediaTitle != null ? mediaTitle : "加载中...");
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        titleParams.bottomMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_medium);
-        titleTextView.setLayoutParams(titleParams);
-        mainLayout.addView(titleTextView);
+        titleTextView.setText(tvTitle != null ? tvTitle : "Loading...");
+        contentLayout.addView(titleTextView);
         
-        // 副标题
+        // Subtitle (Season info)
         subtitleTextView = new TextView(this);
         subtitleTextView.setTextSize(getResources().getDimension(R.dimen.tv_text_size_medium));
         subtitleTextView.setTextColor(getColor(R.color.tv_text_secondary));
+        subtitleTextView.setText("第 " + seasonNumber + " 季");
         LinearLayout.LayoutParams subtitleParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        subtitleParams.bottomMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_large);
+        subtitleParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_small);
         subtitleTextView.setLayoutParams(subtitleParams);
-        mainLayout.addView(subtitleTextView);
+        contentLayout.addView(subtitleTextView);
         
-        // 剧情概述
-        overviewTextView = new TextView(this);
-        overviewTextView.setTextSize(getResources().getDimension(R.dimen.tv_text_size_medium));
-        overviewTextView.setTextColor(getColor(R.color.tv_text_primary));
-        overviewTextView.setMaxLines(4);
-        overviewTextView.setText("正在加载详情...");
-        overviewTextView.setLineSpacing(4, 1.2f);
-        LinearLayout.LayoutParams overviewParams = new LinearLayout.LayoutParams(
+        // Play Button
+        playButtonTextView = new TextView(this);
+        playButtonTextView.setText("▶ 播放第1集");
+        playButtonTextView.setTextSize(getResources().getDimension(R.dimen.tv_text_size_large));
+        playButtonTextView.setTextColor(getColor(R.color.tv_text_on_accent));
+        playButtonTextView.setPadding(
+                getResources().getDimensionPixelSize(R.dimen.tv_margin_large),
+                getResources().getDimensionPixelSize(R.dimen.tv_margin_medium),
+                getResources().getDimensionPixelSize(R.dimen.tv_margin_large),
+                getResources().getDimensionPixelSize(R.dimen.tv_margin_medium)
+        );
+        playButtonTextView.setClickable(true);
+        playButtonTextView.setFocusable(true);
+        playButtonTextView.setBackground(getDrawable(R.drawable.bg_button_primary));
+        
+        LinearLayout.LayoutParams playButtonParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        playButtonParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_large);
+        playButtonTextView.setLayoutParams(playButtonParams);
+        
+        playButtonTextView.setOnClickListener(v -> {
+            if (episodes != null && !episodes.isEmpty()) {
+                playEpisode(episodes.get(0));
+            }
+        });
+        contentLayout.addView(playButtonTextView);
+        
+        // Summary
+        summaryTextView = new TextView(this);
+        summaryTextView.setTextSize(getResources().getDimension(R.dimen.tv_text_size_medium));
+        summaryTextView.setTextColor(getColor(R.color.tv_text_primary));
+        summaryTextView.setMaxLines(4);
+        summaryTextView.setText("Loading...");
+        LinearLayout.LayoutParams summaryParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        overviewParams.bottomMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_xlarge);
-        overviewTextView.setLayoutParams(overviewParams);
-        mainLayout.addView(overviewTextView);
+        summaryParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_large);
+        summaryTextView.setLayoutParams(summaryParams);
+        contentLayout.addView(summaryTextView);
         
-        // 选择季标题
-        TextView seasonsTitle = new TextView(this);
-        seasonsTitle.setText("选择季");
-        seasonsTitle.setTextSize(getResources().getDimension(R.dimen.tv_text_size_large));
-        seasonsTitle.setTextColor(getColor(R.color.tv_text_primary));
-        LinearLayout.LayoutParams seasonsTitleParams = new LinearLayout.LayoutParams(
+        // Episode Container
+        episodeContainer = new LinearLayout(this);
+        episodeContainer.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams episodeParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        seasonsTitleParams.bottomMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_medium);
-        seasonsTitle.setLayoutParams(seasonsTitleParams);
-        mainLayout.addView(seasonsTitle);
+        episodeParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_large);
+        episodeContainer.setLayoutParams(episodeParams);
+        contentLayout.addView(episodeContainer);
         
-        // 季容器
-        seasonsContainer = new LinearLayout(this);
-        seasonsContainer.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams seasonsParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        seasonsContainer.setLayoutParams(seasonsParams);
-        mainLayout.addView(seasonsContainer);
-        
+        mainLayout.addView(contentLayout);
         scrollView.addView(mainLayout);
         setContentView(scrollView);
-        
-        Log.d(TAG, "✅ 季详情页布局创建完成");
     }
     
-    /**
-     * 📊 加载媒体详情
-     */
-    private void loadMediaDetail() {
-        Log.d(TAG, "📊 开始加载媒体详情: " + mediaGuid);
-        
-        mediaManager.getItemDetail(mediaGuid, new MediaManager.MediaCallback<MediaDetailResponse>() {
+    private void loadSeasonDetail() {
+        // Load season detail
+        mediaManager.getItemDetail(seasonGuid, new MediaManager.MediaCallback<MediaDetailResponse>() {
             @Override
             public void onSuccess(MediaDetailResponse detail) {
-                Log.d(TAG, "✅ 媒体详情获取成功: " + detail.getTitle());
-                mediaDetail = detail;
+                seasonDetail = detail;
+                runOnUiThread(() -> updateUI(detail));
+            }
+            
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "Failed to load season detail: " + error);
+            }
+        });
+        
+        // Load episode list
+        loadEpisodeList();
+    }
+    
+    private void loadEpisodeList() {
+        mediaManager.getEpisodeList(seasonGuid, new MediaManager.MediaCallback<List<EpisodeListResponse.Episode>>() {
+            @Override
+            public void onSuccess(List<EpisodeListResponse.Episode> episodeList) {
+                episodes = episodeList;
                 runOnUiThread(() -> {
-                    updateUI(detail);
-                    loadSeasonsList();
+                    createEpisodeList();
+                    if (!episodeList.isEmpty()) {
+                        playButtonTextView.setText("▶ 播放第" + episodeList.get(0).getEpisodeNumber() + "集");
+                    }
                 });
             }
             
             @Override
             public void onError(String error) {
-                Log.e(TAG, "❌ 媒体详情获取失败: " + error);
                 runOnUiThread(() -> {
-                    Toast.makeText(SeasonDetailActivity.this, "详情加载失败: " + error, Toast.LENGTH_LONG).show();
-                    overviewTextView.setText("详情加载失败，请重试");
+                    Toast.makeText(SeasonDetailActivity.this, "加载剧集失败: " + error, Toast.LENGTH_SHORT).show();
                 });
             }
         });
     }
     
-    /**
-     * 📊 加载季列表
-     */
-    private void loadSeasonsList() {
-        Log.d(TAG, "📊 开始加载季列表");
+    private void updateUI(MediaDetailResponse detail) {
+        if (detail.getTitle() != null) {
+            titleTextView.setText(tvTitle != null ? tvTitle : detail.getTitle());
+        }
         
-        // 🚨 临时：根据媒体详情创建季列表（后续可以调用真实的季列表API）
-        createSeasonsFromMediaDetail();
-    }
-    
-    /**
-     * 📺 根据媒体详情创建季列表
-     */
-    private void createSeasonsFromMediaDetail() {
-        if (mediaDetail != null) {
-            int numberOfSeasons = mediaDetail.getNumberOfSeasons();
-            
-            Log.d(TAG, "📺 创建" + numberOfSeasons + "个季的卡片");
-            
-            // 如果没有明确的季数信息，默认为1季
-            if (numberOfSeasons <= 0) {
-                numberOfSeasons = 1;
+        String subtitle = "第 " + seasonNumber + " 季";
+        if (detail.getAirDate() != null && detail.getAirDate().length() >= 4) {
+            subtitle += " · " + detail.getAirDate().substring(0, 4);
+        }
+        subtitleTextView.setText(subtitle);
+        
+        String overview = detail.getOverview();
+        if (overview != null && !overview.trim().isEmpty()) {
+            summaryTextView.setText(overview);
+        } else {
+            summaryTextView.setVisibility(View.GONE);
+        }
+        
+        if (detail.getPoster() != null && !detail.getPoster().isEmpty()) {
+            String posterUrl = detail.getPoster();
+            if (!posterUrl.startsWith("http")) {
+                posterUrl = SharedPreferencesManager.getImageServiceUrl() + posterUrl + "?w=400";
             }
-            
-            for (int seasonNumber = 1; seasonNumber <= numberOfSeasons; seasonNumber++) {
-                createSeasonCard(seasonNumber);
-            }
+            Glide.with(this).load(posterUrl).placeholder(R.drawable.bg_card).into(posterImageView);
         }
     }
     
-    /**
-     * 🎬 创建单个季卡片
-     */
-    private void createSeasonCard(int seasonNumber) {
-        // 创建季卡片容器
-        CardView seasonCard = new CardView(this);
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+    private void createEpisodeList() {
+        episodeContainer.removeAllViews();
+        
+        if (episodes == null || episodes.isEmpty()) {
+            return;
+        }
+        
+        // Title
+        TextView episodeTitle = new TextView(this);
+        episodeTitle.setText("剧集列表 (" + episodes.size() + "集)");
+        episodeTitle.setTextSize(getResources().getDimension(R.dimen.tv_text_size_large));
+        episodeTitle.setTextColor(getColor(R.color.tv_text_primary));
+        episodeContainer.addView(episodeTitle);
+        
+        // Episode grid
+        LinearLayout gridContainer = new LinearLayout(this);
+        gridContainer.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams gridParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        cardParams.bottomMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_medium);
-        seasonCard.setLayoutParams(cardParams);
-        seasonCard.setCardBackgroundColor(getColor(R.color.tv_card_background));
-        seasonCard.setRadius(getResources().getDimension(R.dimen.tv_card_corner_radius));
-        seasonCard.setCardElevation(getResources().getDimension(R.dimen.tv_card_elevation));
-        seasonCard.setClickable(true);
-        seasonCard.setFocusable(true);
+        gridParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_medium);
+        gridContainer.setLayoutParams(gridParams);
         
-        // 季卡片内容布局
-        LinearLayout cardContent = new LinearLayout(this);
-        cardContent.setOrientation(LinearLayout.HORIZONTAL);
-        cardContent.setPadding(
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_medium),
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_medium),
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_medium),
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_medium)
-        );
+        int columns = 10;
+        int rows = (int) Math.ceil((double) episodes.size() / columns);
         
-        // 季海报（使用主海报）
-        ImageView seasonPoster = new ImageView(this);
-        LinearLayout.LayoutParams posterParams = new LinearLayout.LayoutParams(
-                getResources().getDimensionPixelSize(R.dimen.tv_season_card_width),
-                getResources().getDimensionPixelSize(R.dimen.tv_season_poster_height)
-        );
-        posterParams.rightMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_medium);
-        seasonPoster.setLayoutParams(posterParams);
-        seasonPoster.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        seasonPoster.setBackground(getDrawable(R.drawable.bg_card));
-        
-        // 加载季海报（使用主海报）
-        if (mediaDetail != null && mediaDetail.getPoster() != null && !mediaDetail.getPoster().isEmpty()) {
-            String posterUrl = mediaDetail.getPoster();
-            if (!posterUrl.startsWith("http")) {
-                posterUrl = SharedPreferencesManager.getImageServiceUrl() + posterUrl + "?w=200";
+        for (int row = 0; row < rows; row++) {
+            LinearLayout rowLayout = new LinearLayout(this);
+            rowLayout.setOrientation(LinearLayout.HORIZONTAL);
+            rowLayout.setLayoutParams(new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            ));
+            
+            for (int col = 0; col < columns; col++) {
+                int index = row * columns + col;
+                if (index < episodes.size()) {
+                    EpisodeListResponse.Episode ep = episodes.get(index);
+                    TextView episodeButton = createEpisodeButton(ep);
+                    rowLayout.addView(episodeButton);
+                }
             }
-            Glide.with(this)
-                    .load(posterUrl)
-                    .placeholder(R.drawable.bg_card)
-                    .error(R.drawable.bg_card)
-                    .into(seasonPoster);
+            gridContainer.addView(rowLayout);
         }
         
-        cardContent.addView(seasonPoster);
+        episodeContainer.addView(gridContainer);
+    }
+    
+    private TextView createEpisodeButton(EpisodeListResponse.Episode episode) {
+        TextView button = new TextView(this);
+        button.setText(String.valueOf(episode.getEpisodeNumber()));
+        button.setTextSize(getResources().getDimension(R.dimen.tv_text_size_medium));
+        button.setTextColor(getColor(R.color.tv_text_primary));
+        button.setBackgroundColor(getColor(R.color.tv_card_background));
+        button.setGravity(android.view.Gravity.CENTER);
+        button.setClickable(true);
+        button.setFocusable(true);
         
-        // 季信息区域
-        LinearLayout seasonInfo = new LinearLayout(this);
-        seasonInfo.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams infoParams = new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f
-        );
-        seasonInfo.setLayoutParams(infoParams);
+        int buttonSize = getResources().getDimensionPixelSize(R.dimen.tv_episode_button_size);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(buttonSize, buttonSize);
+        int margin = getResources().getDimensionPixelSize(R.dimen.tv_margin_small);
+        params.setMargins(0, 0, margin, margin);
+        button.setLayoutParams(params);
         
-        // 季标题
-        TextView seasonTitle = new TextView(this);
-        seasonTitle.setText("第 " + seasonNumber + " 季");
-        seasonTitle.setTextSize(getResources().getDimension(R.dimen.tv_text_size_large));
-        seasonTitle.setTextColor(getColor(R.color.tv_text_primary));
-        seasonInfo.addView(seasonTitle);
+        button.setOnClickListener(v -> playEpisode(episode));
         
-        // 季信息
-        TextView seasonDesc = new TextView(this);
-        String episodeCount = mediaDetail != null ? String.valueOf(mediaDetail.getNumberOfEpisodes()) : "未知";
-        seasonDesc.setText("共 " + episodeCount + " 集");
-        seasonDesc.setTextSize(getResources().getDimension(R.dimen.tv_text_size_medium));
-        seasonDesc.setTextColor(getColor(R.color.tv_text_secondary));
-        LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        descParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_small);
-        seasonDesc.setLayoutParams(descParams);
-        seasonInfo.addView(seasonDesc);
-        
-        cardContent.addView(seasonInfo);
-        seasonCard.addView(cardContent);
-        
-        // 设置点击事件
-        seasonCard.setOnClickListener(v -> {
-            Log.d(TAG, "🎬 用户点击第" + seasonNumber + "季");
-            navigateToEpisodeDetail(seasonNumber);
-        });
-        
-        // 设置焦点效果
-        seasonCard.setOnFocusChangeListener((v, hasFocus) -> {
+        button.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
-                seasonCard.setCardBackgroundColor(getColor(R.color.tv_accent_light));
+                button.setBackgroundColor(getColor(R.color.tv_accent));
+                button.setTextColor(getColor(R.color.tv_text_on_accent));
             } else {
-                seasonCard.setCardBackgroundColor(getColor(R.color.tv_card_background));
+                button.setBackgroundColor(getColor(R.color.tv_card_background));
+                button.setTextColor(getColor(R.color.tv_text_primary));
             }
         });
         
-        seasonsContainer.addView(seasonCard);
+        return button;
     }
     
-    /**
-     * 🎨 更新UI显示
-     */
-    private void updateUI(MediaDetailResponse detail) {
-        Log.d(TAG, "🎨 更新UI显示");
+    private void playEpisode(EpisodeListResponse.Episode episode) {
+        Toast.makeText(this, "正在加载第" + episode.getEpisodeNumber() + "集...", Toast.LENGTH_SHORT).show();
         
-        // 标题
-        titleTextView.setText(detail.getTitle());
-        
-        // 副标题
-        String subtitle = "";
-        if ("TV".equals(detail.getType())) {
-            subtitle = "电视剧";
-        } else if ("Movie".equals(detail.getType())) {
-            subtitle = "电影";
-        } else {
-            subtitle = detail.getType();
-        }
-        
-        // 添加年份信息
-        if (detail.getReleaseDate() != null && !detail.getReleaseDate().isEmpty()) {
-            subtitle += " • " + detail.getReleaseDate().substring(0, 4);
-        } else if (detail.getAirDate() != null && !detail.getAirDate().isEmpty()) {
-            subtitle += " • " + detail.getAirDate().substring(0, 4);
-        }
-        
-        // 添加评分
-        if (detail.getVoteAverage() > 0) {
-            subtitle += " • ⭐ " + String.format("%.1f", detail.getVoteAverage());
-        }
-        
-        subtitleTextView.setText(subtitle);
-        
-        // 剧情概述
-        String overview = detail.getOverview();
-        if (overview != null && !overview.trim().isEmpty()) {
-            overviewTextView.setText(overview);
-        } else {
-            overviewTextView.setText("暂无剧情简介");
-        }
-        
-        // 背景图片
-        if (detail.getBackdrop() != null && !detail.getBackdrop().isEmpty()) {
-            String backdropUrl = detail.getBackdrop();
-            if (!backdropUrl.startsWith("http")) {
-                backdropUrl = SharedPreferencesManager.getImageServiceUrl() + backdropUrl + "?w=800";
+        mediaManager.startPlay(episode.getGuid(), new MediaManager.MediaCallback<String>() {
+            @Override
+            public void onSuccess(String playUrl) {
+                runOnUiThread(() -> {
+                    Intent intent = new Intent(SeasonDetailActivity.this, VideoPlayerActivity.class);
+                    intent.putExtra("video_url", playUrl);
+                    intent.putExtra("video_title", episode.getTitle() != null ? episode.getTitle() : "第" + episode.getEpisodeNumber() + "集");
+                    intent.putExtra("media_title", tvTitle);
+                    intent.putExtra("tv_title", tvTitle); // 电视剧标题用于弹幕搜索
+                    intent.putExtra("episode_guid", episode.getGuid());
+                    intent.putExtra("season_guid", seasonGuid);
+                    intent.putExtra("episode_number", episode.getEpisodeNumber());
+                    intent.putExtra("season_number", seasonNumber);
+                    
+                    // 优先使用从TV传递过来的doubanId，如果没有则尝试从seasonDetail获取
+                    long effectiveDoubanId = doubanId;
+                    if (effectiveDoubanId <= 0 && seasonDetail != null) {
+                        effectiveDoubanId = seasonDetail.getDoubanId();
+                    }
+                    if (effectiveDoubanId > 0) {
+                        intent.putExtra("douban_id", String.valueOf(effectiveDoubanId));
+                    }
+                    
+                    if (seasonDetail != null) {
+                        intent.putExtra("parent_guid", seasonDetail.getParentGuid());
+                    }
+                    
+                    startActivity(intent);
+                });
             }
-            Glide.with(this)
-                    .load(backdropUrl)
-                    .placeholder(R.drawable.bg_card)
-                    .error(R.drawable.bg_card)
-                    .into(backdropImageView);
-        }
-        
-        Log.d(TAG, "✅ UI更新完成");
-    }
-    
-    /**
-     * 🎬 跳转到剧集详情页
-     */
-    private void navigateToEpisodeDetail(int seasonNumber) {
-        Log.d(TAG, "🎬 跳转到剧集详情页: 第" + seasonNumber + "季");
-        
-        // 🚨 获取真实的季GUID
-        getSeasonGuidAndNavigate(seasonNumber);
-    }
-    
-    /**
-     * 🎬 获取季GUID并跳转
-     */
-    private void getSeasonGuidAndNavigate(int seasonNumber) {
-        // 🚨 临时解决方案：根据经验推测季GUID格式
-        // 实际应该调用季列表API获取真实的季GUID
-        // 从您提供的示例可以看出：
-        // 主剧集GUID: bb54bb2accdb412bbd735d5ab2d63efb
-        // 第1季GUID: a80fa14531894e9bb1a9cc4e754fc683
-        
-        // 🚨 这里使用一个临时的映射，实际项目中应该调用API
-        String seasonGuid = mapToSeasonGuid(mediaGuid, seasonNumber);
-        
-        Intent intent = new Intent(this, MediaDetailActivity.class);
-        intent.putExtra(MediaDetailActivity.EXTRA_MEDIA_GUID, seasonGuid); // ✅ 使用季GUID
-        intent.putExtra(MediaDetailActivity.EXTRA_MEDIA_TITLE, mediaTitle);
-        intent.putExtra(MediaDetailActivity.EXTRA_MEDIA_TYPE, mediaType);
-        intent.putExtra("season_number", seasonNumber);
-        startActivity(intent);
-    }
-    
-    /**
-     * 🎬 临时方法：映射主剧集GUID到季GUID
-     */
-    private String mapToSeasonGuid(String mainGuid, int seasonNumber) {
-        // 🚨 临时硬编码映射，基于您提供的示例
-        if ("bb54bb2accdb412bbd735d5ab2d63efb".equals(mainGuid) && seasonNumber == 1) {
-            return "a80fa14531894e9bb1a9cc4e754fc683"; // 亲爱的小孩 第1季
-        }
-        
-        // 如果没有找到映射，返回原GUID（会回退到直接播放）
-        Log.w(TAG, "⚠️ 没有找到季GUID映射，使用原GUID: " + mainGuid);
-        return mainGuid;
-    }
-    
-    /**
-     * 📱 处理按键事件
-     */
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_BACK:
-                // 返回键 - 退出季详情页
-                finish();
-                return true;
-            default:
-                return super.onKeyDown(keyCode, event);
-        }
+            
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> {
+                    Toast.makeText(SeasonDetailActivity.this, "播放失败: " + error, Toast.LENGTH_LONG).show();
+                });
+            }
+        });
     }
 }

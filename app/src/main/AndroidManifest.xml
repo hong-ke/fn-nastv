@@ -58,16 +58,18 @@
             android:screenOrientation="landscape"
             android:theme="@style/Theme.NasTV" />
             
-        <!-- 🎬 季详情页Activity -->
+
+            
+        <!-- 🎬 媒体详情页Activity (电视剧/电影第一层) -->
         <activity
-            android:name=".ui.SeasonDetailActivity"
+            android:name=".ui.MediaDetailActivity"
             android:exported="false"
             android:screenOrientation="landscape"
             android:theme="@style/Theme.NasTV" />
             
-        <!-- 🎬 媒体详情页Activity -->
+        <!-- 📺 季详情页Activity (电视剧第二层) -->
         <activity
-            android:name=".ui.MediaDetailActivity"
+            android:name=".ui.SeasonDetailActivity"
             android:exported="false"
             android:screenOrientation="landscape"
             android:theme="@style/Theme.NasTV" />

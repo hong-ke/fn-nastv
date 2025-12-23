@@ -1,11 +1,12 @@
 package com.mynas.nastv.utils;
 
+import com.mynas.nastv.config.AppConfig;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
 
 /**
- * 💾 SharedPreferences管理器
+ * SharedPreferences管理器
  * 负责用户设置和认证信息的持久化存储
  */
 public class SharedPreferencesManager {
@@ -20,6 +21,8 @@ public class SharedPreferencesManager {
     private static final String KEY_DANMAKU_ENABLED = "danmaku_enabled";
     private static final String KEY_DANMAKU_SPEED = "danmaku_speed";
     private static final String KEY_DANMAKU_ALPHA = "danmaku_alpha";
+    private static final String KEY_DANMAKU_TEXT_SIZE = "danmaku_text_size_v2";
+    private static final String KEY_DANMAKU_REGION = "danmaku_region_v2";
     private static final String KEY_VIDEO_QUALITY = "video_quality";
     
     // 系统设置
@@ -28,24 +31,24 @@ public class SharedPreferencesManager {
     private static final String KEY_FNOS_SERVER_URL = "fnos_server_url";
     private static final String KEY_SERVER_HOST = "server_host";
     private static final String KEY_SERVER_PORT = "server_port";
+    private static final String KEY_DANMU_SERVER_PORT = "danmu_server_port";
+    private static final String KEY_LAST_USERNAME = "last_username";
     
-    // 🌐 默认服务器配置
-    private static final String DEFAULT_SERVER_HOST = "172.20.10.3";
-    private static final String DEFAULT_SERVER_PORT = "8123";
+    // 默认服务器配置
+    private static final String DEFAULT_SERVER_HOST = AppConfig.SERVER_IP;
+    private static final String DEFAULT_SERVER_PORT = AppConfig.SERVER_PORT;
+    private static final String DEFAULT_DANMU_PORT = AppConfig.DANMU_PORT;
     
     private static SharedPreferences sharedPreferences;
     private static Context context;
     
-    /**
-     * 🚀 初始化SharedPreferences管理器
-     */
     public static void initialize(Context ctx) {
         context = ctx.getApplicationContext();
         sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        Log.d(TAG, "💾 SharedPreferences管理器初始化完成");
+        Log.d(TAG, "SharedPreferences管理器初始化完成");
     }
     
-    // 🔐 认证相关方法
+    // 认证相关方法
     
     /**
      * 保存认证Token
@@ -55,7 +58,7 @@ public class SharedPreferencesManager {
             sharedPreferences.edit()
                     .putString(KEY_AUTH_TOKEN, token)
                     .apply();
-            Log.d(TAG, "🔐 认证Token已保存");
+            Log.d(TAG, "认证Token已保存");
         }
     }
     
@@ -65,7 +68,7 @@ public class SharedPreferencesManager {
     public static String getAuthToken() {
         if (sharedPreferences != null) {
             String token = sharedPreferences.getString(KEY_AUTH_TOKEN, null);
-            Log.d(TAG, "🔐 获取认证Token: " + (token != null ? "存在" : "不存在"));
+            Log.d(TAG, "获取认证Token: " + (token != null ? "存在" : "不存在"));
             return token;
         }
         return null;
@@ -80,7 +83,7 @@ public class SharedPreferencesManager {
                     .remove(KEY_AUTH_TOKEN)
                     .remove(KEY_USER_INFO)
                     .apply();
-            Log.d(TAG, "🔐 认证信息已清除");
+            Log.d(TAG, "认证信息已清除");
         }
     }
     
@@ -92,7 +95,29 @@ public class SharedPreferencesManager {
         return token != null && !token.isEmpty();
     }
     
-    // 🎨 弹幕设置方法
+    /**
+     * 保存上次登录的用户名
+     */
+    public static void saveLastUsername(String username) {
+        if (sharedPreferences != null) {
+            sharedPreferences.edit()
+                    .putString(KEY_LAST_USERNAME, username)
+                    .apply();
+            Log.d(TAG, "用户名已保存: " + username);
+        }
+    }
+    
+    /**
+     * 获取上次登录的用户名
+     */
+    public static String getLastUsername() {
+        if (sharedPreferences != null) {
+            return sharedPreferences.getString(KEY_LAST_USERNAME, null);
+        }
+        return null;
+    }
+    
+    // 弹幕设置方法
     
     /**
      * 保存弹幕开关状态
@@ -102,7 +127,7 @@ public class SharedPreferencesManager {
             sharedPreferences.edit()
                     .putBoolean(KEY_DANMAKU_ENABLED, enabled)
                     .apply();
-            Log.d(TAG, "🎨 弹幕开关设置为: " + enabled);
+            Log.d(TAG, "弹幕开关设置为: " + enabled);
         }
     }
     
@@ -122,7 +147,7 @@ public class SharedPreferencesManager {
             sharedPreferences.edit()
                     .putFloat(KEY_DANMAKU_SPEED, speed)
                     .apply();
-            Log.d(TAG, "🎨 弹幕速度设置为: " + speed);
+            Log.d(TAG, "弹幕速度设置为: " + speed);
         }
     }
     
@@ -142,7 +167,7 @@ public class SharedPreferencesManager {
             sharedPreferences.edit()
                     .putInt(KEY_DANMAKU_ALPHA, alpha)
                     .apply();
-            Log.d(TAG, "🎨 弹幕透明度设置为: " + alpha);
+            Log.d(TAG, "弹幕透明度设置为: " + alpha);
         }
     }
     
@@ -153,8 +178,44 @@ public class SharedPreferencesManager {
         return sharedPreferences != null ? 
                 sharedPreferences.getInt(KEY_DANMAKU_ALPHA, 180) : 180;
     }
+
+    /**
+     * 保存弹幕文字大小
+     */
+    public static void setDanmakuTextSize(int size) {
+        if (sharedPreferences != null) {
+            sharedPreferences.edit().putInt(KEY_DANMAKU_TEXT_SIZE, size).apply();
+            Log.d(TAG, "弹幕文字大小设置为: " + size);
+        }
+    }
+
+    /**
+     * 获取弹幕文字大小 (默认 24)
+     */
+    public static int getDanmakuTextSize() {
+        return sharedPreferences != null ? 
+                sharedPreferences.getInt(KEY_DANMAKU_TEXT_SIZE, 24) : 24;
+    }
+
+    /**
+     * 保存弹幕区域百分比 (0-100)
+     */
+    public static void setDanmakuRegion(int percent) {
+        if (sharedPreferences != null) {
+            sharedPreferences.edit().putInt(KEY_DANMAKU_REGION, percent).apply();
+            Log.d(TAG, "弹幕区域设置为: " + percent + "%");
+        }
+    }
+
+    /**
+     * 获取弹幕区域百分比 (默认 100)
+     */
+    public static int getDanmakuRegion() {
+        return sharedPreferences != null ? 
+                sharedPreferences.getInt(KEY_DANMAKU_REGION, 100) : 100;
+    }
     
-    // 🎬 视频设置方法
+    // 视频设置方法
     
     /**
      * 保存默认视频质量
@@ -164,7 +225,7 @@ public class SharedPreferencesManager {
             sharedPreferences.edit()
                     .putString(KEY_VIDEO_QUALITY, quality)
                     .apply();
-            Log.d(TAG, "🎬 默认视频质量设置为: " + quality);
+            Log.d(TAG, "视频质量设置为: " + quality);
         }
     }
     
@@ -176,7 +237,7 @@ public class SharedPreferencesManager {
                 sharedPreferences.getString(KEY_VIDEO_QUALITY, "1080p") : "1080p";
     }
     
-    // ⚙️ 系统设置方法
+    // 系统设置方法
     
     /**
      * 设置是否首次启动
@@ -186,7 +247,7 @@ public class SharedPreferencesManager {
             sharedPreferences.edit()
                     .putBoolean(KEY_FIRST_LAUNCH, isFirstLaunch)
                     .apply();
-            Log.d(TAG, "⚙️ 首次启动标记设置为: " + isFirstLaunch);
+            Log.d(TAG, "首次启动标记设置为: " + isFirstLaunch);
         }
     }
     
@@ -206,7 +267,7 @@ public class SharedPreferencesManager {
             sharedPreferences.edit()
                     .putString(KEY_API_BASE_URL, url)
                     .apply();
-            Log.d(TAG, "⚙️ API基础URL设置为: " + url);
+            Log.d(TAG, "API基础URL设置为: " + url);
         }
     }
     
@@ -220,7 +281,7 @@ public class SharedPreferencesManager {
     }
     
     /**
-     * 🌐 获取服务器主机地址
+     * 获取服务器主机地址
      */
     public static String getServerHost() {
         return sharedPreferences != null ? 
@@ -229,19 +290,19 @@ public class SharedPreferencesManager {
     }
     
     /**
-     * 🌐 设置服务器主机地址
+     * 设置服务器主机地址
      */
     public static void setServerHost(String host) {
         if (sharedPreferences != null) {
             sharedPreferences.edit()
                     .putString(KEY_SERVER_HOST, host)
                     .apply();
-            Log.d(TAG, "🌐 服务器主机地址设置为: " + host);
+            Log.d(TAG, "服务器主机地址设置为: " + host);
         }
     }
     
     /**
-     * 🌐 获取服务器端口
+     * 获取服务器端口
      */
     public static String getServerPort() {
         return sharedPreferences != null ? 
@@ -250,47 +311,77 @@ public class SharedPreferencesManager {
     }
     
     /**
-     * 🌐 设置服务器端口
+     * 设置服务器端口
      */
     public static void setServerPort(String port) {
         if (sharedPreferences != null) {
             sharedPreferences.edit()
                     .putString(KEY_SERVER_PORT, port)
                     .apply();
-            Log.d(TAG, "🌐 服务器端口设置为: " + port);
+            Log.d(TAG, "服务器端口设置为: " + port);
         }
     }
     
     /**
-     * 🌐 获取完整服务器地址 (http://host:port)
+     * 获取完整服务器地址 (http://host:port)
      */
     public static String getServerBaseUrl() {
         return "http://" + getServerHost() + ":" + getServerPort();
     }
     
     /**
-     * 🌐 获取默认API基础URL
+     * 获取弹幕服务器端口
+     */
+    public static String getDanmuServerPort() {
+        return sharedPreferences != null ? 
+                sharedPreferences.getString(KEY_DANMU_SERVER_PORT, DEFAULT_DANMU_PORT) : 
+                DEFAULT_DANMU_PORT;
+    }
+    
+    /**
+     * 设置弹幕服务器端口
+     */
+    public static void setDanmuServerPort(String port) {
+        if (sharedPreferences != null) {
+            sharedPreferences.edit()
+                    .putString(KEY_DANMU_SERVER_PORT, port)
+                    .apply();
+            Log.d(TAG, "弹幕服务器端口设置为: " + port);
+        }
+    }
+    
+    /**
+     * 获取弹幕服务器完整地址 (http://host:danmuPort)
+     */
+    public static String getDanmuServerBaseUrl() {
+        return "http://" + getServerHost() + ":" + getDanmuServerPort();
+    }
+    
+    /**
+     * 获取默认API基础URL
+     * 注意: 主API服务器使用 /v/ 路径前缀
      */
     private static String getDefaultApiBaseUrl() {
-        return getServerBaseUrl() + "/fnos/v/";
+        return getServerBaseUrl() + "/v/";
     }
     
     /**
-     * 🖼️ 获取图片服务URL
+     * 图片服务URL
      */
     public static String getImageServiceUrl() {
-        return getServerBaseUrl() + "/fnos/v/api/v1/sys/img";
+        return getServerBaseUrl() + "/v/api/v1/sys/img";
     }
     
     /**
-     * 🎬 获取播放服务URL前缀
+     * 获取播放服务URL前缀
+     * 视频播放地址: {baseUrl}/v/api/v1/media/range/{mediaGuid}
      */
     public static String getPlayServiceUrl() {
-        return getServerBaseUrl() + "/fnos";
+        return getServerBaseUrl();
     }
     
     /**
-     * 🔧 获取系统API URL
+     * 获取系统API URL
      */
     public static String getSystemApiUrl() {
         return getServerBaseUrl() + "/api";
@@ -304,7 +395,7 @@ public class SharedPreferencesManager {
             sharedPreferences.edit()
                     .putString(KEY_FNOS_SERVER_URL, url)
                     .apply();
-            Log.d(TAG, "🌐 FnOS服务器URL已保存: " + url);
+            Log.d(TAG, "FnOS服务器URL已保存: " + url);
         }
     }
     
@@ -315,16 +406,16 @@ public class SharedPreferencesManager {
         if (sharedPreferences != null) {
             String url = sharedPreferences.getString(KEY_FNOS_SERVER_URL, null);
             if (url != null) {
-                Log.d(TAG, "🌐 获取FnOS服务器URL: " + url);
+                Log.d(TAG, "获取FnOS服务器URL: " + url);
             } else {
-                Log.d(TAG, "🌐 FnOS服务器URL: 未设置");
+                Log.d(TAG, "FnOS服务器URL: 未设置");
             }
             return url;
         }
         return null;
     }
     
-    // 🔧 通用方法
+    // 通用方法
     
     /**
      * 保存字符串值
@@ -400,7 +491,7 @@ public class SharedPreferencesManager {
     public static void remove(String key) {
         if (sharedPreferences != null) {
             sharedPreferences.edit().remove(key).apply();
-            Log.d(TAG, "🗑️ 已移除设置项: " + key);
+            Log.d(TAG, "已移除设置项: " + key);
         }
     }
     
@@ -410,7 +501,7 @@ public class SharedPreferencesManager {
     public static void clear() {
         if (sharedPreferences != null) {
             sharedPreferences.edit().clear().apply();
-            Log.d(TAG, "🗑️ 所有设置已清除");
+            Log.d(TAG, "所有设置已清除");
         }
     }
 }

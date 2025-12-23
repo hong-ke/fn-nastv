@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId "com.mynas.nastv"
-        minSdk 24                // Android 7.0
+        minSdk 23                // Android 6.0 (Marshmallow)
         targetSdk 34
         versionCode 1
         versionName "1.0"
@@ -32,6 +32,16 @@ android {
     buildFeatures {
         viewBinding true
     }
+
+    // 🚀 多架构分包配置 (ARM & x86)
+    splits {
+        abi {
+            enable true
+            reset()
+            include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+            universalApk true // 同时生成一个包含所有架构的通用包
+        }
+    }
 }
 
 dependencies {
@@ -40,6 +50,7 @@ dependencies {
     implementation 'androidx.media3:media3-exoplayer-hls:1.4.0'
     implementation 'androidx.media3:media3-ui:1.4.0'
     implementation 'androidx.media3:media3-common:1.4.0'
+    implementation 'androidx.media3:media3-datasource-okhttp:1.4.0'
     
     // 🔗 网络请求
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'

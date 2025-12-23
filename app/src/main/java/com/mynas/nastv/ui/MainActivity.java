@@ -844,16 +844,107 @@ public class MainActivity extends AppCompatActivity {
     }
     
     /**
-     * 🎬 跳转到季详情页（新的导航流程）
+     * 🎬 跳转到详情页（根据类型智能导航）
      */
     private void navigateToMediaDetail(MediaItem mediaItem) {
-        Log.d(TAG, "🎬 跳转到季详情页: " + mediaItem.getTitle() + " (GUID: " + mediaItem.getGuid() + ")");
+        String itemType = mediaItem.getType();
+        Log.d(TAG, "🎬 导航到详情页: " + mediaItem.getTitle() + 
+                   " (GUID: " + mediaItem.getGuid() + 
+                   ", Type: " + itemType + 
+                   ", ParentGuid: " + mediaItem.getParentGuid() + 
+                   ", AncestorGuid: " + mediaItem.getAncestorGuid() + ")");
         
-        // 🚨 [修改] 现在先跳转到季详情页，而不是直接跳转到剧集详情页
-        Intent intent = new Intent(this, SeasonDetailActivity.class);
-        intent.putExtra(SeasonDetailActivity.EXTRA_MEDIA_GUID, mediaItem.getGuid());
-        intent.putExtra(SeasonDetailActivity.EXTRA_MEDIA_TITLE, mediaItem.getTitle());
-        intent.putExtra(SeasonDetailActivity.EXTRA_MEDIA_TYPE, mediaItem.getType());
+        // 🔍 根据类型决定导航目标
+        if ("Episode".equalsIgnoreCase(itemType)) {
+            // Episode类型：来自继续观看，直接播放
+            Log.d(TAG, "🎬 Episode类型，直接播放");
+            playEpisodeDirectly(mediaItem);
+        } else if ("Movie".equalsIgnoreCase(itemType)) {
+            // Movie类型：跳转到电影详情页
+            Log.d(TAG, "🎬 Movie类型，跳转到详情页");
+            Intent intent = new Intent(this, MediaDetailActivity.class);
+            intent.putExtra(MediaDetailActivity.EXTRA_MEDIA_GUID, mediaItem.getGuid());
+            intent.putExtra(MediaDetailActivity.EXTRA_MEDIA_TITLE, mediaItem.getTitle());
+            intent.putExtra(MediaDetailActivity.EXTRA_MEDIA_TYPE, mediaItem.getType());
+            startActivity(intent);
+        } else {
+            // TV/其他类型：跳转到电视剧详情页
+            Log.d(TAG, "🎬 TV/其他类型，跳转到详情页");
+            Intent intent = new Intent(this, MediaDetailActivity.class);
+            intent.putExtra(MediaDetailActivity.EXTRA_MEDIA_GUID, mediaItem.getGuid());
+            intent.putExtra(MediaDetailActivity.EXTRA_MEDIA_TITLE, mediaItem.getTitle());
+            intent.putExtra(MediaDetailActivity.EXTRA_MEDIA_TYPE, mediaItem.getType());
+            startActivity(intent);
+        }
+    }
+    
+    /**
+     * 🎬 直接播放Episode（用于继续观看）
+     * 直接使用 Web 端的 URL 格式，不依赖 stream API
+     */
+    private void playEpisodeDirectly(MediaItem mediaItem) {
+        Toast.makeText(this, "正在加载 " + mediaItem.getTitle() + "...", Toast.LENGTH_SHORT).show();
+        
+        // 如果已有mediaGuid，直接构建播放URL（与Web端一致）
+        String mediaGuid = mediaItem.getMediaGuid();
+        if (mediaGuid != null && !mediaGuid.isEmpty()) {
+            Log.d(TAG, "🎬 使用缓存的mediaGuid构建播放URL: " + mediaGuid);
+            // 直接使用 Web 端的 URL 格式
+            String baseUrl = SharedPreferencesManager.getServerBaseUrl();
+            String playUrl = baseUrl + "/v/api/v1/media/range/" + mediaGuid + "?direct_link_quality_index=0";
+            Log.d(TAG, "🎬 使用媒体URL: " + playUrl);
+            navigateToVideoPlayer(playUrl, mediaItem);
+        } else {
+            // 否则调用API获取播放信息
+            Log.d(TAG, "🎬 调用API获取播放信息");
+            mediaManager.startPlay(mediaItem.getGuid(), new MediaManager.MediaCallback<String>() {
+                @Override
+                public void onSuccess(String playUrl) {
+                    runOnUiThread(() -> navigateToVideoPlayer(playUrl, mediaItem));
+                }
+                
+                @Override
+                public void onError(String error) {
+                    runOnUiThread(() -> {
+                        Log.e(TAG, "❌ 播放失败: " + error);
+                        Toast.makeText(MainActivity.this, "播放失败: " + error, Toast.LENGTH_LONG).show();
+                    });
+                }
+            });
+        }
+    }
+    
+    /**
+     * 🎬 跳转到视频播放器
+     */
+    private void navigateToVideoPlayer(String playUrl, MediaItem mediaItem) {
+        Intent intent = new Intent(this, VideoPlayerActivity.class);
+        intent.putExtra("video_url", playUrl);
+        intent.putExtra("video_title", mediaItem.getTitle());
+        intent.putExtra("episode_guid", mediaItem.getGuid());
+        
+        // 传递关联信息
+        if (mediaItem.getParentGuid() != null) {
+            intent.putExtra("season_guid", mediaItem.getParentGuid());
+        }
+        if (mediaItem.getAncestorGuid() != null) {
+            intent.putExtra("tv_guid", mediaItem.getAncestorGuid());
+        }
+        
+        // 传递弹幕相关信息
+        if (mediaItem.getDoubanId() > 0) {
+            intent.putExtra("douban_id", String.valueOf(mediaItem.getDoubanId()));
+        }
+        intent.putExtra("season_number", mediaItem.getSeasonNumber());
+        intent.putExtra("episode_number", mediaItem.getEpisodeNumber());
+        
+        // 传递电视剧标题（用于弹幕搜索）
+        if (mediaItem.getTvTitle() != null && !mediaItem.getTvTitle().isEmpty()) {
+            intent.putExtra("tv_title", mediaItem.getTvTitle());
+        } else {
+            intent.putExtra("tv_title", mediaItem.getTitle());
+        }
+        
         startActivity(intent);
     }
     

@@ -87,6 +87,12 @@ public class MediaDetailResponse {
     
     @SerializedName("tmdb_id")
     private int tmdbId;
+
+    @SerializedName("douban_id")
+    private long doubanId;
+
+    @SerializedName("parent_guid")
+    private String parentGuid;
     
     @SerializedName("created_time")
     private String createdTime;
@@ -127,6 +133,8 @@ public class MediaDetailResponse {
     public String getHomepage() { return homepage; }
     public String getImdbId() { return imdbId; }
     public int getTmdbId() { return tmdbId; }
+    public long getDoubanId() { return doubanId; }
+    public String getParentGuid() { return parentGuid; }
     public String getCreatedTime() { return createdTime; }
     public String getUpdatedTime() { return updatedTime; }
     

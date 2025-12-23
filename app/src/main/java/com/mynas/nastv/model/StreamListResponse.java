@@ -260,6 +260,15 @@ public class StreamListResponse {
         @SerializedName("title")
         private String title;
         
+        @SerializedName("format")
+        private String format;
+        
+        @SerializedName("is_external")
+        private int isExternal;
+        
+        @SerializedName("codec_name")
+        private String codecName;
+        
         // Getters and setters
         public String getGuid() {
             return guid;
@@ -283,6 +292,30 @@ public class StreamListResponse {
         
         public void setTitle(String title) {
             this.title = title;
+        }
+        
+        public String getFormat() {
+            return format;
+        }
+        
+        public void setFormat(String format) {
+            this.format = format;
+        }
+        
+        public boolean isExternal() {
+            return isExternal == 1;
+        }
+        
+        public void setIsExternal(int isExternal) {
+            this.isExternal = isExternal;
+        }
+        
+        public String getCodecName() {
+            return codecName;
+        }
+        
+        public void setCodecName(String codecName) {
+            this.codecName = codecName;
         }
     }
     

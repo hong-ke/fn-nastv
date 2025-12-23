@@ -1,23 +1,24 @@
 package com.mynas.nastv.utils;
 
+import com.mynas.nastv.config.AppConfig;
 import android.content.Context;
 import android.util.Log;
 
 /**
- * 🌐 服务器配置助手
+ * 服务器配置助手
  * 提供便捷的服务器地址配置功能
  */
 public class ServerConfigHelper {
     private static final String TAG = "ServerConfigHelper";
     
     /**
-     * 🔧 设置服务器地址（完整地址）
+     * 设置服务器地址（完整地址）
      * @param context 应用上下文
      * @param serverUrl 完整服务器地址，如 "http://192.168.1.100:8123"
      */
     public static void setServerUrl(Context context, String serverUrl) {
         if (serverUrl == null || serverUrl.isEmpty()) {
-            Log.w(TAG, "⚠️ 服务器地址为空，跳过设置");
+            Log.w(TAG, "服务器地址为空，跳过设置");
             return;
         }
         
@@ -36,51 +37,51 @@ public class ServerConfigHelper {
             // 解析主机和端口
             String[] parts = cleanUrl.replace("http://", "").replace("https://", "").split(":");
             String host = parts[0];
-            String port = parts.length > 1 ? parts[1] : "8123";
+            String port = parts.length > 1 ? parts[1] : AppConfig.SERVER_PORT;
             
             // 保存到配置
             SharedPreferencesManager.setServerHost(host);
             SharedPreferencesManager.setServerPort(port);
             
-            Log.d(TAG, "✅ 服务器地址设置成功: " + host + ":" + port);
-            Log.d(TAG, "📊 当前配置:");
+            Log.d(TAG, "服务器地址设置成功: " + host + ":" + port);
+            Log.d(TAG, "当前配置:");
             Log.d(TAG, "  - API地址: " + SharedPreferencesManager.getApiBaseUrl());
             Log.d(TAG, "  - 图片服务: " + SharedPreferencesManager.getImageServiceUrl());
             Log.d(TAG, "  - 播放服务: " + SharedPreferencesManager.getPlayServiceUrl());
             Log.d(TAG, "  - 系统API: " + SharedPreferencesManager.getSystemApiUrl());
             
         } catch (Exception e) {
-            Log.e(TAG, "❌ 服务器地址解析失败: " + serverUrl, e);
+            Log.e(TAG, "服务器地址解析失败: " + serverUrl, e);
         }
     }
     
     /**
-     * 🔧 设置服务器地址（分别指定主机和端口）
+     * 设置服务器地址（分别指定主机和端口）
      * @param context 应用上下文  
      * @param host 主机地址，如 "192.168.1.100"
      * @param port 端口号，如 "8123"
      */
     public static void setServerAddress(Context context, String host, String port) {
         if (host == null || host.isEmpty()) {
-            Log.w(TAG, "⚠️ 主机地址为空，跳过设置");
+            Log.w(TAG, "主机地址为空，跳过设置");
             return;
         }
         
-        String finalPort = (port == null || port.isEmpty()) ? "8123" : port;
+        String finalPort = (port == null || port.isEmpty()) ? AppConfig.SERVER_PORT : port;
         
         SharedPreferencesManager.setServerHost(host.trim());
         SharedPreferencesManager.setServerPort(finalPort.trim());
         
-        Log.d(TAG, "✅ 服务器地址设置成功: " + host + ":" + finalPort);
+        Log.d(TAG, "服务器地址设置成功: " + host + ":" + finalPort);
     }
     
     /**
-     * 🔍 获取当前服务器配置信息
+     * 获取当前服务器配置信息
      * @return 服务器配置信息字符串
      */
     public static String getCurrentServerInfo() {
         StringBuilder info = new StringBuilder();
-        info.append("🌐 当前服务器配置:\n");
+        info.append("当前服务器配置:\n");
         info.append("主机: ").append(SharedPreferencesManager.getServerHost()).append("\n");
         info.append("端口: ").append(SharedPreferencesManager.getServerPort()).append("\n");
         info.append("完整地址: ").append(SharedPreferencesManager.getServerBaseUrl()).append("\n");
@@ -91,12 +92,12 @@ public class ServerConfigHelper {
     }
     
     /**
-     * 🔄 重置为默认服务器地址
+     * 重置为默认服务器地址
      * @param context 应用上下文
      */
     public static void resetToDefault(Context context) {
-        setServerAddress(context, "172.20.10.3", "8123");
-        Log.d(TAG, "🔄 服务器地址已重置为默认值");
+        setServerAddress(context, AppConfig.SERVER_IP, AppConfig.SERVER_PORT);
+        Log.d(TAG, "服务器地址已重置为默认值");
     }
     
     /**
@@ -148,7 +149,7 @@ public class ServerConfigHelper {
     }
     
     /**
-     * 🚀 快速配置常用服务器地址
+     * 快速配置常用服务器地址
      */
     public static class QuickConfig {
         public static void setLocalhost(Context context) {
@@ -157,11 +158,11 @@ public class ServerConfigHelper {
         
         public static void setLAN(Context context, String ipSuffix) {
             // 例如: setLAN(context, "100") -> 192.168.1.100
-            setServerAddress(context, "192.168.1." + ipSuffix, "8123");
+            setServerAddress(context, "192.168.1." + ipSuffix, AppConfig.SERVER_PORT);
         }
         
         public static void setCustomIP(Context context, String ip) {
-            setServerAddress(context, ip, "8123");
+            setServerAddress(context, ip, AppConfig.SERVER_PORT);
         }
         
         public static void setCustomPort(Context context, String port) {

@@ -22,7 +22,7 @@
             android:layout_marginBottom="@dimen/tv_margin_small">
 
             <TextView
-                android:id="@+id/current_time"
+                android:id="@id/exo_position"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="@color/white"
@@ -30,17 +30,15 @@
                 android:fontFamily="@font/tv_font_regular"
                 android:text="00:00" />
 
-            <ProgressBar
-                android:id="@+id/simple_progress"
-                style="?android:attr/progressBarStyleHorizontal"
+            <androidx.media3.ui.DefaultTimeBar
+                android:id="@id/exo_progress"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginHorizontal="@dimen/tv_margin_medium"
-                android:progressTint="@color/tv_accent_primary" />
+                android:layout_marginHorizontal="@dimen/tv_margin_medium" />
 
             <TextView
-                android:id="@+id/total_time"
+                android:id="@id/exo_duration"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="@color/white"
@@ -59,7 +57,7 @@
 
             <!-- 快退按钮 -->
             <ImageButton
-                android:id="@+id/btn_rewind"
+                android:id="@id/exo_rew"
                 android:layout_width="@dimen/tv_button_size"
                 android:layout_height="@dimen/tv_button_size"
                 android:background="@drawable/tv_button_background"
@@ -72,7 +70,7 @@
 
             <!-- 播放/暂停按钮 -->
             <ImageButton
-                android:id="@+id/btn_play_pause"
+                android:id="@id/exo_play_pause"
                 android:layout_width="@dimen/tv_button_size_large"
                 android:layout_height="@dimen/tv_button_size_large"
                 android:background="@drawable/tv_button_background"
@@ -84,13 +82,25 @@
 
             <!-- 快进按钮 -->
             <ImageButton
-                android:id="@+id/btn_fast_forward"
+                android:id="@id/exo_ffwd"
                 android:layout_width="@dimen/tv_button_size"
                 android:layout_height="@dimen/tv_button_size"
                 android:background="@drawable/tv_button_background"
                 android:src="@drawable/ic_play_arrow"
                 android:tint="@color/white"
                 android:contentDescription="快进"
+                android:focusable="true"
+                android:layout_marginStart="@dimen/tv_margin_medium" />
+
+            <!-- 弹幕设置按钮 -->
+            <ImageButton
+                android:id="@+id/btn_danmu_settings"
+                android:layout_width="@dimen/tv_button_size"
+                android:layout_height="@dimen/tv_button_size"
+                android:background="@drawable/tv_button_background"
+                android:src="@drawable/ic_settings"
+                android:tint="@color/white"
+                android:contentDescription="弹幕设置"
                 android:focusable="true"
                 android:layout_marginStart="@dimen/tv_margin_medium" />
 
@@ -112,6 +122,16 @@
                 android:textColor="@color/tv_text_secondary"
                 android:textSize="@dimen/tv_text_size_small"
                 android:fontFamily="@font/tv_font_regular" />
+
+            <TextView
+                android:id="@+id/osd_danmu_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="@dimen/tv_margin_medium"
+                android:text="弹幕: 开启"
+                android:textColor="@color/tv_accent_primary"
+                android:textSize="@dimen/tv_text_size_small"
+                android:fontFamily="@font/tv_font_bold" />
 
             <TextView
                 android:layout_width="wrap_content"

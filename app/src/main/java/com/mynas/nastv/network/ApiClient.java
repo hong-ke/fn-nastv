@@ -20,7 +20,7 @@ import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
 /**
- * 🔗 API客户端
+ * API客户端
  * 负责网络请求的统一管理，包括签名、认证等
  */
 public class ApiClient {
@@ -32,7 +32,7 @@ public class ApiClient {
     private static ApiService apiService;
     private static ApiService fnOSApiService;  // 专门用于FnOS服务器的API服务
     private static ApiService playApiService;  // 专门用于播放API的服务（长超时）
-    private static ApiService danmuApiService; // 🎬 专门用于弹幕API的服务（服务器根路径）
+    private static ApiService danmuApiService; // 专门用于弹幕API的服务（服务器根路径）
     private static Context context;
     private static String fnOSBaseUrl;
     
@@ -45,7 +45,7 @@ public class ApiClient {
         createApiService();
         createPlayApiService();
         createDanmuApiService(); // 创建弹幕API服务
-        Log.d(TAG, "🔗 API客户端初始化完成");
+        Log.d(TAG, "API客户端初始化完成");
     }
     
     private static void createApiService() {
@@ -139,11 +139,11 @@ public class ApiClient {
     }
     
     /**
-     * 🎬 创建弹幕API专用服务（服务器根路径）
+     * 🎬 创建弹幕API专用服务（独立的弹幕服务器地址）
      */
     private static void createDanmuApiService() {
-        String serverBaseUrl = SharedPreferencesManager.getServerBaseUrl(); // 获取服务器根路径
-        Log.d(TAG, "🎬 [DEBUG] 创建DanmuApiService，使用服务器根路径: " + serverBaseUrl);
+        String danmuBaseUrl = SharedPreferencesManager.getDanmuServerBaseUrl(); // 获取弹幕服务器地址
+        Log.d(TAG, "🎬 [DEBUG] 创建DanmuApiService，使用弹幕服务器地址: " + danmuBaseUrl);
         
         HttpLoggingInterceptor loggingInterceptor = new HttpLoggingInterceptor();
         loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BASIC); // 🔧 改为BASIC级别，避免打印大量响应体
@@ -160,15 +160,15 @@ public class ApiClient {
                 .setLenient()
                 .create();
         
-        Log.d(TAG, "🎬 [DEBUG] 即将创建弹幕API Retrofit实例，使用根路径: " + serverBaseUrl);
+        Log.d(TAG, "🎬 [DEBUG] 即将创建弹幕API Retrofit实例，使用弹幕服务器: " + danmuBaseUrl);
         Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(serverBaseUrl + "/") // 使用服务器根路径，如 http://172.20.10.3:8123/
+                .baseUrl(danmuBaseUrl + "/") // 使用弹幕服务器地址，如 http://192.168.3.20:13401/
                 .client(okHttpClient)
                 .addConverterFactory(GsonConverterFactory.create(gson))
                 .build();
         
         danmuApiService = retrofit.create(ApiService.class);
-        Log.d(TAG, "✅ [DEBUG] DanmuApiService创建完成，根路径: " + serverBaseUrl);
+        Log.d(TAG, "✅ [DEBUG] DanmuApiService创建完成，弹幕服务器: " + danmuBaseUrl);
     }
     
     /**
@@ -266,10 +266,10 @@ public class ApiClient {
                     String authToken = token.startsWith("Bearer ") ? token.substring(7) : token;
                     requestBuilder.addHeader("Authorization", authToken);
                     
-                    // 🔧 关键修复：同时添加Cookie认证（模拟浏览器行为）
-                    requestBuilder.addHeader("Cookie", "authorization=" + authToken);
+                    // 🔧 关键修复：使用与Web端一致的Cookie名称 Trim-MC-token
+                    requestBuilder.addHeader("Cookie", "Trim-MC-token=" + authToken);
                     
-                    Log.d(TAG, "🔐 已添加认证Token（Header + Cookie）");
+                    Log.d(TAG, "🔐 已添加认证Token（Header + Cookie: Trim-MC-token）");
                 }
             }
             

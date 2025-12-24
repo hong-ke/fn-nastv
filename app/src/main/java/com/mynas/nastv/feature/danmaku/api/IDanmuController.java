@@ -10,12 +10,20 @@ import com.mynas.nastv.feature.danmaku.model.DanmuConfig;
  */
 public interface IDanmuController {
     
+    /**
+     * 弹幕加载回调接口
+     */
+    interface DanmakuLoadCallback {
+        void onSuccess(int count);
+        void onError(String message);
+    }
+    
     void initialize(Context context, ViewGroup parentContainer);
     
     // Legacy
     void loadDanmaku(String videoId, String episodeId);
     
-    // New API - 使用 title, season, episode, guid, parentGuid
+    // New API - 使用 title + episode + season + guid + parentGuid 获取弹幕
     void loadDanmaku(String title, int episode, int season, String guid, String parentGuid);
     
     void show();

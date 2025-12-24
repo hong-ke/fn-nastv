@@ -305,6 +305,9 @@ public class SharedPreferencesManager {
     // 播放器设置 - 画面比例
     private static final String KEY_ASPECT_RATIO = "aspect_ratio";
     
+    // 播放器设置 - 解码器类型 (0=自动/硬解优先, 1=软解)
+    private static final String KEY_DECODER_TYPE = "decoder_type";
+    
     /**
      * 设置画面比例 (0=默认, 1=16:9, 2=4:3, 3=填充)
      */
@@ -321,6 +324,31 @@ public class SharedPreferencesManager {
     public static int getAspectRatio() {
         return sharedPreferences != null ? 
                 sharedPreferences.getInt(KEY_ASPECT_RATIO, 0) : 0;
+    }
+    
+    /**
+     * 设置解码器类型 (0=自动/硬解优先, 1=软解)
+     */
+    public static void setDecoderType(int type) {
+        if (sharedPreferences != null) {
+            sharedPreferences.edit().putInt(KEY_DECODER_TYPE, type).apply();
+            Log.d(TAG, "解码器类型设置为: " + (type == 0 ? "硬解" : "软解"));
+        }
+    }
+    
+    /**
+     * 获取解码器类型 (0=自动/硬解优先, 1=软解)
+     */
+    public static int getDecoderType() {
+        return sharedPreferences != null ? 
+                sharedPreferences.getInt(KEY_DECODER_TYPE, 0) : 0;
+    }
+    
+    /**
+     * 是否使用软解
+     */
+    public static boolean useSoftwareDecoder() {
+        return getDecoderType() == 1;
     }
     
     // 系统设置方法

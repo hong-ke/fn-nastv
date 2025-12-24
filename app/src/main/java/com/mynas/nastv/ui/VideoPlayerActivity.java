@@ -96,6 +96,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     private boolean isPlayerReady = false;
     
+    // 🔧 解码器自动切换：本次会话是否强制使用软解（硬解崩溃后自动切换）
+    private boolean forceUseSoftwareDecoder = false;
+    private int decoderRetryCount = 0;
+    private static final int MAX_DECODER_RETRY = 1; // 最多重试1次（切换到软解）
+    
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -225,21 +230,21 @@ public class VideoPlayerActivity extends AppCompatActivity {
             android.app.ActivityManager.MemoryInfo memInfo = new android.app.ActivityManager.MemoryInfo();
             am.getMemoryInfo(memInfo);
             
-            // 使用可用内存的 15% 作为视频缓冲，最小100MB，最大300MB
-            long availableMB = memInfo.availMem / (1024 * 1024);
-            int targetBufferBytes = (int) Math.min(300 * 1024 * 1024, 
-                                     Math.max(100 * 1024 * 1024, availableMB * 1024 * 1024 * 15 / 100));
+            // 使用总内存的 30% 作为视频缓冲，最小200MB，最大1GB
+            long totalMemory = memInfo.totalMem;
+            int targetBufferBytes = (int) Math.min(1024 * 1024 * 1024L, 
+                                     Math.max(200 * 1024 * 1024, totalMemory * 30 / 100));
             
-            Log.d(TAG, "🎬 Available memory: " + availableMB + "MB, target buffer: " + (targetBufferBytes / 1024 / 1024) + "MB");
+            Log.d(TAG, "🎬 Total memory: " + (totalMemory / 1024 / 1024) + "MB, target buffer: " + (targetBufferBytes / 1024 / 1024) + "MB (30%)");
             
             // 🔑 优化缓冲策略：快速启动 + 持续缓冲
             // - 首次播放只需2秒缓冲（快速启动）
             // - 卡顿后只需3秒恢复（快速恢复）
-            // - 后台持续缓冲到5分钟
+            // - 后台持续缓冲到90秒
             androidx.media3.exoplayer.DefaultLoadControl loadControl = new androidx.media3.exoplayer.DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
                     30000,   // minBufferMs: 最小保持30秒缓冲
-                    300000,  // maxBufferMs: 最大缓冲300秒（5分钟）
+                    90000,   // maxBufferMs: 最大缓冲90秒
                     2000,    // bufferForPlaybackMs: 只需2秒就开始播放（快速启动！）
                     3000     // bufferForPlaybackAfterRebufferMs: 卡顿后只需3秒恢复（快速恢复！）
                 )
@@ -248,9 +253,74 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 .setBackBuffer(30000, true) // 保留30秒回看缓冲
                 .build();
             
-            exoPlayer = new ExoPlayer.Builder(this)
-                .setLoadControl(loadControl)
-                .build();
+            // 🔧 根据设置选择解码器
+            // 优先级：forceUseSoftwareDecoder（硬解崩溃后自动切换）> 用户设置
+            ExoPlayer.Builder playerBuilder = new ExoPlayer.Builder(this)
+                .setLoadControl(loadControl);
+            
+            boolean useSoftware = forceUseSoftwareDecoder || SharedPreferencesManager.useSoftwareDecoder();
+            
+            if (useSoftware) {
+                // 软解模式：创建自定义 MediaCodecSelector，优先选择软件解码器
+                // 软件解码器名称通常包含 "google" 或 "c2.android"
+                String reason = forceUseSoftwareDecoder ? "auto-fallback" : "user-setting";
+                Log.d(TAG, "🎬 Using SOFTWARE decoder (" + reason + ")");
+                
+                androidx.media3.exoplayer.mediacodec.MediaCodecSelector softwareSelector = 
+                    new androidx.media3.exoplayer.mediacodec.MediaCodecSelector() {
+                        @Override
+                        public java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> getDecoderInfos(
+                                String mimeType, boolean requiresSecureDecoder, boolean requiresTunnelingDecoder) 
+                                throws androidx.media3.exoplayer.mediacodec.MediaCodecUtil.DecoderQueryException {
+                            
+                            // 获取所有可用解码器
+                            java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> allDecoders = 
+                                androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT
+                                    .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder);
+                            
+                            // 分离软件和硬件解码器
+                            java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> softwareDecoders = 
+                                new java.util.ArrayList<>();
+                            java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> hardwareDecoders = 
+                                new java.util.ArrayList<>();
+                            
+                            for (androidx.media3.exoplayer.mediacodec.MediaCodecInfo decoder : allDecoders) {
+                                String name = decoder.name.toLowerCase();
+                                // 软件解码器通常包含 "google", "c2.android", "OMX.google"
+                                // 硬件解码器通常包含 "OMX." 但不是 "OMX.google"
+                                if (name.contains("google") || name.contains("c2.android") || 
+                                    name.startsWith("c2.google") || decoder.softwareOnly) {
+                                    softwareDecoders.add(decoder);
+                                    Log.d(TAG, "🎬 Software decoder: " + decoder.name);
+                                } else {
+                                    hardwareDecoders.add(decoder);
+                                    Log.d(TAG, "🎬 Hardware decoder: " + decoder.name);
+                                }
+                            }
+                            
+                            // 软件解码器优先，然后是硬件解码器作为后备
+                            java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> result = 
+                                new java.util.ArrayList<>();
+                            result.addAll(softwareDecoders);
+                            result.addAll(hardwareDecoders);
+                            
+                            Log.d(TAG, "🎬 Decoder order: " + result.size() + " decoders, " + 
+                                  softwareDecoders.size() + " software first");
+                            
+                            return result;
+                        }
+                    };
+                
+                androidx.media3.exoplayer.DefaultRenderersFactory renderersFactory = 
+                    new androidx.media3.exoplayer.DefaultRenderersFactory(this)
+                        .setMediaCodecSelector(softwareSelector)
+                        .setEnableDecoderFallback(true);
+                playerBuilder.setRenderersFactory(renderersFactory);
+            } else {
+                Log.d(TAG, "🎬 Using HARDWARE decoder (default)");
+            }
+            
+            exoPlayer = playerBuilder.build();
             
             // 设置视频缩放模式
             playerView.setResizeMode(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT);
@@ -370,6 +440,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                                 String itemGuid = episodeGuid != null ? episodeGuid : mediaGuid;
                                 progressRecorder.startRecording(itemGuid, mediaGuid);
                                 progressRecorder.setStreamGuids(videoGuid, audioGuid, null);
+                                // 设置视频信息（分辨率和码率会在 onVideoSizeChanged 中更新）
                             }
                         } else {
                             // 暂停时立即保存进度
@@ -381,6 +452,13 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 @Override
                 public void onVideoSizeChanged(androidx.media3.common.VideoSize videoSize) {
                     Log.d(TAG, "🎬 Video size: " + videoSize.width + "x" + videoSize.height);
+                    
+                    // 🎬 更新 ProgressRecorder 的视频信息
+                    if (progressRecorder != null && videoSize.height > 0) {
+                        String resolution = String.valueOf(videoSize.height); // 如 "720", "1080"
+                        // 获取码率（从 ExoPlayer 的 Format 中获取）
+                        // Video info tracking removed
+                    }
                 }
                 
                 @Override
@@ -391,6 +469,30 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 @Override
                 public void onPlayerError(androidx.media3.common.PlaybackException error) {
                     Log.e(TAG, "Player Error", error);
+                    
+                    // 🔧 检测是否为解码器错误，自动切换到软解
+                    if (shouldSwitchToSoftwareDecoder(error)) {
+                        Log.w(TAG, "🔧 Hardware decoder error detected, switching to software decoder...");
+                        forceUseSoftwareDecoder = true;
+                        decoderRetryCount++;
+                        
+                        runOnUiThread(() -> {
+                            Toast.makeText(VideoPlayerActivity.this, 
+                                "硬解出错，自动切换软解...", Toast.LENGTH_SHORT).show();
+                            
+                            // 保存当前位置并重新加载
+                            long currentPos = 0;
+                            if (exoPlayer != null) {
+                                currentPos = exoPlayer.getCurrentPosition();
+                            }
+                            resumePositionSeconds = currentPos / 1000;
+                            
+                            // 重新加载视频
+                            reloadVideoWithSoftwareDecoder();
+                        });
+                        return;
+                    }
+                    
                     showError("Player Error: " + error.getMessage());
                 }
             });
@@ -439,8 +541,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
     }
     
     private void playMedia(String url) {
-        Log.d(TAG, "Playing URL: " + url);
-        Log.d(TAG, "🎬 Danmaku params for playback: title=" + tvTitle + ", s" + seasonNumber + "e" + episodeNumber + ", guid=" + episodeGuid);
+        Log.e(TAG, "playMedia called with URL: " + url);
+        Log.e(TAG, "Danmaku params for playback: title=" + tvTitle + ", s" + seasonNumber + "e" + episodeNumber + ", guid=" + episodeGuid);
         showLoading("Loading...");
         
         // 保存当前视频URL
@@ -448,19 +550,25 @@ public class VideoPlayerActivity extends AppCompatActivity {
         
         try {
             MediaItem mediaItem = createMediaItemWithHeaders(url);
+            
+            // 🔧 如果是直连模式，createMediaItemWithHeaders 会在后台线程中处理播放启动
+            // 返回 null 表示已经在后台处理，不需要在这里调用 prepare
             if (mediaItem != null) {
-                exoPlayer.setMediaItem(mediaItem); // Should ideally set source
+                Log.e(TAG, "MediaItem created, calling prepare()");
+                exoPlayer.setMediaItem(mediaItem);
+                exoPlayer.prepare();
+                exoPlayer.setPlayWhenReady(true);
+            } else {
+                Log.e(TAG, "MediaItem is null, playback will be started in background thread (direct link mode)");
             }
-            exoPlayer.prepare();
-            exoPlayer.setPlayWhenReady(true);
             
             // Load Danmaku - 使用 title + season + episode + guid 获取弹幕
             if (danmuController != null) {
                 if (tvTitle != null && !tvTitle.isEmpty()) {
-                    Log.d(TAG, "🎬 Loading danmaku with title=" + tvTitle + ", s" + seasonNumber + "e" + episodeNumber);
+                    Log.e(TAG, "Loading danmaku with title=" + tvTitle + ", s" + seasonNumber + "e" + episodeNumber);
                     danmuController.loadDanmaku(tvTitle, episodeNumber, seasonNumber, episodeGuid, parentGuid);
                 } else {
-                    Log.w(TAG, "🎬 No valid title for danmaku, skipping. title=" + tvTitle);
+                    Log.w(TAG, "No valid title for danmaku, skipping. title=" + tvTitle);
                 }
             }
             
@@ -1054,7 +1162,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     }
     
     private MediaItem createMediaItemWithHeaders(String url) {
-        Log.d(TAG, "Creating media item for URL: " + url);
+        Log.e(TAG, "🚀🚀🚀 createMediaItemWithHeaders called with URL: " + url);
         
         // 🔑 判断是否为直连URL
         // 1. 外部云存储URL: https://dl-pc-zb-w.drive.quark.cn/...
@@ -1063,7 +1171,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
         boolean isProxyDirectLink = url.contains("direct_link_quality_index");
         boolean isDirectLink = isExternalDirectLink || isProxyDirectLink;
         
-        Log.d(TAG, "🚀 URL analysis: isExternalDirectLink=" + isExternalDirectLink + ", isProxyDirectLink=" + isProxyDirectLink);
+        Log.e(TAG, "🚀🚀🚀 URL analysis: isExternalDirectLink=" + isExternalDirectLink + 
+              ", isProxyDirectLink=" + isProxyDirectLink + ", isDirectLink=" + isDirectLink);
         
         // 设置直连模式标志
         isDirectLinkMode = isDirectLink;
@@ -1139,16 +1248,72 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 .retryOnConnectionFailure(true)
                 .build();
             
-            // 🚀 使用缓存数据源
-            String cacheKey = "video_" + url.hashCode();
-            Log.d(TAG, "🚀 Using CachedDataSource, cacheKey=" + cacheKey);
+            // 使用缓存数据源
+            // 从URL中提取mediaGuid作为cacheKey，确保同一视频使用相同的缓存
+            String cacheKey = extractCacheKeyFromUrl(url);
+            Log.e(TAG, "Creating CachedDataSourceFactory, cacheKey=" + cacheKey);
             
             // 创建缓存数据源工厂
             cachedDataSourceFactory = new com.mynas.nastv.player.CachedDataSourceFactory(
                 this, directLinkClient, headers, cacheKey);
             
-            // 启动多线程预缓存服务
+            // 关键优化：先启动预缓存服务，等待初始数据下载
+            Log.e(TAG, "Starting prefetch service for URL: " + url.substring(0, Math.min(80, url.length())));
             prefetchService = cachedDataSourceFactory.startPrefetch(url);
+            Log.e(TAG, "Prefetch service started: " + (prefetchService != null ? "SUCCESS" : "FAILED"));
+            
+            // 等待初始缓存：等待至少2个chunk被缓存后再开始播放
+            // 这样可以避免ExoPlayer启动时立即卡顿
+            if (prefetchService != null) {
+                new Thread(() -> {
+                    try {
+                        Log.e(TAG, "Waiting for initial cache...");
+                        int waitCount = 0;
+                        while (waitCount < 30 && prefetchService.getCachedAheadChunks() < 2) {
+                            Thread.sleep(200); // 每200ms检查一次
+                            waitCount++;
+                        }
+                        int cached = prefetchService.getCachedAheadChunks();
+                        Log.e(TAG, "Initial cache ready: " + cached + " chunks cached after " + (waitCount * 200) + "ms");
+                        
+                        // 在主线程创建MediaSource并开始播放
+                        runOnUiThread(() -> {
+                            Log.e(TAG, "Creating ProgressiveMediaSource with cachedDataSourceFactory");
+                            // 使用 ProgressiveMediaSource（支持 MKV 解析）
+                            androidx.media3.exoplayer.source.ProgressiveMediaSource mediaSource = 
+                                new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(cachedDataSourceFactory)
+                                    .createMediaSource(MediaItem.fromUri(url));
+                            Log.e(TAG, "Calling exoPlayer.setMediaSource()");
+                            exoPlayer.setMediaSource(mediaSource);
+                            Log.e(TAG, "Calling exoPlayer.prepare()");
+                            exoPlayer.prepare();
+                            Log.e(TAG, "Calling exoPlayer.setPlayWhenReady(true)");
+                            exoPlayer.setPlayWhenReady(true);
+                            
+                            Log.e(TAG, "CachedDataSource + Prefetch configured, playback started");
+                        });
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error waiting for initial cache: " + e.getMessage());
+                        e.printStackTrace();
+                        // 出错时直接开始播放
+                        runOnUiThread(() -> {
+                            Log.e(TAG, "Error fallback: Creating MediaSource anyway");
+                            androidx.media3.exoplayer.source.ProgressiveMediaSource mediaSource = 
+                                new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(cachedDataSourceFactory)
+                                    .createMediaSource(MediaItem.fromUri(url));
+                            exoPlayer.setMediaSource(mediaSource);
+                            exoPlayer.prepare();
+                            exoPlayer.setPlayWhenReady(true);
+                        });
+                    }
+                }).start();
+                
+                // 返回null，因为我们在后台线程中设置MediaSource
+                return null;
+            }
+            
+            // 如果prefetchService启动失败，直接创建MediaSource
+            Log.e(TAG, "Prefetch service failed to start, using direct playback");
             
             // 使用 ProgressiveMediaSource（支持 MKV 解析）
             androidx.media3.exoplayer.source.ProgressiveMediaSource mediaSource = 
@@ -1156,7 +1321,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     .createMediaSource(MediaItem.fromUri(url));
             exoPlayer.setMediaSource(mediaSource);
             
-            Log.d(TAG, "🚀 CachedDataSource + Prefetch configured");
+            Log.e(TAG, "CachedDataSource + Prefetch configured");
             return null;
         }
         
@@ -1272,6 +1437,13 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     if (contentLength > 0) {
                         long bytePosition = (currentPosition * contentLength) / duration;
                         prefetchService.updatePlaybackPosition(bytePosition);
+                        
+                        // 🔧 调试日志：每 5 秒打印一次位置更新
+                        if (currentPosition % 5000 < 100) {
+                            int currentChunk = (int) (bytePosition / (2 * 1024 * 1024));
+                            Log.e(TAG, "🎯 Position update: " + (currentPosition/1000) + "s → chunk " + currentChunk + 
+                                  " (byte " + (bytePosition/1024/1024) + "MB)");
+                        }
                     }
                 }
                 
@@ -1286,6 +1458,46 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     private void stopPositionUpdate() {
         positionHandler.removeCallbacks(positionRunnable);
+    }
+    
+    /**
+     * 从URL中提取稳定的cacheKey
+     * 从/media/range/{mediaGuid}中提取mediaGuid作为key
+     * 这样即使URL参数变化，同一视频也使用相同的缓存
+     */
+    private String extractCacheKeyFromUrl(String url) {
+        try {
+            // URL格式: http://server/v/api/v1/media/range/{mediaGuid}?...
+            if (url.contains("/media/range/")) {
+                int startIdx = url.indexOf("/media/range/") + "/media/range/".length();
+                int endIdx = url.indexOf("?", startIdx);
+                if (endIdx == -1) {
+                    endIdx = url.length();
+                }
+                String mediaGuid = url.substring(startIdx, endIdx);
+                return "video_" + mediaGuid;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to extract mediaGuid from URL, using hashCode", e);
+        }
+        // 降级方案：使用URL的hashCode
+        return "video_" + Math.abs(url.hashCode());
+    }
+    
+    /**
+     * 停止预缓存服务（切换剧集时调用）
+     */
+    private void stopPrefetchService() {
+        Log.d(TAG, "stopPrefetchService called, cachedDataSourceFactory=" + 
+              (cachedDataSourceFactory != null ? "exists" : "null") + 
+              ", prefetchService=" + (prefetchService != null ? "exists" : "null"));
+        if (cachedDataSourceFactory != null) {
+            cachedDataSourceFactory.stopPrefetch();
+            cachedDataSourceFactory = null;
+            Log.d(TAG, "cachedDataSourceFactory stopped and set to null");
+        }
+        prefetchService = null;
+        Log.d(TAG, "prefetchService set to null");
     }
     
     @Override
@@ -1305,11 +1517,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         }
         
         // 🚀 停止预缓存服务
-        if (cachedDataSourceFactory != null) {
-            cachedDataSourceFactory.stopPrefetch();
-            cachedDataSourceFactory = null;
-        }
-        prefetchService = null;
+        stopPrefetchService();
         
         if (exoPlayer != null) {
             exoPlayer.release();
@@ -1800,14 +2008,23 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     /**
      * 📺 播放指定剧集
+     * 
+     * 🔧 完全重新初始化策略：
+     * - 释放所有资源（ExoPlayer、缓存、预缓存服务）
+     * - 清空共享缓存（避免旧数据干扰）
+     * - 重新创建 ExoPlayer 和缓存工厂
+     * - 就像首次进入一样，完全干净的状态
      */
     private void playEpisode(com.mynas.nastv.model.EpisodeListResponse.Episode episode) {
+        Log.e(TAG, "🚀🚀🚀 playEpisode called for episode " + episode.getEpisodeNumber());
         Toast.makeText(this, "正在加载第" + episode.getEpisodeNumber() + "集...", Toast.LENGTH_SHORT).show();
         
         mediaManager.startPlayWithInfo(episode.getGuid(), new MediaManager.MediaCallback<com.mynas.nastv.model.PlayStartInfo>() {
             @Override
             public void onSuccess(com.mynas.nastv.model.PlayStartInfo playInfo) {
                 runOnUiThread(() -> {
+                    Log.e(TAG, "🔄 Starting FULL REINITIALIZATION for episode switch");
+                    
                     // 更新当前剧集信息
                     episodeNumber = episode.getEpisodeNumber();
                     episodeGuid = episode.getGuid();
@@ -1824,21 +2041,52 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     // 重置恢复位置
                     resumePositionSeconds = playInfo.getResumePositionSeconds();
                     
-                    // 停止当前播放
+                    // 🔧 步骤1：停止预缓存服务
+                    Log.e(TAG, "🔄 Step 1: Stopping prefetch service");
+                    stopPrefetchService();
+                    
+                    // 🔧 步骤2：停止并释放 ExoPlayer
+                    Log.e(TAG, "🔄 Step 2: Releasing ExoPlayer");
                     if (exoPlayer != null) {
                         exoPlayer.stop();
+                        exoPlayer.clearMediaItems();
+                        exoPlayer.release();
+                        exoPlayer = null;
+                        isPlayerReady = false;
                     }
                     
-                    // 停止弹幕
+                    // 🔧 步骤3：释放共享缓存（清空所有缓存数据）
+                    Log.e(TAG, "🔄 Step 3: Releasing shared cache");
+                    if (cachedDataSourceFactory != null) {
+                        cachedDataSourceFactory.stopPrefetch();
+                        cachedDataSourceFactory = null;
+                    }
+                    com.mynas.nastv.player.CachedDataSourceFactory.releaseSharedCache();
+                    
+                    // 🔧 步骤4：停止弹幕
+                    Log.e(TAG, "🔄 Step 4: Stopping danmaku");
                     if (danmuController != null) {
                         danmuController.pausePlayback();
                     }
                     
-                    // 播放新视频
+                    // 🔧 步骤5：重置播放器状态
+                    Log.e(TAG, "🔄 Step 5: Resetting player state");
+                    hasSkippedIntro = false;
+                    currentSubtitleIndex = -1;
+                    subtitleStreams = null;
+                    
+                    // 🔧 步骤6：重新初始化 ExoPlayer（就像首次进入）
+                    Log.e(TAG, "🔄 Step 6: Reinitializing ExoPlayer");
+                    initializePlayer();
+                    
+                    // 🔧 步骤7：播放新视频
+                    Log.e(TAG, "🔄 Step 7: Playing new video");
                     videoUrl = playInfo.getPlayUrl();
                     playMedia(videoUrl);
                     
                     hideSettingsMenu();
+                    
+                    Log.e(TAG, "🔄 FULL REINITIALIZATION completed");
                 });
             }
             
@@ -2018,6 +2266,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             "自动连播: " + (SharedPreferencesManager.isAutoPlayNext() ? "开" : "关"),
             "跳过片头/片尾",
             "画面比例: " + getAspectRatioLabel(SharedPreferencesManager.getAspectRatio()),
+            "解码器: " + (SharedPreferencesManager.useSoftwareDecoder() ? "软解" : "硬解"),
             "音频轨道"
         };
         
@@ -2034,7 +2283,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     case 2: // 画面比例
                         showAspectRatioDialog();
                         break;
-                    case 3: // 音频轨道
+                    case 3: // 解码器
+                        showDecoderDialog();
+                        break;
+                    case 4: // 音频轨道
                         showAudioTrackDialog();
                         break;
                 }
@@ -2170,6 +2422,152 @@ public class VideoPlayerActivity extends AppCompatActivity {
             case 3: return "填充";
             default: return "默认";
         }
+    }
+    
+    /**
+     * ⚙️ 显示解码器选择对话框
+     */
+    private void showDecoderDialog() {
+        String[] decoderOptions = {"硬解 (推荐)", "软解 (兼容性更好)"};
+        int currentDecoder = SharedPreferencesManager.getDecoderType();
+        
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("解码器")
+            .setSingleChoiceItems(decoderOptions, currentDecoder, (dialog, which) -> {
+                SharedPreferencesManager.setDecoderType(which);
+                String msg = which == 0 ? "已切换到硬解，重新播放生效" : "已切换到软解，重新播放生效";
+                Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+                dialog.dismiss();
+                
+                // 提示用户重新播放
+                new android.app.AlertDialog.Builder(this)
+                    .setTitle("解码器已更改")
+                    .setMessage("需要重新加载视频才能生效，是否立即重新加载？")
+                    .setPositiveButton("重新加载", (d, w) -> reloadVideo())
+                    .setNegativeButton("稍后", null)
+                    .show();
+            })
+            .show();
+    }
+    
+    /**
+     * 🔄 重新加载视频（用于切换解码器后）
+     */
+    private void reloadVideo() {
+        if (exoPlayer != null && currentVideoUrl != null) {
+            // 保存当前播放位置
+            long currentPosition = exoPlayer.getCurrentPosition();
+            
+            // 停止当前播放
+            exoPlayer.stop();
+            exoPlayer.release();
+            exoPlayer = null;
+            
+            // 停止预缓存
+            if (cachedDataSourceFactory != null) {
+                cachedDataSourceFactory.stopPrefetch();
+                cachedDataSourceFactory = null;
+            }
+            prefetchService = null;
+            
+            // 重新初始化播放器
+            initializePlayer();
+            
+            // 设置恢复位置
+            resumePositionSeconds = currentPosition / 1000;
+            
+            // 重新播放
+            playMedia(currentVideoUrl);
+            
+            Toast.makeText(this, "正在重新加载...", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    /**
+     * 🔧 检测是否应该切换到软解
+     * 检测解码器相关错误（MediaCodec 崩溃、解码器初始化失败等）
+     */
+    private boolean shouldSwitchToSoftwareDecoder(androidx.media3.common.PlaybackException error) {
+        // 如果已经在使用软解，或者已经重试过，不再切换
+        if (forceUseSoftwareDecoder || decoderRetryCount >= MAX_DECODER_RETRY) {
+            return false;
+        }
+        
+        // 如果用户手动选择了软解，不需要自动切换
+        if (SharedPreferencesManager.useSoftwareDecoder()) {
+            return false;
+        }
+        
+        // 检查错误类型
+        Throwable cause = error.getCause();
+        String errorMessage = error.getMessage() != null ? error.getMessage().toLowerCase() : "";
+        String causeMessage = cause != null && cause.getMessage() != null ? 
+            cause.getMessage().toLowerCase() : "";
+        
+        // 检测解码器相关错误
+        boolean isDecoderError = false;
+        
+        // 1. 检查错误码 - ERROR_CODE_DECODER_INIT_FAILED 或 ERROR_CODE_DECODING_FAILED
+        if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED) {
+            isDecoderError = true;
+            Log.d(TAG, "🔧 Decoder error detected by error code: " + error.errorCode);
+        }
+        
+        // 2. 检查错误消息中是否包含解码器相关关键词
+        if (errorMessage.contains("decoder") || errorMessage.contains("mediacodec") ||
+            errorMessage.contains("codec") || errorMessage.contains("omx") ||
+            causeMessage.contains("decoder") || causeMessage.contains("mediacodec") ||
+            causeMessage.contains("codec") || causeMessage.contains("omx")) {
+            isDecoderError = true;
+            Log.d(TAG, "🔧 Decoder error detected by message: " + errorMessage);
+        }
+        
+        // 3. 检查是否为 MediaCodecDecoderException
+        if (cause != null) {
+            String causeName = cause.getClass().getSimpleName();
+            if (causeName.contains("MediaCodec") || causeName.contains("Decoder")) {
+                isDecoderError = true;
+                Log.d(TAG, "🔧 Decoder error detected by exception type: " + causeName);
+            }
+        }
+        
+        return isDecoderError;
+    }
+    
+    /**
+     * 🔧 使用软解重新加载视频
+     */
+    private void reloadVideoWithSoftwareDecoder() {
+        if (currentVideoUrl == null) {
+            showError("无法重新加载：视频URL为空");
+            return;
+        }
+        
+        Log.d(TAG, "🔧 Reloading video with software decoder...");
+        
+        // 停止当前播放
+        if (exoPlayer != null) {
+            exoPlayer.stop();
+            exoPlayer.release();
+            exoPlayer = null;
+        }
+        
+        // 停止预缓存
+        if (cachedDataSourceFactory != null) {
+            cachedDataSourceFactory.stopPrefetch();
+            cachedDataSourceFactory = null;
+        }
+        prefetchService = null;
+        
+        // 重置播放器状态
+        isPlayerReady = false;
+        
+        // 重新初始化播放器（会使用 forceUseSoftwareDecoder 标志）
+        initializePlayer();
+        
+        // 重新播放
+        playMedia(currentVideoUrl);
     }
     
     /**

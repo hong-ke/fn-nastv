@@ -203,7 +203,7 @@ public class CachedDataSourceFactory implements DataSource.Factory {
             return null;
         }
         
-        prefetchService = new VideoPrefetchService(httpClient, headers, cache, cacheKey);
+        prefetchService = new VideoPrefetchService(context, httpClient, headers, cache, cacheKey);
         prefetchService.start(url);
         
         Log.d(TAG, "🎬 Prefetch service started");

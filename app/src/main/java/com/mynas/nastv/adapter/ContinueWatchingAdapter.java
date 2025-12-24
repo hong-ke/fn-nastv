@@ -4,6 +4,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -13,6 +14,7 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.mynas.nastv.R;
 import com.mynas.nastv.model.MediaItem;
+import com.mynas.nastv.utils.FormatUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,6 +66,8 @@ public class ContinueWatchingAdapter extends RecyclerView.Adapter<ContinueWatchi
         private TextView titleText;
         private TextView subtitleText;
         private TextView progressText;
+        private TextView episodeText;
+        private ProgressBar progressBar;
         
         public ContinueWatchingViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -71,6 +75,8 @@ public class ContinueWatchingAdapter extends RecyclerView.Adapter<ContinueWatchi
             titleText = itemView.findViewById(R.id.continue_title);
             subtitleText = itemView.findViewById(R.id.continue_subtitle);
             progressText = itemView.findViewById(R.id.continue_progress);
+            episodeText = itemView.findViewById(R.id.continue_episode_text);
+            progressBar = itemView.findViewById(R.id.continue_progress_bar);
             
             itemView.setOnClickListener(v -> {
                 int position = getAdapterPosition();
@@ -87,13 +93,13 @@ public class ContinueWatchingAdapter extends RecyclerView.Adapter<ContinueWatchi
             
             if (posterUrl != null && !posterUrl.isEmpty()) {
                 Glide.with(posterImage.getContext())
-                        .asBitmap()  // 明确指定为位图
+                        .asBitmap()
                         .load(posterUrl)
-                        .diskCacheStrategy(DiskCacheStrategy.DATA)  // 只缓存原始数据
+                        .diskCacheStrategy(DiskCacheStrategy.DATA)
                         .placeholder(R.color.tv_card_background)
                         .error(R.color.tv_card_background)
                         .centerCrop()
-                        .format(com.bumptech.glide.load.DecodeFormat.PREFER_RGB_565)  // 使用RGB_565格式减少内存
+                        .format(com.bumptech.glide.load.DecodeFormat.PREFER_RGB_565)
                         .listener(new com.bumptech.glide.request.RequestListener<android.graphics.Bitmap>() {
                             @Override
                             public boolean onLoadFailed(com.bumptech.glide.load.engine.GlideException e, Object model, 
@@ -116,7 +122,6 @@ public class ContinueWatchingAdapter extends RecyclerView.Adapter<ContinueWatchi
                         .into(posterImage);
             } else {
                 android.util.Log.w("ContinueWatching", "⚠️ [调试] 海报URL为空: " + item.getTitle());
-                // 没有海报图片时显示默认背景
                 posterImage.setImageResource(R.color.tv_card_background);
             }
             
@@ -128,13 +133,42 @@ public class ContinueWatchingAdapter extends RecyclerView.Adapter<ContinueWatchi
             }
             subtitleText.setText(subtitle);
             
-            // 显示观看进度
-            float progress = item.getWatchedProgress();
-            if (progress > 0 && progress < 100) {
-                progressText.setVisibility(View.VISIBLE);
-                progressText.setText(String.format("已观看 %.0f%%", progress));
+            // 📺 显示剧集进度文本（第X季·第X集）
+            int seasonNum = item.getSeasonNumber();
+            int episodeNum = item.getEpisodeNumber();
+            if (seasonNum > 0 || episodeNum > 0) {
+                String episodeProgress = FormatUtils.formatProgressText(seasonNum, episodeNum);
+                if (!episodeProgress.isEmpty()) {
+                    episodeText.setText(episodeProgress);
+                    episodeText.setVisibility(View.VISIBLE);
+                } else {
+                    episodeText.setVisibility(View.GONE);
+                }
             } else {
+                episodeText.setVisibility(View.GONE);
+            }
+            
+            // 📊 显示进度条
+            long watchedTs = item.getWatchedTs();
+            long totalDuration = item.getTotalDuration();
+            if (watchedTs > 0 && totalDuration > 0) {
+                int progressPercent = FormatUtils.calculateProgressPercent(watchedTs, totalDuration);
+                progressBar.setProgress(progressPercent);
+                progressBar.setVisibility(View.VISIBLE);
+                
+                // 隐藏旧的进度文本
                 progressText.setVisibility(View.GONE);
+            } else {
+                // 使用旧的进度百分比
+                float progress = item.getWatchedProgress();
+                if (progress > 0 && progress < 100) {
+                    progressBar.setProgress((int) progress);
+                    progressBar.setVisibility(View.VISIBLE);
+                    progressText.setVisibility(View.GONE);
+                } else {
+                    progressBar.setVisibility(View.GONE);
+                    progressText.setVisibility(View.GONE);
+                }
             }
         }
     }

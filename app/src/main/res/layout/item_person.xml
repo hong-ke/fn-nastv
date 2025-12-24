@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="100dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:padding="@dimen/tv_margin_small"
+    android:focusable="true"
+    android:clickable="true"
+    android:layout_marginEnd="@dimen/tv_margin_medium">
+
+    <!-- 👤 头像 -->
+    <ImageView
+        android:id="@+id/person_avatar"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:scaleType="centerCrop"
+        android:background="@drawable/person_avatar_background"
+        android:contentDescription="@string/poster_description"
+        tools:src="@color/tv_card_background" />
+
+    <!-- 📝 姓名 -->
+    <TextView
+        android:id="@+id/person_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textSize="@dimen/tv_text_size_small"
+        android:textColor="@color/tv_text_primary"
+        android:fontFamily="@font/tv_font_medium"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end"
+        tools:text="演员姓名" />
+
+    <!-- 📝 角色 -->
+    <TextView
+        android:id="@+id/person_role"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="@dimen/tv_text_size_extra_small"
+        android:textColor="@color/tv_text_secondary"
+        android:fontFamily="@font/tv_font_regular"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end"
+        tools:text="饰演 角色名" />
+
+</LinearLayout>

@@ -74,6 +74,27 @@
             android:screenOrientation="landscape"
             android:theme="@style/Theme.NasTV" />
             
+        <!-- 📺 剧集详情页Activity (电视剧第三层) -->
+        <activity
+            android:name=".ui.EpisodeDetailActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.NasTV" />
+            
+        <!-- ⭐ 收藏页Activity -->
+        <activity
+            android:name=".ui.FavoriteActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.NasTV" />
+            
+        <!-- 📂 分类列表Activity -->
+        <activity
+            android:name=".ui.CategoryActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.NasTV" />
+            
         <!-- 🎬 视频播放器Activity -->
         <activity
             android:name=".ui.VideoPlayerActivity"

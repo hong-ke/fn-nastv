@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="280dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="10dp"
+    android:background="@drawable/episode_item_background"
+    android:focusable="true"
+    android:clickable="true"
+    android:layout_marginEnd="14dp">
+
+    <!-- 📱 剧集缩略图 (16:9) -->
+    <FrameLayout
+        android:layout_width="260dp"
+        android:layout_height="146dp">
+
+        <ImageView
+            android:id="@+id/episode_thumbnail"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:background="@color/tv_card_background"
+            android:contentDescription="@string/poster_description"
+            tools:src="@color/tv_card_background" />
+
+        <!-- 渐变遮罩 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:layout_gravity="bottom"
+            android:background="@drawable/gradient_bottom_overlay" />
+
+        <!-- 🎯 当前播放指示器 -->
+        <TextView
+            android:id="@+id/episode_current_indicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_margin="8dp"
+            android:text="正在播放"
+            android:textSize="10sp"
+            android:textColor="@android:color/white"
+            android:background="@drawable/current_episode_badge"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="3dp"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+        <!-- ⏱️ 时长标签 -->
+        <TextView
+            android:id="@+id/episode_duration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="8dp"
+            android:textSize="11sp"
+            android:textColor="@android:color/white"
+            android:background="#80000000"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="3dp"
+            tools:text="46:30" />
+
+    </FrameLayout>
+
+    <!-- 📝 剧集信息 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginTop="10dp">
+
+        <!-- 集数 + 标题 -->
+        <TextView
+            android:id="@+id/episode_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textColor="@color/tv_text_primary"
+            android:fontFamily="@font/tv_font_medium"
+            android:maxLines="1"
+            android:ellipsize="end"
+            tools:text="第1集. 阿宝被撞引起轩然大波" />
+
+        <!-- 简介 -->
+        <TextView
+            android:id="@+id/episode_overview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textSize="12sp"
+            android:textColor="#99FFFFFF"
+            android:fontFamily="@font/tv_font_regular"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:lineSpacingExtra="2dp"
+            tools:text="剧集简介内容..." />
+
+    </LinearLayout>
+
+</LinearLayout>

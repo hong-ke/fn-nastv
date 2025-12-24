@@ -43,6 +43,8 @@ public class MainActivity extends AppCompatActivity {
     // 导航组件
     private TextView navHome;
     private TextView navProfile;
+    private TextView navFavorite;
+    private TextView navCategory;
     
     // 媒体库列表
     private RecyclerView mediaLibraryList;
@@ -118,6 +120,8 @@ public class MainActivity extends AppCompatActivity {
         logoutButton = findViewById(R.id.logout_button);
         navHome = findViewById(R.id.nav_home);
         navProfile = findViewById(R.id.nav_profile);
+        navFavorite = findViewById(R.id.nav_favorite);
+        navCategory = findViewById(R.id.nav_category);
         mediaLibraryList = findViewById(R.id.media_library_list);
         continueWatchingTitle = findViewById(R.id.continue_watching_title);
         continueWatchingList = findViewById(R.id.continue_watching_list);
@@ -209,6 +213,26 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+        
+        // ⭐ 收藏导航点击事件
+        if (navFavorite != null) {
+            navFavorite.setOnClickListener(v -> {
+                Log.d(TAG, "⭐ 用户点击收藏导航");
+                Intent intent = new Intent(MainActivity.this, FavoriteActivity.class);
+                startActivity(intent);
+            });
+        }
+        
+        // 📂 分类导航点击事件
+        if (navCategory != null) {
+            navCategory.setOnClickListener(v -> {
+                Log.d(TAG, "📂 用户点击分类导航");
+                Intent intent = new Intent(MainActivity.this, CategoryActivity.class);
+                intent.putExtra(CategoryActivity.EXTRA_TYPE, "all");
+                intent.putExtra(CategoryActivity.EXTRA_TITLE, "分类");
+                startActivity(intent);
+            });
+        }
         
         // 退出按钮点击事件
         logoutButton.setOnClickListener(new View.OnClickListener() {
@@ -659,7 +683,6 @@ public class MainActivity extends AppCompatActivity {
         recyclerView.setLayoutManager(layoutManager);
         
         // 🚨 [修复] 优化RecyclerView横向滚动配置
-        recyclerView.setHasFixedSize(true);  // 优化性能
         recyclerView.setNestedScrollingEnabled(false);  // 避免嵌套滚动冲突
         recyclerView.setHorizontalScrollBarEnabled(false);  // 隐藏滚动条
         

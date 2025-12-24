@@ -39,8 +39,8 @@ public class SharedPreferencesManager {
     private static final String DEFAULT_SERVER_HOST = AppConfig.SERVER_IP;
     private static final String DEFAULT_SERVER_PORT = AppConfig.SERVER_PORT;
     private static final String DEFAULT_DANMU_PORT = "5001"; // 本地弹幕服务器端口
-    private static final String DEFAULT_DANMU_HOST = "172.30.82.153"; // 本地弹幕服务器
-    
+    private static final String DEFAULT_DANMU_HOST = "192.168.3.19"; // 本地弹幕服务器
+
     private static SharedPreferences sharedPreferences;
     private static Context context;
     
@@ -237,6 +237,90 @@ public class SharedPreferencesManager {
     public static String getVideoQuality() {
         return sharedPreferences != null ? 
                 sharedPreferences.getString(KEY_VIDEO_QUALITY, "1080p") : "1080p";
+    }
+    
+    // 播放器设置 - 自动连播
+    private static final String KEY_AUTO_PLAY_NEXT = "auto_play_next";
+    
+    /**
+     * 设置自动连播
+     */
+    public static void setAutoPlayNext(boolean enabled) {
+        if (sharedPreferences != null) {
+            sharedPreferences.edit().putBoolean(KEY_AUTO_PLAY_NEXT, enabled).apply();
+            Log.d(TAG, "自动连播设置为: " + enabled);
+        }
+    }
+    
+    /**
+     * 获取自动连播设置
+     */
+    public static boolean isAutoPlayNext() {
+        return sharedPreferences != null ? 
+                sharedPreferences.getBoolean(KEY_AUTO_PLAY_NEXT, true) : true;
+    }
+    
+    // 播放器设置 - 跳过片头
+    private static final String KEY_SKIP_INTRO = "skip_intro";
+    
+    /**
+     * 设置跳过片头秒数
+     */
+    public static void setSkipIntro(int seconds) {
+        if (sharedPreferences != null) {
+            sharedPreferences.edit().putInt(KEY_SKIP_INTRO, seconds).apply();
+            Log.d(TAG, "跳过片头设置为: " + seconds + "秒");
+        }
+    }
+    
+    /**
+     * 获取跳过片头秒数
+     */
+    public static int getSkipIntro() {
+        return sharedPreferences != null ? 
+                sharedPreferences.getInt(KEY_SKIP_INTRO, 0) : 0;
+    }
+    
+    // 播放器设置 - 跳过片尾
+    private static final String KEY_SKIP_OUTRO = "skip_outro";
+    
+    /**
+     * 设置跳过片尾秒数
+     */
+    public static void setSkipOutro(int seconds) {
+        if (sharedPreferences != null) {
+            sharedPreferences.edit().putInt(KEY_SKIP_OUTRO, seconds).apply();
+            Log.d(TAG, "跳过片尾设置为: " + seconds + "秒");
+        }
+    }
+    
+    /**
+     * 获取跳过片尾秒数
+     */
+    public static int getSkipOutro() {
+        return sharedPreferences != null ? 
+                sharedPreferences.getInt(KEY_SKIP_OUTRO, 0) : 0;
+    }
+    
+    // 播放器设置 - 画面比例
+    private static final String KEY_ASPECT_RATIO = "aspect_ratio";
+    
+    /**
+     * 设置画面比例 (0=默认, 1=16:9, 2=4:3, 3=填充)
+     */
+    public static void setAspectRatio(int ratio) {
+        if (sharedPreferences != null) {
+            sharedPreferences.edit().putInt(KEY_ASPECT_RATIO, ratio).apply();
+            Log.d(TAG, "画面比例设置为: " + ratio);
+        }
+    }
+    
+    /**
+     * 获取画面比例
+     */
+    public static int getAspectRatio() {
+        return sharedPreferences != null ? 
+                sharedPreferences.getInt(KEY_ASPECT_RATIO, 0) : 0;
     }
     
     // 系统设置方法

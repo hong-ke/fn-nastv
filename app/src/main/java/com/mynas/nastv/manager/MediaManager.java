@@ -7,10 +7,13 @@ import androidx.annotation.NonNull;
 
 import com.google.gson.Gson;
 import com.mynas.nastv.model.BaseResponse;
+import com.mynas.nastv.model.FavoriteListResponse;
+import com.mynas.nastv.model.FavoriteRequest;
 import com.mynas.nastv.model.MediaDbListResponse;
 import com.mynas.nastv.model.MediaDetailResponse;
 import com.mynas.nastv.model.MediaItem;
 import com.mynas.nastv.model.MediaItemListResponse;
+import com.mynas.nastv.model.PersonInfo;
 import com.mynas.nastv.model.PlayInfoRequest;
 import com.mynas.nastv.model.PlayInfoResponse;
 import com.mynas.nastv.model.PlayListResponse;
@@ -165,6 +168,95 @@ public class MediaManager {
                         if (itemResponse.getCode() == 0) {
                             List<MediaItem> mediaItems = convertToMediaItems(itemResponse.getData());
                             mediaDbInfos.put(guid, mediaItems);
+                            callback.onSuccess(mediaItems);
+                        } else {
+                            callback.onError(itemResponse.getMessage());
+                        }
+                    } else {
+                        callback.onError("Failed: " + response.message());
+                    }
+                }
+                
+                @Override
+                public void onFailure(@NonNull Call<MediaItemListResponse> call, @NonNull Throwable t) {
+                    callback.onError(t.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            callback.onError(e.getMessage());
+        }
+    }
+
+    /**
+     * 📖 Get Media List with pagination and type filter
+     * 支持分页和类型筛选的媒体列表获取
+     */
+    public void getMediaList(String libraryGuid, String type, int page, int pageSize, MediaCallback<List<MediaItem>> callback) {
+        Log.d(TAG, "🔍 [MediaManager] Getting media list: library=" + libraryGuid + ", type=" + type + ", page=" + page);
+        
+        String token = SharedPreferencesManager.getAuthToken();
+        if (token == null || token.isEmpty()) {
+            callback.onError("User not logged in");
+            return;
+        }
+        
+        try {
+            Map<String, Object> requestData = new HashMap<>();
+            
+            // 如果指定了媒体库，使用 ancestor_guid
+            if (libraryGuid != null && !libraryGuid.isEmpty()) {
+                requestData.put("ancestor_guid", libraryGuid);
+            }
+            
+            // 类型过滤
+            Map<String, Object> tags = new HashMap<>();
+            if (type != null && !type.isEmpty()) {
+                switch (type.toLowerCase()) {
+                    case "movie":
+                        tags.put("type", new String[]{"Movie"});
+                        break;
+                    case "tv":
+                        tags.put("type", new String[]{"TV"});
+                        break;
+                    case "other":
+                        tags.put("type", new String[]{"Directory", "Video"});
+                        break;
+                    default:
+                        tags.put("type", new String[]{"Movie", "TV", "Directory", "Video"});
+                        break;
+                }
+            } else {
+                tags.put("type", new String[]{"Movie", "TV", "Directory", "Video"});
+            }
+            requestData.put("tags", tags);
+            
+            requestData.put("exclude_grouped_video", 1);
+            requestData.put("sort_type", "DESC");
+            requestData.put("sort_column", "create_time");
+            requestData.put("page_size", pageSize);
+            requestData.put("page", page);
+            
+            String nonce = String.format("%06d", (int)(Math.random() * 900000) + 100000);
+            requestData.put("nonce", nonce);
+            
+            String method = "POST";
+            String url = "/v/api/v1/item/list";
+            Gson gson = new Gson();
+            String data = gson.toJson(requestData);
+            
+            String authx = SignatureUtils.generateSignature(method, url, data, new HashMap<>());
+            String authToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            
+            ApiService apiService = ApiClient.getApiService();
+            Call<MediaItemListResponse> call = apiService.getItemList(authToken, authx, requestData);
+            
+            call.enqueue(new Callback<MediaItemListResponse>() {
+                @Override
+                public void onResponse(@NonNull Call<MediaItemListResponse> call, @NonNull Response<MediaItemListResponse> response) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        MediaItemListResponse itemResponse = response.body();
+                        if (itemResponse.getCode() == 0) {
+                            List<MediaItem> mediaItems = convertToMediaItems(itemResponse.getData());
                             callback.onSuccess(mediaItems);
                         } else {
                             callback.onError(itemResponse.getMessage());
@@ -604,6 +696,51 @@ public class MediaManager {
     }
     
     /**
+     * 🎬 Start Playback with full info (包含恢复播放位置)
+     * 返回 PlayStartInfo 包含 playUrl 和 ts（恢复位置）
+     */
+    public void startPlayWithInfo(String itemGuid, MediaCallback<com.mynas.nastv.model.PlayStartInfo> callback) {
+        Log.d(TAG, "🎬 startPlayWithInfo: " + itemGuid);
+        
+        getPlayInfo(itemGuid, new MediaCallback<PlayInfoResponse>() {
+            @Override
+            public void onSuccess(PlayInfoResponse playInfoResponse) {
+                if (playInfoResponse != null && playInfoResponse.getData() != null) {
+                    PlayInfoResponse.PlayInfoData data = playInfoResponse.getData();
+                    String mediaGuid = data.getMediaGuid();
+                    
+                    Log.d(TAG, "🎬 PlayInfo成功: mediaGuid=" + mediaGuid + ", type=" + data.getType() + ", ts=" + data.getTs());
+                    
+                    if (mediaGuid != null && !mediaGuid.isEmpty()) {
+                        String baseUrl = SharedPreferencesManager.getServerBaseUrl();
+                        String playUrl = baseUrl + "/v/api/v1/media/range/" + mediaGuid + "?direct_link_quality_index=0";
+                        
+                        // 创建 PlayStartInfo 包含所有播放信息
+                        com.mynas.nastv.model.PlayStartInfo playStartInfo = 
+                            new com.mynas.nastv.model.PlayStartInfo(playUrl, data.getTs());
+                        playStartInfo.setMediaGuid(mediaGuid);
+                        playStartInfo.setVideoGuid(data.getVideoGuid());
+                        playStartInfo.setAudioGuid(data.getAudioGuid());
+                        playStartInfo.setSubtitleGuid(data.getSubtitleGuid());
+                        
+                        Log.d(TAG, "🎬 PlayStartInfo: " + playStartInfo);
+                        callback.onSuccess(playStartInfo);
+                    } else {
+                        callback.onError("No media_guid found in play info");
+                    }
+                } else {
+                    callback.onError("Invalid play info response");
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                callback.onError(error);
+            }
+        });
+    }
+    
+    /**
      * 🎬 获取直连URL（优先原画）
      * 调用 POST /v/api/v1/stream 获取 direct_link_qualities
      * 
@@ -771,6 +908,273 @@ public class MediaManager {
          }
     }
 
+    /**
+     * 👥 Get Person List (演职人员列表)
+     * Web端使用: GET /v/api/v1/person/list/{item_guid}
+     */
+    public void getPersonList(String itemGuid, MediaCallback<List<PersonInfo>> callback) {
+        Log.d(TAG, "👥 Getting person list: " + itemGuid);
+        
+        String token = SharedPreferencesManager.getAuthToken();
+        if (token == null || token.isEmpty()) {
+            callback.onError("User not logged in");
+            return;
+        }
+        
+        try {
+            String method = "GET";
+            String url = "/v/api/v1/person/list/" + itemGuid;
+            String data = "";
+            Map<String, String> params = new HashMap<>();
+            
+            String authx = SignatureUtils.generateSignature(method, url, data, params);
+            String authToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            
+            ApiService apiService = ApiClient.getApiService();
+            Call<BaseResponse<List<PersonInfo>>> call = apiService.getPersonList(authToken, authx, itemGuid);
+            
+            call.enqueue(new Callback<BaseResponse<List<PersonInfo>>>() {
+                @Override
+                public void onResponse(@NonNull Call<BaseResponse<List<PersonInfo>>> call, @NonNull Response<BaseResponse<List<PersonInfo>>> response) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        BaseResponse<List<PersonInfo>> res = response.body();
+                        if (res.getCode() == 0 && res.getData() != null) {
+                            Log.d(TAG, "✅ Person list success: " + res.getData().size() + " persons");
+                            callback.onSuccess(res.getData());
+                        } else {
+                            callback.onError(res.getMessage() != null ? res.getMessage() : "Failed to get persons");
+                        }
+                    } else {
+                        callback.onError("Request failed: " + response.message());
+                    }
+                }
+                
+                @Override
+                public void onFailure(@NonNull Call<BaseResponse<List<PersonInfo>>> call, @NonNull Throwable t) {
+                    callback.onError("Network error: " + t.getMessage());
+                }
+            });
+            
+        } catch (Exception e) {
+            callback.onError("Exception: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 🎬 Get Stream List (流信息列表)
+     * Web端使用: GET /v/api/v1/stream/list/{item_guid}
+     */
+    public void getStreamList(String itemGuid, MediaCallback<StreamListResponse> callback) {
+        Log.d(TAG, "🎬 Getting stream list: " + itemGuid);
+        
+        String token = SharedPreferencesManager.getAuthToken();
+        if (token == null || token.isEmpty()) {
+            callback.onError("User not logged in");
+            return;
+        }
+        
+        try {
+            String method = "GET";
+            String url = "/v/api/v1/stream/list/" + itemGuid;
+            String data = "";
+            Map<String, String> params = new HashMap<>();
+            
+            String authx = SignatureUtils.generateSignature(method, url, data, params);
+            String authToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            
+            ApiService apiService = ApiClient.getApiService();
+            Call<StreamListResponse> call = apiService.getStreamList(authToken, authx, itemGuid);
+            
+            call.enqueue(new Callback<StreamListResponse>() {
+                @Override
+                public void onResponse(@NonNull Call<StreamListResponse> call, @NonNull Response<StreamListResponse> response) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        StreamListResponse res = response.body();
+                        if (res.getCode() == 0) {
+                            Log.d(TAG, "✅ Stream list success");
+                            callback.onSuccess(res);
+                        } else {
+                            callback.onError(res.getMessage() != null ? res.getMessage() : "Failed to get streams");
+                        }
+                    } else {
+                        callback.onError("Request failed: " + response.message());
+                    }
+                }
+                
+                @Override
+                public void onFailure(@NonNull Call<StreamListResponse> call, @NonNull Throwable t) {
+                    callback.onError("Network error: " + t.getMessage());
+                }
+            });
+            
+        } catch (Exception e) {
+            callback.onError("Exception: " + e.getMessage());
+        }
+    }
+
+    /**
+     * ⭐ Get Favorite List (收藏列表)
+     * Web端使用: GET /v/api/v1/favorite/list
+     * @param type 类型: all/movie/tv/episode
+     * @param page 页码
+     * @param pageSize 每页数量
+     */
+    public void getFavoriteList(String type, int page, int pageSize, MediaCallback<FavoriteListResponse> callback) {
+        Log.d(TAG, "⭐ Getting favorite list: type=" + type + ", page=" + page);
+        
+        String token = SharedPreferencesManager.getAuthToken();
+        if (token == null || token.isEmpty()) {
+            callback.onError("User not logged in");
+            return;
+        }
+        
+        try {
+            String method = "GET";
+            String url = "/v/api/v1/favorite/list";
+            String data = "";
+            Map<String, String> params = new HashMap<>();
+            params.put("type", type);
+            params.put("page", String.valueOf(page));
+            params.put("page_size", String.valueOf(pageSize));
+            
+            String authx = SignatureUtils.generateSignature(method, url, data, params);
+            String authToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            
+            ApiService apiService = ApiClient.getApiService();
+            Call<BaseResponse<FavoriteListResponse>> call = apiService.getFavoriteList(authToken, authx, type, page, pageSize);
+            
+            call.enqueue(new Callback<BaseResponse<FavoriteListResponse>>() {
+                @Override
+                public void onResponse(@NonNull Call<BaseResponse<FavoriteListResponse>> call, @NonNull Response<BaseResponse<FavoriteListResponse>> response) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        BaseResponse<FavoriteListResponse> res = response.body();
+                        if (res.getCode() == 0 && res.getData() != null) {
+                            Log.d(TAG, "✅ Favorite list success: " + res.getData().getTotal() + " items");
+                            callback.onSuccess(res.getData());
+                        } else {
+                            callback.onError(res.getMessage() != null ? res.getMessage() : "Failed to get favorites");
+                        }
+                    } else {
+                        callback.onError("Request failed: " + response.message());
+                    }
+                }
+                
+                @Override
+                public void onFailure(@NonNull Call<BaseResponse<FavoriteListResponse>> call, @NonNull Throwable t) {
+                    callback.onError("Network error: " + t.getMessage());
+                }
+            });
+            
+        } catch (Exception e) {
+            callback.onError("Exception: " + e.getMessage());
+        }
+    }
+
+    /**
+     * ⭐ Add to Favorites (添加收藏)
+     */
+    public void addFavorite(String itemGuid, MediaCallback<Boolean> callback) {
+        Log.d(TAG, "⭐ Adding to favorites: " + itemGuid);
+        
+        String token = SharedPreferencesManager.getAuthToken();
+        if (token == null || token.isEmpty()) {
+            callback.onError("User not logged in");
+            return;
+        }
+        
+        try {
+            FavoriteRequest request = new FavoriteRequest(itemGuid, "");
+            
+            String method = "POST";
+            String url = "/v/api/v1/user/favorite";
+            Gson gson = new Gson();
+            String data = gson.toJson(request);
+            Map<String, String> params = new HashMap<>();
+            
+            String authx = SignatureUtils.generateSignature(method, url, data, params);
+            String authToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            
+            ApiService apiService = ApiClient.getApiService();
+            Call<BaseResponse<Object>> call = apiService.addToFavorites(authToken, authx, request);
+            
+            call.enqueue(new Callback<BaseResponse<Object>>() {
+                @Override
+                public void onResponse(@NonNull Call<BaseResponse<Object>> call, @NonNull Response<BaseResponse<Object>> response) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        BaseResponse<Object> res = response.body();
+                        if (res.getCode() == 0) {
+                            Log.d(TAG, "✅ Added to favorites");
+                            callback.onSuccess(true);
+                        } else {
+                            callback.onError(res.getMessage() != null ? res.getMessage() : "Failed to add favorite");
+                        }
+                    } else {
+                        callback.onError("Request failed: " + response.message());
+                    }
+                }
+                
+                @Override
+                public void onFailure(@NonNull Call<BaseResponse<Object>> call, @NonNull Throwable t) {
+                    callback.onError("Network error: " + t.getMessage());
+                }
+            });
+            
+        } catch (Exception e) {
+            callback.onError("Exception: " + e.getMessage());
+        }
+    }
+
+    /**
+     * ⭐ Remove from Favorites (取消收藏)
+     */
+    public void removeFavorite(String itemGuid, MediaCallback<Boolean> callback) {
+        Log.d(TAG, "⭐ Removing from favorites: " + itemGuid);
+        
+        String token = SharedPreferencesManager.getAuthToken();
+        if (token == null || token.isEmpty()) {
+            callback.onError("User not logged in");
+            return;
+        }
+        
+        try {
+            String method = "DELETE";
+            String url = "/v/api/v1/user/favorite/" + itemGuid;
+            String data = "";
+            Map<String, String> params = new HashMap<>();
+            
+            String authx = SignatureUtils.generateSignature(method, url, data, params);
+            String authToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            
+            ApiService apiService = ApiClient.getApiService();
+            Call<BaseResponse<Object>> call = apiService.removeFromFavorites(authToken, authx, itemGuid);
+            
+            call.enqueue(new Callback<BaseResponse<Object>>() {
+                @Override
+                public void onResponse(@NonNull Call<BaseResponse<Object>> call, @NonNull Response<BaseResponse<Object>> response) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        BaseResponse<Object> res = response.body();
+                        if (res.getCode() == 0) {
+                            Log.d(TAG, "✅ Removed from favorites");
+                            callback.onSuccess(true);
+                        } else {
+                            callback.onError(res.getMessage() != null ? res.getMessage() : "Failed to remove favorite");
+                        }
+                    } else {
+                        callback.onError("Request failed: " + response.message());
+                    }
+                }
+                
+                @Override
+                public void onFailure(@NonNull Call<BaseResponse<Object>> call, @NonNull Throwable t) {
+                    callback.onError("Network error: " + t.getMessage());
+                }
+            });
+            
+        } catch (Exception e) {
+            callback.onError("Exception: " + e.getMessage());
+        }
+    }
+
     // Helper conversion methods...
     private List<MediaDbItem> convertToMediaDbItems(List<MediaDbListResponse.MediaDb> data) {
         List<MediaDbItem> result = new ArrayList<>();
@@ -803,6 +1207,22 @@ public class MediaManager {
                      mediaItem.setDuration(item.getDuration());
                  } else if (item.getRuntime() > 0) {
                      mediaItem.setDuration(item.getRuntime() * 60L); // runtime 是分钟，转换为秒
+                 }
+                 
+                 // ⭐ 设置评分
+                 String voteAvgStr = item.getVoteAverage();
+                 if (voteAvgStr != null && !voteAvgStr.isEmpty()) {
+                     try {
+                         mediaItem.setVoteAverage(Double.parseDouble(voteAvgStr));
+                     } catch (NumberFormatException e) {
+                         mediaItem.setVoteAverage(0);
+                     }
+                 }
+                 
+                 // 设置年份（从 airDate 提取）
+                 String airDate = item.getAirDate();
+                 if (airDate != null && airDate.length() >= 4) {
+                     mediaItem.setYear(airDate.substring(0, 4));
                  }
                  
                  result.add(mediaItem);

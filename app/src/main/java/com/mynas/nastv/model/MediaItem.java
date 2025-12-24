@@ -49,6 +49,14 @@ public class MediaItem implements Parcelable {
     private int episodeNumber;      // 集数
     private String tvTitle;         // 电视剧标题（用于弹幕搜索）
     
+    // 📊 详情页扩展字段
+    private String genres;          // 类型标签，如 "剧情 爱情"
+    private String originCountry;   // 制作地区，如 "中国大陆 中国香港"
+    private String contentRating;   // 内容分级，如 "TV-PG"
+    private String imdbId;          // IMDB ID
+    private String overview;        // 简介
+    private double voteAverage;     // 评分 (0-10)，与 API vote_average 对应
+    
     // 🔧 构造函数
     public MediaItem() {}
     
@@ -103,6 +111,12 @@ public class MediaItem implements Parcelable {
         seasonNumber = in.readInt();
         episodeNumber = in.readInt();
         tvTitle = in.readString();
+        genres = in.readString();
+        originCountry = in.readString();
+        contentRating = in.readString();
+        imdbId = in.readString();
+        overview = in.readString();
+        voteAverage = in.readDouble();
     }
     
     public static final Creator<MediaItem> CREATOR = new Creator<MediaItem>() {
@@ -153,6 +167,12 @@ public class MediaItem implements Parcelable {
         dest.writeInt(seasonNumber);
         dest.writeInt(episodeNumber);
         dest.writeString(tvTitle);
+        dest.writeString(genres);
+        dest.writeString(originCountry);
+        dest.writeString(contentRating);
+        dest.writeString(imdbId);
+        dest.writeString(overview);
+        dest.writeDouble(voteAverage);
     }
     
     // 📖 Getter和Setter方法
@@ -263,6 +283,24 @@ public class MediaItem implements Parcelable {
     
     public String getTvTitle() { return tvTitle; }
     public void setTvTitle(String tvTitle) { this.tvTitle = tvTitle; }
+    
+    public String getGenres() { return genres; }
+    public void setGenres(String genres) { this.genres = genres; }
+    
+    public String getOriginCountry() { return originCountry; }
+    public void setOriginCountry(String originCountry) { this.originCountry = originCountry; }
+    
+    public String getContentRating() { return contentRating; }
+    public void setContentRating(String contentRating) { this.contentRating = contentRating; }
+    
+    public String getImdbId() { return imdbId; }
+    public void setImdbId(String imdbId) { this.imdbId = imdbId; }
+    
+    public String getOverview() { return overview; }
+    public void setOverview(String overview) { this.overview = overview; }
+    
+    public double getVoteAverage() { return voteAverage; }
+    public void setVoteAverage(double voteAverage) { this.voteAverage = voteAverage; }
     
     // 🔧 辅助方法
     

@@ -17,15 +17,39 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- 📱 海报图片 -->
-        <ImageView
-            android:id="@+id/media_poster"
+        <!-- 📱 海报图片容器（用于叠加评分） -->
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:scaleType="centerCrop"
-            android:contentDescription="@string/poster_description"
-            tools:src="@color/tv_card_background" />
+            android:layout_weight="1">
+
+            <!-- 海报图片 -->
+            <ImageView
+                android:id="@+id/media_poster"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:contentDescription="@string/poster_description"
+                tools:src="@color/tv_card_background" />
+
+            <!-- ⭐ 评分标签（右上角） -->
+            <TextView
+                android:id="@+id/media_rating"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                android:layout_margin="6dp"
+                android:background="@drawable/rating_badge_background"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="2dp"
+                android:textSize="12sp"
+                android:textColor="@android:color/white"
+                android:fontFamily="@font/tv_font_medium"
+                android:visibility="gone"
+                tools:text="7.6"
+                tools:visibility="visible" />
+
+        </FrameLayout>
 
         <!-- 📝 文本信息 -->
         <LinearLayout

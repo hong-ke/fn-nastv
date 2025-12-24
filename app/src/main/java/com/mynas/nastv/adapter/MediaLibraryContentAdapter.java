@@ -13,6 +13,7 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.mynas.nastv.R;
 import com.mynas.nastv.model.MediaItem;
+import com.mynas.nastv.utils.FormatUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +43,14 @@ public class MediaLibraryContentAdapter extends RecyclerView.Adapter<MediaLibrar
         notifyDataSetChanged();
     }
 
+    public void appendItems(List<MediaItem> items) {
+        if (items != null && !items.isEmpty()) {
+            int startPos = mediaItems.size();
+            mediaItems.addAll(items);
+            notifyItemRangeInserted(startPos, items.size());
+        }
+    }
+
     @NonNull
     @Override
     public MediaContentViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -65,12 +74,14 @@ public class MediaLibraryContentAdapter extends RecyclerView.Adapter<MediaLibrar
         private ImageView posterImage;
         private TextView titleText;
         private TextView subtitleText;
+        private TextView ratingText;
 
         public MediaContentViewHolder(@NonNull View itemView) {
             super(itemView);
             posterImage = itemView.findViewById(R.id.media_poster);
             titleText = itemView.findViewById(R.id.media_title);
             subtitleText = itemView.findViewById(R.id.media_subtitle);
+            ratingText = itemView.findViewById(R.id.media_rating);
 
             itemView.setOnClickListener(v -> {
                 int position = getAdapterPosition();
@@ -105,6 +116,20 @@ public class MediaLibraryContentAdapter extends RecyclerView.Adapter<MediaLibrar
                 subtitle = item.getType();
             }
             subtitleText.setText(subtitle);
+
+            // ⭐ 评分显示
+            double rating = item.getVoteAverage();
+            if (rating > 0) {
+                String ratingStr = FormatUtils.formatRating(rating);
+                if (!ratingStr.isEmpty()) {
+                    ratingText.setText(ratingStr);
+                    ratingText.setVisibility(View.VISIBLE);
+                } else {
+                    ratingText.setVisibility(View.GONE);
+                }
+            } else {
+                ratingText.setVisibility(View.GONE);
+            }
 
             // 焦点动画
             itemView.setOnFocusChangeListener((v, hasFocus) -> {

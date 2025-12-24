@@ -197,54 +197,138 @@
 
     </LinearLayout>
 
-    <!-- 🎛️ 底部设置菜单 -->
+    <!-- ⏩ 快进/快退进度条覆盖层 -->
+    <LinearLayout
+        android:id="@+id/seek_progress_overlay"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="200dp"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:paddingHorizontal="60dp"
+        android:paddingVertical="30dp"
+        android:background="@drawable/dialog_background"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/seek_time_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/white"
+            android:textSize="20sp"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center" />
+
+        <ProgressBar
+            android:id="@+id/seek_progress_bar"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="600dp"
+            android:layout_height="12dp"
+            android:layout_marginTop="20dp"
+            android:progressDrawable="@drawable/seekbar_progress_bg"
+            android:max="100"
+            android:progress="0" />
+
+    </LinearLayout>
+
+    <!-- 🎛️ 底部设置菜单 - 美化版 -->
     <LinearLayout
         android:id="@+id/bottom_menu_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:background="#CC000000"
+        android:background="@drawable/player_bottom_menu_bg"
         android:orientation="vertical"
-        android:paddingHorizontal="40dp"
-        android:paddingTop="16dp"
-        android:paddingBottom="20dp"
+        android:paddingHorizontal="48dp"
+        android:paddingTop="24dp"
+        android:paddingBottom="28dp"
         android:visibility="gone">
 
         <!-- 📊 进度条区域 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="16dp">
+            android:orientation="vertical"
+            android:layout_marginBottom="20dp">
 
-            <TextView
-                android:id="@+id/progress_current_time"
-                android:layout_width="wrap_content"
+            <!-- 时间和缓存信息 -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="@color/white"
-                android:textSize="14sp"
-                android:text="00:00" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp">
 
-            <SeekBar
-                android:id="@+id/progress_seekbar"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginHorizontal="12dp"
-                android:progressTint="#2196F3"
-                android:thumbTint="#2196F3"
-                android:progressBackgroundTint="#666666"
-                android:max="100"
-                android:progress="0" />
+                <TextView
+                    android:id="@+id/progress_current_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#CCFFFFFF"
+                    android:textSize="14sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="00:00" />
 
-            <TextView
-                android:id="@+id/progress_total_time"
-                android:layout_width="wrap_content"
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+
+                <!-- 缓存进度提示 -->
+                <TextView
+                    android:id="@+id/buffer_info_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#80FFFFFF"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif"
+                    android:text=""
+                    android:layout_marginEnd="12dp" />
+
+                <TextView
+                    android:id="@+id/progress_total_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#99FFFFFF"
+                    android:textSize="14sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="00:00" />
+
+            </LinearLayout>
+
+            <!-- 双层进度条：缓存 + 播放 -->
+            <FrameLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="@color/white"
-                android:textSize="14sp"
-                android:text="00:00" />
+                android:layout_marginHorizontal="4dp">
+
+                <!-- 缓存进度条（底层，浅色） -->
+                <ProgressBar
+                    android:id="@+id/buffer_progressbar"
+                    style="@android:style/Widget.ProgressBar.Horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="6dp"
+                    android:layout_gravity="center_vertical"
+                    android:progressDrawable="@drawable/buffer_progress_bg"
+                    android:max="100"
+                    android:progress="0" />
+
+                <!-- 播放进度条（上层，可拖动） -->
+                <SeekBar
+                    android:id="@+id/progress_seekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:progressDrawable="@drawable/seekbar_progress_bg"
+                    android:thumb="@drawable/seekbar_thumb"
+                    android:splitTrack="false"
+                    android:max="100"
+                    android:progress="0"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp" />
+
+            </FrameLayout>
 
         </LinearLayout>
 
@@ -256,15 +340,35 @@
             android:orientation="horizontal">
 
             <TextView
+                android:id="@+id/menu_next_episode"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginHorizontal="4dp"
+                android:gravity="center"
+                android:paddingVertical="14dp"
+                android:paddingHorizontal="8dp"
+                android:text="下一集"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif-medium"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:background="@drawable/menu_item_selector" />
+
+            <TextView
                 android:id="@+id/menu_speed"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:layout_marginHorizontal="4dp"
                 android:gravity="center"
-                android:padding="16dp"
+                android:paddingVertical="14dp"
+                android:paddingHorizontal="8dp"
                 android:text="倍速"
                 android:textColor="@color/white"
-                android:textSize="18sp"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif-medium"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:background="@drawable/menu_item_selector" />
@@ -274,11 +378,14 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:layout_marginHorizontal="4dp"
                 android:gravity="center"
-                android:padding="16dp"
+                android:paddingVertical="14dp"
+                android:paddingHorizontal="8dp"
                 android:text="选集"
                 android:textColor="@color/white"
-                android:textSize="18sp"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif-medium"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:background="@drawable/menu_item_selector" />
@@ -288,11 +395,14 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:layout_marginHorizontal="4dp"
                 android:gravity="center"
-                android:padding="16dp"
+                android:paddingVertical="14dp"
+                android:paddingHorizontal="8dp"
                 android:text="原画"
                 android:textColor="@color/white"
-                android:textSize="18sp"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif-medium"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:background="@drawable/menu_item_selector" />
@@ -302,11 +412,14 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:layout_marginHorizontal="4dp"
                 android:gravity="center"
-                android:padding="16dp"
+                android:paddingVertical="14dp"
+                android:paddingHorizontal="8dp"
                 android:text="字幕"
                 android:textColor="@color/white"
-                android:textSize="18sp"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif-medium"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:background="@drawable/menu_item_selector" />
@@ -316,11 +429,31 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:layout_marginHorizontal="4dp"
                 android:gravity="center"
-                android:padding="16dp"
+                android:paddingVertical="14dp"
+                android:paddingHorizontal="8dp"
                 android:text="弹幕"
                 android:textColor="@color/white"
-                android:textSize="18sp"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif-medium"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:background="@drawable/menu_item_selector" />
+
+            <TextView
+                android:id="@+id/menu_settings"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginHorizontal="4dp"
+                android:gravity="center"
+                android:paddingVertical="14dp"
+                android:paddingHorizontal="8dp"
+                android:text="设置"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif-medium"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:background="@drawable/menu_item_selector" />

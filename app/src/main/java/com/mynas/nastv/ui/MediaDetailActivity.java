@@ -240,6 +240,9 @@ public class MediaDetailActivity extends AppCompatActivity {
                     updateUI(detail);
                     if (isTVShow()) {
                         loadSeasonList();
+                    } else {
+                        // 电影模式：加载演职人员
+                        loadPersonListForMovie();
                     }
                 });
             }
@@ -252,6 +255,170 @@ public class MediaDetailActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+    
+    /**
+     * 🎬 为电影加载演职人员列表
+     */
+    private void loadPersonListForMovie() {
+        mediaManager.getPersonList(mediaGuid, new MediaManager.MediaCallback<java.util.List<com.mynas.nastv.model.PersonInfo>>() {
+            @Override
+            public void onSuccess(java.util.List<com.mynas.nastv.model.PersonInfo> personList) {
+                runOnUiThread(() -> {
+                    if (personList != null && !personList.isEmpty()) {
+                        createPersonSection(personList);
+                    }
+                });
+            }
+            
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "Failed to load person list: " + error);
+            }
+        });
+    }
+    
+    /**
+     * 🎬 创建演职人员区域
+     */
+    private void createPersonSection(java.util.List<com.mynas.nastv.model.PersonInfo> personList) {
+        // 按类型分组
+        java.util.List<com.mynas.nastv.model.PersonInfo> directors = new java.util.ArrayList<>();
+        java.util.List<com.mynas.nastv.model.PersonInfo> actors = new java.util.ArrayList<>();
+        java.util.List<com.mynas.nastv.model.PersonInfo> writers = new java.util.ArrayList<>();
+        
+        for (com.mynas.nastv.model.PersonInfo person : personList) {
+            if (person.isDirector()) {
+                directors.add(person);
+            } else if (person.isActor()) {
+                actors.add(person);
+            } else if (person.isWriter()) {
+                writers.add(person);
+            }
+        }
+        
+        // 创建演职人员容器
+        LinearLayout personContainer = new LinearLayout(this);
+        personContainer.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams containerParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        containerParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_large);
+        personContainer.setLayoutParams(containerParams);
+        
+        // 导演
+        if (!directors.isEmpty()) {
+            addPersonRow(personContainer, "导演", directors);
+        }
+        
+        // 演员
+        if (!actors.isEmpty()) {
+            addPersonRow(personContainer, "演员", actors);
+        }
+        
+        // 编剧
+        if (!writers.isEmpty()) {
+            addPersonRow(personContainer, "编剧", writers);
+        }
+        
+        seasonContainer.addView(personContainer);
+    }
+    
+    /**
+     * 🎬 添加演职人员行
+     */
+    private void addPersonRow(LinearLayout container, String title, java.util.List<com.mynas.nastv.model.PersonInfo> persons) {
+        // 标题
+        TextView titleView = new TextView(this);
+        titleView.setText(title);
+        titleView.setTextSize(getResources().getDimension(R.dimen.tv_text_size_medium));
+        titleView.setTextColor(getColor(R.color.tv_text_secondary));
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        titleParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_medium);
+        titleView.setLayoutParams(titleParams);
+        container.addView(titleView);
+        
+        // 人员列表（水平滚动）
+        android.widget.HorizontalScrollView scrollView = new android.widget.HorizontalScrollView(this);
+        scrollView.setHorizontalScrollBarEnabled(false);
+        
+        LinearLayout rowLayout = new LinearLayout(this);
+        rowLayout.setOrientation(LinearLayout.HORIZONTAL);
+        
+        for (com.mynas.nastv.model.PersonInfo person : persons) {
+            LinearLayout personItem = createPersonItem(person);
+            rowLayout.addView(personItem);
+        }
+        
+        scrollView.addView(rowLayout);
+        container.addView(scrollView);
+    }
+    
+    /**
+     * 🎬 创建单个演职人员项
+     */
+    private LinearLayout createPersonItem(com.mynas.nastv.model.PersonInfo person) {
+        LinearLayout itemLayout = new LinearLayout(this);
+        itemLayout.setOrientation(LinearLayout.VERTICAL);
+        itemLayout.setGravity(android.view.Gravity.CENTER);
+        
+        int itemWidth = getResources().getDimensionPixelSize(R.dimen.tv_person_item_width);
+        LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(itemWidth, LinearLayout.LayoutParams.WRAP_CONTENT);
+        itemParams.rightMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_small);
+        itemLayout.setLayoutParams(itemParams);
+        
+        // 头像
+        ImageView avatarView = new ImageView(this);
+        int avatarSize = getResources().getDimensionPixelSize(R.dimen.tv_person_avatar_size);
+        LinearLayout.LayoutParams avatarParams = new LinearLayout.LayoutParams(avatarSize, avatarSize);
+        avatarView.setLayoutParams(avatarParams);
+        avatarView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        avatarView.setBackground(getDrawable(R.drawable.person_avatar_background));
+        
+        String profilePath = person.getProfilePath();
+        if (profilePath != null && !profilePath.isEmpty()) {
+            String imageUrl = profilePath;
+            if (!imageUrl.startsWith("http")) {
+                imageUrl = SharedPreferencesManager.getImageServiceUrl() + profilePath + "?w=100";
+            }
+            Glide.with(this).load(imageUrl).placeholder(R.drawable.person_avatar_background).into(avatarView);
+        }
+        itemLayout.addView(avatarView);
+        
+        // 姓名
+        TextView nameView = new TextView(this);
+        nameView.setText(person.getName());
+        nameView.setTextSize(12);
+        nameView.setTextColor(getColor(R.color.tv_text_primary));
+        nameView.setGravity(android.view.Gravity.CENTER);
+        nameView.setMaxLines(1);
+        nameView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        nameParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_small);
+        nameView.setLayoutParams(nameParams);
+        itemLayout.addView(nameView);
+        
+        // 角色/职位
+        String role = person.getRole();
+        if (role != null && !role.isEmpty()) {
+            TextView roleView = new TextView(this);
+            roleView.setText(role);
+            roleView.setTextSize(10);
+            roleView.setTextColor(getColor(R.color.tv_text_secondary));
+            roleView.setGravity(android.view.Gravity.CENTER);
+            roleView.setMaxLines(1);
+            roleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            itemLayout.addView(roleView);
+        }
+        
+        return itemLayout;
     }
     
     private boolean isTVShow() {
@@ -448,26 +615,67 @@ public class MediaDetailActivity extends AppCompatActivity {
         titleTextView.setText(detail.getTitle());
         mediaTitle = detail.getTitle();
         
-        String subtitle = detail.getType();
+        // 构建副标题：类型 + 年份 + 地区
+        StringBuilder subtitleBuilder = new StringBuilder();
+        
+        // 类型
+        String type = detail.getType();
+        if (type != null && !type.isEmpty()) {
+            subtitleBuilder.append(type);
+        }
+        
+        // 年份
         String year = "";
         if (detail.getReleaseDate() != null && detail.getReleaseDate().length() >= 4) {
-            year = " • " + detail.getReleaseDate().substring(0, 4);
+            year = detail.getReleaseDate().substring(0, 4);
         } else if (detail.getAirDate() != null && detail.getAirDate().length() >= 4) {
-             year = " • " + detail.getAirDate().substring(0, 4);
+            year = detail.getAirDate().substring(0, 4);
         }
-        subtitleTextView.setText(subtitle + year);
+        if (!year.isEmpty()) {
+            if (subtitleBuilder.length() > 0) subtitleBuilder.append(" · ");
+            subtitleBuilder.append(year);
+        }
         
+        // 类型标签 (genres)
+        String genres = detail.getGenres();
+        if (genres != null && !genres.isEmpty()) {
+            if (subtitleBuilder.length() > 0) subtitleBuilder.append(" · ");
+            subtitleBuilder.append(genres);
+        }
+        
+        // 地区 (origin_country)
+        String originCountry = detail.getOriginCountry();
+        if (originCountry != null && !originCountry.isEmpty()) {
+            if (subtitleBuilder.length() > 0) subtitleBuilder.append(" · ");
+            subtitleBuilder.append(originCountry);
+        }
+        
+        // 内容分级 (content_rating)
+        String contentRating = detail.getContentRating();
+        if (contentRating != null && !contentRating.isEmpty()) {
+            if (subtitleBuilder.length() > 0) subtitleBuilder.append(" · ");
+            subtitleBuilder.append(contentRating);
+        }
+        
+        subtitleTextView.setText(subtitleBuilder.toString());
+        
+        // 评分显示
         if (detail.getVoteAverage() > 0) {
             ratingTextView.setText("⭐ " + String.format("%.1f", detail.getVoteAverage()));
+            ratingTextView.setVisibility(View.VISIBLE);
+        } else {
+            ratingTextView.setVisibility(View.GONE);
         }
         
+        // 时长
         if (detail.getRuntime() > 0) {
             durationTextView.setText(detail.getRuntime() + " min");
             durationTextView.setVisibility(View.VISIBLE);
         } else {
-             durationTextView.setVisibility(View.GONE);
+            durationTextView.setVisibility(View.GONE);
         }
 
+        // 简介
         String overview = detail.getOverview();
         if (overview != null && !overview.trim().isEmpty()) {
             summaryTextView.setText(overview);
@@ -475,12 +683,13 @@ public class MediaDetailActivity extends AppCompatActivity {
             summaryTextView.setText("暂无简介");
         }
         
+        // 海报
         if (detail.getPoster() != null && !detail.getPoster().isEmpty()) {
-             String posterUrl = detail.getPoster();
-             if (!posterUrl.startsWith("http")) {
-                 posterUrl = SharedPreferencesManager.getImageServiceUrl() + posterUrl + "?w=400";
-             }
-             Glide.with(this).load(posterUrl).placeholder(R.drawable.bg_card).into(posterImageView);
+            String posterUrl = detail.getPoster();
+            if (!posterUrl.startsWith("http")) {
+                posterUrl = SharedPreferencesManager.getImageServiceUrl() + posterUrl + "?w=400";
+            }
+            Glide.with(this).load(posterUrl).placeholder(R.drawable.bg_card).into(posterImageView);
         }
     }
     
@@ -533,10 +742,10 @@ public class MediaDetailActivity extends AppCompatActivity {
     }
     
     private void startPlayItem(String itemGuid, String title, int episodeNumber) {
-        mediaManager.startPlay(itemGuid, new MediaManager.MediaCallback<String>() {
+        mediaManager.startPlayWithInfo(itemGuid, new MediaManager.MediaCallback<com.mynas.nastv.model.PlayStartInfo>() {
             @Override
-            public void onSuccess(String playUrl) {
-                runOnUiThread(() -> navigateToVideoPlayer(playUrl, title, itemGuid, episodeNumber));
+            public void onSuccess(com.mynas.nastv.model.PlayStartInfo playInfo) {
+                runOnUiThread(() -> navigateToVideoPlayer(playInfo, title, itemGuid, episodeNumber));
             }
             @Override
             public void onError(String error) {
@@ -545,12 +754,18 @@ public class MediaDetailActivity extends AppCompatActivity {
         });
     }
 
-    private void navigateToVideoPlayer(String playUrl, String title, String itemGuid, int episodeNumber) {
+    private void navigateToVideoPlayer(com.mynas.nastv.model.PlayStartInfo playInfo, String title, String itemGuid, int episodeNumber) {
         Intent intent = new Intent(this, VideoPlayerActivity.class);
-        intent.putExtra("video_url", playUrl);
+        intent.putExtra("video_url", playInfo.getPlayUrl());
         intent.putExtra("video_title", title);
         intent.putExtra("media_title", mediaTitle);
         intent.putExtra("episode_guid", itemGuid);
+        
+        // 🎬 传递恢复播放位置
+        intent.putExtra("resume_position", playInfo.getResumePositionSeconds());
+        intent.putExtra("video_guid", playInfo.getVideoGuid());
+        intent.putExtra("audio_guid", playInfo.getAudioGuid());
+        intent.putExtra("media_guid", playInfo.getMediaGuid());
         
         if (mediaDetail != null) {
              intent.putExtra("douban_id", String.valueOf(mediaDetail.getDoubanId()));

@@ -99,6 +99,11 @@ public class DanmakuEntity implements Serializable {
     public transient long startTimeMs;
     
     /**
+     * 🎬 弹幕滚动速度（像素/秒）
+     */
+    public transient float speed;
+    
+    /**
      * 构造函数
      */
     public DanmakuEntity() {
@@ -125,6 +130,7 @@ public class DanmakuEntity implements Serializable {
         this.currentY = 0;
         this.trackIndex = 0;
         this.startTimeMs = 0;
+        this.speed = 0;
     }
     
     /**

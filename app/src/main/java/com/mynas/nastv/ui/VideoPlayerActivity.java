@@ -26,6 +26,7 @@ import com.mynas.nastv.R;
 import com.mynas.nastv.feature.danmaku.api.IDanmuController;
 import com.mynas.nastv.feature.danmaku.logic.DanmuControllerImpl;
 import com.mynas.nastv.manager.MediaManager;
+import com.mynas.nastv.player.ProgressRecorder;
 import com.mynas.nastv.utils.SharedPreferencesManager;
 
 import java.util.HashMap;
@@ -66,6 +67,16 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private int seasonNumber;
     private String parentGuid; // 父级GUID（季GUID）
     private String tvTitle;    // 电视剧标题（用于弹幕搜索）
+    private String seasonGuid; // 季GUID（用于获取剧集列表）
+    
+    // 🎬 恢复播放位置
+    private long resumePositionSeconds = 0;
+    
+    // 🎬 跳过片头标志
+    private boolean hasSkippedIntro = false;
+    
+    // 📺 剧集列表（用于选集和下一集功能）
+    private java.util.List<com.mynas.nastv.model.EpisodeListResponse.Episode> episodeList;
     
     // 📝 字幕相关
     private java.util.List<com.mynas.nastv.model.StreamListResponse.SubtitleStream> subtitleStreams;
@@ -79,6 +90,9 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     // Manager
     private MediaManager mediaManager;
+    
+    // 🎬 播放进度记录器
+    private ProgressRecorder progressRecorder;
     
     private boolean isPlayerReady = false;
     
@@ -110,11 +124,18 @@ public class VideoPlayerActivity extends AppCompatActivity {
         episodeGuid = intent.getStringExtra("episode_guid");
         parentGuid = intent.getStringExtra("season_guid");
         if (parentGuid == null) parentGuid = intent.getStringExtra("parent_guid");
+        seasonGuid = intent.getStringExtra("season_guid"); // 保存季GUID用于获取剧集列表
         
         // Danmaku Params
         doubanId = intent.getStringExtra("douban_id");
         episodeNumber = intent.getIntExtra("episode_number", 0);
         seasonNumber = intent.getIntExtra("season_number", 0);
+        
+        // 🎬 恢复播放位置（秒）
+        resumePositionSeconds = intent.getLongExtra("resume_position", 0);
+        if (resumePositionSeconds <= 0) {
+            resumePositionSeconds = intent.getLongExtra("ts", 0);
+        }
         
         // 🎬 电影弹幕修复：电影没有季/集概念，但弹幕API需要season=1, episode=1
         // 参考Web端请求：电影使用 season_number=1, episode_number=1
@@ -130,8 +151,34 @@ public class VideoPlayerActivity extends AppCompatActivity {
         
         mediaManager = new MediaManager(this);
         
+        // 🎬 初始化播放进度记录器
+        progressRecorder = new ProgressRecorder();
+        
+        // 📺 加载剧集列表（用于选集和下一集功能）
+        if (seasonGuid != null && !seasonGuid.isEmpty()) {
+            loadEpisodeListForPlayer();
+        }
+        
         Log.d(TAG, "Data Initialized: " + mediaTitle + ", URL: " + videoUrl);
         Log.d(TAG, "Danmaku Params: title=" + tvTitle + ", s" + seasonNumber + "e" + episodeNumber + ", guid=" + episodeGuid + ", parentGuid=" + parentGuid);
+    }
+    
+    /**
+     * 📺 加载剧集列表（用于选集和下一集功能）
+     */
+    private void loadEpisodeListForPlayer() {
+        mediaManager.getEpisodeList(seasonGuid, new MediaManager.MediaCallback<java.util.List<com.mynas.nastv.model.EpisodeListResponse.Episode>>() {
+            @Override
+            public void onSuccess(java.util.List<com.mynas.nastv.model.EpisodeListResponse.Episode> episodes) {
+                episodeList = episodes;
+                Log.d(TAG, "📺 Loaded " + episodes.size() + " episodes for player");
+            }
+            
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "📺 Failed to load episode list: " + error);
+            }
+        });
     }
     
     private void initializeViews() {
@@ -259,15 +306,46 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         Log.d(TAG, "🎬 Player READY, showing player view");
                         showPlayer();
                         hideBufferingIndicator(); // 隐藏缓冲指示器
+                        
+                        // 🎬 通知预缓存服务卡顿结束
+                        if (prefetchService != null) {
+                            prefetchService.notifyBufferingEnd();
+                        }
+                        
+                        // 🎬 恢复播放位置
+                        if (resumePositionSeconds > 0) {
+                            long resumePositionMs = resumePositionSeconds * 1000;
+                            Log.d(TAG, "🎬 Resuming playback at position: " + resumePositionSeconds + "s");
+                            exoPlayer.seekTo(resumePositionMs);
+                            resumePositionSeconds = 0; // 只恢复一次
+                        } else {
+                            // 🎬 跳过片头功能
+                            int skipIntro = SharedPreferencesManager.getSkipIntro();
+                            if (skipIntro > 0 && !hasSkippedIntro) {
+                                Log.d(TAG, "🎬 Skipping intro: " + skipIntro + "s");
+                                exoPlayer.seekTo(skipIntro * 1000L);
+                                hasSkippedIntro = true;
+                            }
+                        }
                     } else if (playbackState == Player.STATE_BUFFERING) {
                         // 🔑 卡顿时显示加载提示
                         Log.d(TAG, "🎬 Buffering...");
                         if (isPlayerReady) {
                             // 已经开始播放后的卡顿，显示缓冲指示器
                             showBufferingIndicator();
+                            
+                            // 🎬 通知预缓存服务：发生卡顿，需要加速缓存
+                            if (prefetchService != null) {
+                                prefetchService.notifyBufferingStart();
+                            }
                         }
                     } else if (playbackState == Player.STATE_ENDED) {
-                        finish();
+                        // 🎬 自动连播：播放结束时自动播放下一集
+                        if (SharedPreferencesManager.isAutoPlayNext() && episodeList != null && !episodeList.isEmpty()) {
+                            playNextEpisodeAuto();
+                        } else {
+                            finish();
+                        }
                     }
                 }
                 
@@ -281,6 +359,21 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         } else {
                             danmuController.pausePlayback();
                             stopPositionUpdate();
+                        }
+                    }
+                    
+                    // 🎬 播放进度记录
+                    if (progressRecorder != null) {
+                        if (isPlaying) {
+                            // 开始播放时启动记录
+                            if (!progressRecorder.isRecording()) {
+                                String itemGuid = episodeGuid != null ? episodeGuid : mediaGuid;
+                                progressRecorder.startRecording(itemGuid, mediaGuid);
+                                progressRecorder.setStreamGuids(videoGuid, audioGuid, null);
+                            }
+                        } else {
+                            // 暂停时立即保存进度
+                            progressRecorder.saveImmediately();
                         }
                     }
                 }
@@ -1159,16 +1252,22 @@ public class VideoPlayerActivity extends AppCompatActivity {
         public void run() {
             if (exoPlayer != null) {
                 long currentPosition = exoPlayer.getCurrentPosition();
+                long duration = exoPlayer.getDuration();
                 
                 // 更新弹幕位置
                 if (danmuController != null) {
                     danmuController.updatePlaybackPosition(currentPosition);
                 }
                 
+                // 🎬 更新播放进度记录器
+                if (progressRecorder != null && duration > 0) {
+                    // 转换为秒
+                    progressRecorder.updateProgress(currentPosition / 1000, duration / 1000);
+                }
+                
                 // 🚀 更新预缓存服务的播放位置（用于调整下载优先级）
-                if (prefetchService != null && exoPlayer.getDuration() > 0) {
+                if (prefetchService != null && duration > 0) {
                     // 将时间位置转换为字节位置（估算）
-                    long duration = exoPlayer.getDuration();
                     long contentLength = prefetchService.getContentLength();
                     if (contentLength > 0) {
                         long bytePosition = (currentPosition * contentLength) / duration;
@@ -1193,6 +1292,13 @@ public class VideoPlayerActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         stopPositionUpdate();
+        
+        // 🎬 停止播放进度记录
+        if (progressRecorder != null) {
+            progressRecorder.stopRecording();
+            progressRecorder = null;
+        }
+        
         // 清理图标隐藏任务
         if (hideIconRunnable != null) {
             iconHandler.removeCallbacks(hideIconRunnable);
@@ -1251,6 +1357,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             if (exoPlayer != null) {
                 long newPosition = Math.max(0, exoPlayer.getCurrentPosition() - 10000);
                 exoPlayer.seekTo(newPosition);
+                showSeekProgressOverlay(newPosition, false);
                 return true;
             }
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && !isMenuVisible) {
@@ -1258,6 +1365,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             if (exoPlayer != null) {
                 long newPosition = Math.min(exoPlayer.getDuration(), exoPlayer.getCurrentPosition() + 10000);
                 exoPlayer.seekTo(newPosition);
+                showSeekProgressOverlay(newPosition, true);
                 return true;
             }
         }
@@ -1280,12 +1388,14 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     // UI - 底部菜单
     private LinearLayout bottomMenuContainer;
-    private TextView menuSpeed, menuEpisode, menuQuality, menuSubtitle, menuDanmaku;
+    private TextView menuNextEpisode, menuSpeed, menuEpisode, menuQuality, menuSubtitle, menuDanmaku, menuSettings;
     private boolean isMenuVisible = false;
     
     // UI - 进度条
     private TextView progressCurrentTime, progressTotalTime;
+    private TextView bufferInfoText;
     private android.widget.SeekBar progressSeekbar;
+    private android.widget.ProgressBar bufferProgressbar;
     private boolean isSeekbarTracking = false;
     
     // UI - 中央播放/暂停图标
@@ -1301,6 +1411,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private void showSettingsMenu() {
         if (bottomMenuContainer == null) {
             bottomMenuContainer = findViewById(R.id.bottom_menu_container);
+            menuNextEpisode = findViewById(R.id.menu_next_episode);
             menuSpeed = findViewById(R.id.menu_speed);
             menuEpisode = findViewById(R.id.menu_episode);
             menuQuality = findViewById(R.id.menu_quality);
@@ -1311,13 +1422,22 @@ public class VideoPlayerActivity extends AppCompatActivity {
             progressCurrentTime = findViewById(R.id.progress_current_time);
             progressTotalTime = findViewById(R.id.progress_total_time);
             progressSeekbar = findViewById(R.id.progress_seekbar);
+            bufferProgressbar = findViewById(R.id.buffer_progressbar);
+            bufferInfoText = findViewById(R.id.buffer_info_text);
             
             // 设置点击事件
+            if (menuNextEpisode != null) {
+                menuNextEpisode.setOnClickListener(v -> playNextEpisode());
+            }
             menuSpeed.setOnClickListener(v -> showSpeedMenu());
             menuEpisode.setOnClickListener(v -> showEpisodeMenu());
             menuQuality.setOnClickListener(v -> showQualityMenu());
             menuSubtitle.setOnClickListener(v -> showSubtitleMenu());
             menuDanmaku.setOnClickListener(v -> toggleDanmaku());
+            menuSettings = findViewById(R.id.menu_settings);
+            if (menuSettings != null) {
+                menuSettings.setOnClickListener(v -> showSettingsDialog());
+            }
             
             // 进度条拖动监听
             if (progressSeekbar != null) {
@@ -1392,12 +1512,33 @@ public class VideoPlayerActivity extends AppCompatActivity {
         if (exoPlayer != null && progressSeekbar != null) {
             long currentPosition = exoPlayer.getCurrentPosition();
             long duration = exoPlayer.getDuration();
+            long bufferedPosition = exoPlayer.getBufferedPosition();
             
             if (duration > 0) {
+                // 播放进度
                 int progress = (int) ((currentPosition * 100) / duration);
                 progressSeekbar.setProgress(progress);
                 progressCurrentTime.setText(formatTime(currentPosition));
                 progressTotalTime.setText(formatTime(duration));
+                
+                // 缓存进度
+                int bufferProgress = (int) ((bufferedPosition * 100) / duration);
+                if (bufferProgressbar != null) {
+                    bufferProgressbar.setProgress(bufferProgress);
+                }
+                
+                // 缓存信息文本
+                if (bufferInfoText != null) {
+                    long bufferedSeconds = (bufferedPosition - currentPosition) / 1000;
+                    if (bufferedSeconds > 0 && bufferedSeconds < 300) {
+                        // 显示缓存了多少秒
+                        bufferInfoText.setText("已缓存 " + bufferedSeconds + "s");
+                    } else if (bufferProgress >= 99) {
+                        bufferInfoText.setText("缓存完成");
+                    } else {
+                        bufferInfoText.setText("");
+                    }
+                }
             }
         }
     }
@@ -1439,6 +1580,131 @@ public class VideoPlayerActivity extends AppCompatActivity {
             };
             iconHandler.postDelayed(hideIconRunnable, 1000);
         }
+    }
+    
+    // 🎬 快进/快退进度条相关
+    private View seekProgressOverlay;
+    private TextView seekTimeText;
+    private android.widget.ProgressBar seekProgressBar;
+    private Handler seekOverlayHandler = new Handler(Looper.getMainLooper());
+    private Runnable hideSeekOverlayRunnable;
+    
+    /**
+     * 🎬 显示快进/快退进度条
+     */
+    private void showSeekProgressOverlay(long newPosition, boolean isForward) {
+        if (exoPlayer == null) return;
+        
+        long duration = exoPlayer.getDuration();
+        if (duration <= 0) return;
+        
+        // 初始化进度条视图
+        if (seekProgressOverlay == null) {
+            seekProgressOverlay = findViewById(R.id.seek_progress_overlay);
+            seekTimeText = findViewById(R.id.seek_time_text);
+            seekProgressBar = findViewById(R.id.seek_progress_bar);
+        }
+        
+        // 如果布局中没有这个视图，动态创建
+        if (seekProgressOverlay == null) {
+            createSeekProgressOverlay();
+        }
+        
+        if (seekProgressOverlay != null && seekTimeText != null && seekProgressBar != null) {
+            // 显示进度条
+            seekProgressOverlay.setVisibility(View.VISIBLE);
+            
+            // 设置时间文本
+            String timeText = (isForward ? "▶▶ " : "◀◀ ") + formatTime(newPosition) + " / " + formatTime(duration);
+            seekTimeText.setText(timeText);
+            
+            // 设置进度条
+            int progress = (int) ((newPosition * 100) / duration);
+            
+            // 动画更新进度条
+            android.animation.ObjectAnimator animator = android.animation.ObjectAnimator.ofInt(
+                seekProgressBar, "progress", seekProgressBar.getProgress(), progress);
+            animator.setDuration(200);
+            animator.setInterpolator(new android.view.animation.DecelerateInterpolator());
+            animator.start();
+            
+            // 取消之前的隐藏任务
+            if (hideSeekOverlayRunnable != null) {
+                seekOverlayHandler.removeCallbacks(hideSeekOverlayRunnable);
+            }
+            
+            // 2秒后自动隐藏
+            hideSeekOverlayRunnable = () -> {
+                if (seekProgressOverlay != null) {
+                    // 淡出动画
+                    seekProgressOverlay.animate()
+                        .alpha(0f)
+                        .setDuration(300)
+                        .withEndAction(() -> {
+                            seekProgressOverlay.setVisibility(View.GONE);
+                            seekProgressOverlay.setAlpha(1f);
+                        })
+                        .start();
+                }
+            };
+            seekOverlayHandler.postDelayed(hideSeekOverlayRunnable, 2000);
+            
+            // 淡入动画
+            seekProgressOverlay.setAlpha(0f);
+            seekProgressOverlay.animate().alpha(1f).setDuration(150).start();
+        }
+    }
+    
+    /**
+     * 🎬 动态创建快进/快退进度条视图
+     */
+    private void createSeekProgressOverlay() {
+        // 创建容器
+        android.widget.LinearLayout container = new android.widget.LinearLayout(this);
+        container.setId(View.generateViewId());
+        container.setOrientation(android.widget.LinearLayout.VERTICAL);
+        container.setGravity(android.view.Gravity.CENTER);
+        container.setPadding(60, 30, 60, 30);
+        
+        // 设置背景
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(0xCC000000);
+        bg.setCornerRadius(24);
+        container.setBackground(bg);
+        
+        // 时间文本
+        seekTimeText = new TextView(this);
+        seekTimeText.setTextColor(0xFFFFFFFF);
+        seekTimeText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 20);
+        seekTimeText.setGravity(android.view.Gravity.CENTER);
+        container.addView(seekTimeText);
+        
+        // 进度条
+        seekProgressBar = new android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        android.widget.LinearLayout.LayoutParams progressParams = new android.widget.LinearLayout.LayoutParams(
+            600, 12);
+        progressParams.topMargin = 20;
+        seekProgressBar.setLayoutParams(progressParams);
+        seekProgressBar.setMax(100);
+        seekProgressBar.setProgress(0);
+        seekProgressBar.setProgressDrawable(getResources().getDrawable(R.drawable.seekbar_progress_bg, null));
+        container.addView(seekProgressBar);
+        
+        // 添加到根布局
+        android.widget.RelativeLayout.LayoutParams params = new android.widget.RelativeLayout.LayoutParams(
+            android.widget.RelativeLayout.LayoutParams.WRAP_CONTENT,
+            android.widget.RelativeLayout.LayoutParams.WRAP_CONTENT);
+        params.addRule(android.widget.RelativeLayout.CENTER_HORIZONTAL);
+        params.addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM);
+        params.bottomMargin = 200;
+        
+        android.view.ViewGroup rootView = findViewById(android.R.id.content);
+        if (rootView instanceof android.view.ViewGroup) {
+            ((android.view.ViewGroup) rootView.getChildAt(0)).addView(container, params);
+        }
+        
+        seekProgressOverlay = container;
+        seekProgressOverlay.setVisibility(View.GONE);
     }
     
     private void hideSettingsMenu() {
@@ -1493,7 +1759,146 @@ public class VideoPlayerActivity extends AppCompatActivity {
     }
     
     private void showEpisodeMenu() {
-        Toast.makeText(this, "选集功能开发中", Toast.LENGTH_SHORT).show();
+        if (episodeList == null || episodeList.isEmpty()) {
+            Toast.makeText(this, "暂无剧集列表", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        // 构建剧集选项
+        String[] episodeLabels = new String[episodeList.size()];
+        int currentIndex = -1;
+        
+        for (int i = 0; i < episodeList.size(); i++) {
+            com.mynas.nastv.model.EpisodeListResponse.Episode ep = episodeList.get(i);
+            String title = ep.getTitle();
+            if (title != null && !title.isEmpty()) {
+                episodeLabels[i] = "第" + ep.getEpisodeNumber() + "集 " + title;
+            } else {
+                episodeLabels[i] = "第" + ep.getEpisodeNumber() + "集";
+            }
+            
+            // 找到当前播放的剧集
+            if (ep.getEpisodeNumber() == episodeNumber) {
+                currentIndex = i;
+            }
+        }
+        
+        final int checkedItem = currentIndex;
+        
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("选集")
+            .setSingleChoiceItems(episodeLabels, checkedItem, (dialog, which) -> {
+                com.mynas.nastv.model.EpisodeListResponse.Episode selectedEp = episodeList.get(which);
+                if (selectedEp.getEpisodeNumber() != episodeNumber) {
+                    // 切换到选中的剧集
+                    playEpisode(selectedEp);
+                }
+                dialog.dismiss();
+            })
+            .show();
+    }
+    
+    /**
+     * 📺 播放指定剧集
+     */
+    private void playEpisode(com.mynas.nastv.model.EpisodeListResponse.Episode episode) {
+        Toast.makeText(this, "正在加载第" + episode.getEpisodeNumber() + "集...", Toast.LENGTH_SHORT).show();
+        
+        mediaManager.startPlayWithInfo(episode.getGuid(), new MediaManager.MediaCallback<com.mynas.nastv.model.PlayStartInfo>() {
+            @Override
+            public void onSuccess(com.mynas.nastv.model.PlayStartInfo playInfo) {
+                runOnUiThread(() -> {
+                    // 更新当前剧集信息
+                    episodeNumber = episode.getEpisodeNumber();
+                    episodeGuid = episode.getGuid();
+                    videoGuid = playInfo.getVideoGuid();
+                    audioGuid = playInfo.getAudioGuid();
+                    mediaGuid = playInfo.getMediaGuid();
+                    
+                    // 更新标题
+                    String newTitle = episode.getTitle() != null ? episode.getTitle() : "第" + episode.getEpisodeNumber() + "集";
+                    mediaTitle = newTitle;
+                    titleText.setText(tvTitle != null ? tvTitle : newTitle);
+                    infoText.setText("S" + seasonNumber + " E" + episodeNumber);
+                    
+                    // 重置恢复位置
+                    resumePositionSeconds = playInfo.getResumePositionSeconds();
+                    
+                    // 停止当前播放
+                    if (exoPlayer != null) {
+                        exoPlayer.stop();
+                    }
+                    
+                    // 停止弹幕
+                    if (danmuController != null) {
+                        danmuController.pausePlayback();
+                    }
+                    
+                    // 播放新视频
+                    videoUrl = playInfo.getPlayUrl();
+                    playMedia(videoUrl);
+                    
+                    hideSettingsMenu();
+                });
+            }
+            
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> {
+                    Toast.makeText(VideoPlayerActivity.this, "加载失败: " + error, Toast.LENGTH_LONG).show();
+                });
+            }
+        });
+    }
+    
+    /**
+     * 📺 播放下一集
+     */
+    private void playNextEpisode() {
+        if (episodeList == null || episodeList.isEmpty()) {
+            Toast.makeText(this, "暂无下一集", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        // 找到当前剧集的下一集
+        for (int i = 0; i < episodeList.size(); i++) {
+            if (episodeList.get(i).getEpisodeNumber() == episodeNumber) {
+                if (i + 1 < episodeList.size()) {
+                    playEpisode(episodeList.get(i + 1));
+                } else {
+                    Toast.makeText(this, "已经是最后一集", Toast.LENGTH_SHORT).show();
+                }
+                return;
+            }
+        }
+        
+        Toast.makeText(this, "暂无下一集", Toast.LENGTH_SHORT).show();
+    }
+    
+    /**
+     * 📺 自动播放下一集（播放结束时调用）
+     */
+    private void playNextEpisodeAuto() {
+        if (episodeList == null || episodeList.isEmpty()) {
+            finish();
+            return;
+        }
+        
+        // 找到当前剧集的下一集
+        for (int i = 0; i < episodeList.size(); i++) {
+            if (episodeList.get(i).getEpisodeNumber() == episodeNumber) {
+                if (i + 1 < episodeList.size()) {
+                    Toast.makeText(this, "自动播放下一集...", Toast.LENGTH_SHORT).show();
+                    playEpisode(episodeList.get(i + 1));
+                } else {
+                    Toast.makeText(this, "已播放完最后一集", Toast.LENGTH_SHORT).show();
+                    finish();
+                }
+                return;
+            }
+        }
+        
+        finish();
     }
     
     private void showQualityMenu() {
@@ -1603,5 +2008,298 @@ public class VideoPlayerActivity extends AppCompatActivity {
         }
         updateDanmakuLabel();
         Toast.makeText(this, isDanmakuEnabled ? "弹幕已开启" : "弹幕已关闭", Toast.LENGTH_SHORT).show();
+    }
+    
+    /**
+     * ⚙️ 显示设置对话框
+     */
+    private void showSettingsDialog() {
+        String[] settingsItems = {
+            "自动连播: " + (SharedPreferencesManager.isAutoPlayNext() ? "开" : "关"),
+            "跳过片头/片尾",
+            "画面比例: " + getAspectRatioLabel(SharedPreferencesManager.getAspectRatio()),
+            "音频轨道"
+        };
+        
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("设置")
+            .setItems(settingsItems, (dialog, which) -> {
+                switch (which) {
+                    case 0: // 自动连播
+                        toggleAutoPlayNext();
+                        break;
+                    case 1: // 跳过片头/片尾
+                        showSkipIntroOutroDialog();
+                        break;
+                    case 2: // 画面比例
+                        showAspectRatioDialog();
+                        break;
+                    case 3: // 音频轨道
+                        showAudioTrackDialog();
+                        break;
+                }
+            })
+            .show();
+    }
+    
+    /**
+     * ⚙️ 切换自动连播
+     */
+    private void toggleAutoPlayNext() {
+        boolean current = SharedPreferencesManager.isAutoPlayNext();
+        SharedPreferencesManager.setAutoPlayNext(!current);
+        Toast.makeText(this, "自动连播: " + (!current ? "开" : "关"), Toast.LENGTH_SHORT).show();
+    }
+    
+    /**
+     * ⚙️ 显示跳过片头/片尾设置对话框
+     */
+    private void showSkipIntroOutroDialog() {
+        String[] options = {
+            "跳过片头: " + formatSkipTime(SharedPreferencesManager.getSkipIntro()),
+            "跳过片尾: " + formatSkipTime(SharedPreferencesManager.getSkipOutro())
+        };
+        
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("跳过片头/片尾")
+            .setItems(options, (dialog, which) -> {
+                if (which == 0) {
+                    showSkipTimeDialog(true);
+                } else {
+                    showSkipTimeDialog(false);
+                }
+            })
+            .show();
+    }
+    
+    /**
+     * ⚙️ 显示跳过时间选择对话框
+     */
+    private void showSkipTimeDialog(boolean isIntro) {
+        String[] timeOptions = {"未设置", "30秒", "60秒", "90秒", "120秒", "自定义"};
+        int[] timeValues = {0, 30, 60, 90, 120, -1};
+        
+        int currentValue = isIntro ? SharedPreferencesManager.getSkipIntro() : SharedPreferencesManager.getSkipOutro();
+        int checkedItem = 0;
+        for (int i = 0; i < timeValues.length - 1; i++) {
+            if (timeValues[i] == currentValue) {
+                checkedItem = i;
+                break;
+            }
+        }
+        
+        new android.app.AlertDialog.Builder(this)
+            .setTitle(isIntro ? "跳过片头" : "跳过片尾")
+            .setSingleChoiceItems(timeOptions, checkedItem, (dialog, which) -> {
+                if (which == 5) {
+                    // 自定义时间
+                    showCustomSkipTimeDialog(isIntro);
+                } else {
+                    if (isIntro) {
+                        SharedPreferencesManager.setSkipIntro(timeValues[which]);
+                    } else {
+                        SharedPreferencesManager.setSkipOutro(timeValues[which]);
+                    }
+                    Toast.makeText(this, (isIntro ? "跳过片头: " : "跳过片尾: ") + timeOptions[which], Toast.LENGTH_SHORT).show();
+                }
+                dialog.dismiss();
+            })
+            .show();
+    }
+    
+    /**
+     * ⚙️ 显示自定义跳过时间对话框
+     */
+    private void showCustomSkipTimeDialog(boolean isIntro) {
+        android.widget.EditText input = new android.widget.EditText(this);
+        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        input.setHint("输入秒数");
+        
+        int currentValue = isIntro ? SharedPreferencesManager.getSkipIntro() : SharedPreferencesManager.getSkipOutro();
+        if (currentValue > 0) {
+            input.setText(String.valueOf(currentValue));
+        }
+        
+        new android.app.AlertDialog.Builder(this)
+            .setTitle(isIntro ? "自定义跳过片头时间" : "自定义跳过片尾时间")
+            .setView(input)
+            .setPositiveButton("确定", (dialog, which) -> {
+                try {
+                    int seconds = Integer.parseInt(input.getText().toString());
+                    if (isIntro) {
+                        SharedPreferencesManager.setSkipIntro(seconds);
+                    } else {
+                        SharedPreferencesManager.setSkipOutro(seconds);
+                    }
+                    Toast.makeText(this, "已设置为 " + seconds + " 秒", Toast.LENGTH_SHORT).show();
+                } catch (NumberFormatException e) {
+                    Toast.makeText(this, "请输入有效数字", Toast.LENGTH_SHORT).show();
+                }
+            })
+            .setNegativeButton("取消", null)
+            .show();
+    }
+    
+    private String formatSkipTime(int seconds) {
+        if (seconds <= 0) return "未设置";
+        return seconds + "秒";
+    }
+    
+    /**
+     * ⚙️ 显示画面比例对话框
+     */
+    private void showAspectRatioDialog() {
+        String[] ratioOptions = {"默认", "16:9", "4:3", "填充屏幕"};
+        int currentRatio = SharedPreferencesManager.getAspectRatio();
+        
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("画面比例")
+            .setSingleChoiceItems(ratioOptions, currentRatio, (dialog, which) -> {
+                SharedPreferencesManager.setAspectRatio(which);
+                applyAspectRatio(which);
+                Toast.makeText(this, "画面比例: " + ratioOptions[which], Toast.LENGTH_SHORT).show();
+                dialog.dismiss();
+            })
+            .show();
+    }
+    
+    private String getAspectRatioLabel(int ratio) {
+        switch (ratio) {
+            case 1: return "16:9";
+            case 2: return "4:3";
+            case 3: return "填充";
+            default: return "默认";
+        }
+    }
+    
+    /**
+     * ⚙️ 应用画面比例
+     */
+    private void applyAspectRatio(int ratio) {
+        if (playerView == null) return;
+        
+        switch (ratio) {
+            case 0: // 默认
+                playerView.setResizeMode(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT);
+                break;
+            case 1: // 16:9
+                playerView.setResizeMode(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH);
+                break;
+            case 2: // 4:3
+                playerView.setResizeMode(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT);
+                break;
+            case 3: // 填充
+                playerView.setResizeMode(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL);
+                break;
+        }
+    }
+    
+    /**
+     * ⚙️ 显示音频轨道对话框
+     */
+    private void showAudioTrackDialog() {
+        if (exoPlayer == null) {
+            Toast.makeText(this, "播放器未就绪", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        // 获取音频轨道列表
+        java.util.List<String> audioTracks = new java.util.ArrayList<>();
+        java.util.List<Integer> trackIndices = new java.util.ArrayList<>();
+        int selectedIndex = -1;
+        
+        try {
+            androidx.media3.common.Tracks tracks = exoPlayer.getCurrentTracks();
+            int audioTrackCount = 0;
+            
+            for (int i = 0; i < tracks.getGroups().size(); i++) {
+                androidx.media3.common.Tracks.Group group = tracks.getGroups().get(i);
+                if (group.getType() == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
+                    for (int j = 0; j < group.length; j++) {
+                        androidx.media3.common.Format format = group.getTrackFormat(j);
+                        String label = format.label;
+                        if (label == null || label.isEmpty()) {
+                            label = format.language;
+                        }
+                        if (label == null || label.isEmpty()) {
+                            label = "音轨 " + (audioTrackCount + 1);
+                        }
+                        
+                        // 添加编码信息
+                        if (format.sampleMimeType != null) {
+                            if (format.sampleMimeType.contains("ac3")) {
+                                label += " (AC3)";
+                            } else if (format.sampleMimeType.contains("eac3")) {
+                                label += " (EAC3)";
+                            } else if (format.sampleMimeType.contains("aac")) {
+                                label += " (AAC)";
+                            }
+                        }
+                        
+                        audioTracks.add(label);
+                        trackIndices.add(audioTrackCount);
+                        
+                        if (group.isTrackSelected(j)) {
+                            selectedIndex = audioTrackCount;
+                        }
+                        audioTrackCount++;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting audio tracks", e);
+        }
+        
+        if (audioTracks.isEmpty()) {
+            audioTracks.add("默认音频");
+            trackIndices.add(0);
+            selectedIndex = 0;
+        }
+        
+        String[] options = audioTracks.toArray(new String[0]);
+        final int checkedItem = selectedIndex >= 0 ? selectedIndex : 0;
+        
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("音频轨道")
+            .setSingleChoiceItems(options, checkedItem, (dialog, which) -> {
+                selectAudioTrack(which);
+                Toast.makeText(this, "已选择: " + options[which], Toast.LENGTH_SHORT).show();
+                dialog.dismiss();
+            })
+            .show();
+    }
+    
+    /**
+     * ⚙️ 选择音频轨道
+     */
+    private void selectAudioTrack(int trackIndex) {
+        if (exoPlayer == null) return;
+        
+        try {
+            androidx.media3.common.Tracks tracks = exoPlayer.getCurrentTracks();
+            int audioTrackCount = 0;
+            
+            for (int i = 0; i < tracks.getGroups().size(); i++) {
+                androidx.media3.common.Tracks.Group group = tracks.getGroups().get(i);
+                if (group.getType() == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
+                    for (int j = 0; j < group.length; j++) {
+                        if (audioTrackCount == trackIndex) {
+                            // 选择这个音轨
+                            androidx.media3.common.Format format = group.getTrackFormat(j);
+                            androidx.media3.common.TrackSelectionParameters params = exoPlayer.getTrackSelectionParameters()
+                                .buildUpon()
+                                .setPreferredAudioLanguage(format.language)
+                                .build();
+                            exoPlayer.setTrackSelectionParameters(params);
+                            Log.d(TAG, "Selected audio track: " + format.language);
+                            return;
+                        }
+                        audioTrackCount++;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error selecting audio track", e);
+        }
     }
 }

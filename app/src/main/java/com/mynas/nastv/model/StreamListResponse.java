@@ -99,13 +99,19 @@ public class StreamListResponse {
         @SerializedName("guid")
         private String guid;
         
-        @SerializedName("codec_name")  // 🔧 修复：API中是 codec_name
+        @SerializedName("media_guid")
+        private String mediaGuid;
+        
+        @SerializedName("codec_name")
         private String codec;
         
-        @SerializedName("resolution_type")  // 🔧 修复：API中是 resolution_type (如 "4k")
+        @SerializedName("resolution_type")
         private String resolution;
         
-        @SerializedName("bps")  // 🔧 修复：API中是 bps
+        @SerializedName("color_range_type")
+        private String colorRangeType;  // SDR/HDR
+        
+        @SerializedName("bps")
         private long bitrate;
         
         @SerializedName("width")
@@ -114,11 +120,17 @@ public class StreamListResponse {
         @SerializedName("height")
         private int height;
         
-        @SerializedName("profile")  // 🔧 新增：编码器Profile (如 "Main", "Main 10")
+        @SerializedName("profile")
         private String profile;
         
-        @SerializedName("bit_depth")  // 🔧 新增：色深 (如 8, 10)
+        @SerializedName("bit_depth")
         private int bitDepth;
+        
+        @SerializedName("duration")
+        private long duration;
+        
+        @SerializedName("title")
+        private String title;
         
         // Getters and setters
         public String getGuid() {
@@ -127,6 +139,14 @@ public class StreamListResponse {
         
         public void setGuid(String guid) {
             this.guid = guid;
+        }
+        
+        public String getMediaGuid() {
+            return mediaGuid;
+        }
+        
+        public void setMediaGuid(String mediaGuid) {
+            this.mediaGuid = mediaGuid;
         }
         
         public String getCodec() {
@@ -143,6 +163,14 @@ public class StreamListResponse {
         
         public void setResolution(String resolution) {
             this.resolution = resolution;
+        }
+        
+        public String getColorRangeType() {
+            return colorRangeType;
+        }
+        
+        public void setColorRangeType(String colorRangeType) {
+            this.colorRangeType = colorRangeType;
         }
         
         public long getBitrate() {
@@ -184,6 +212,22 @@ public class StreamListResponse {
         public void setBitDepth(int bitDepth) {
             this.bitDepth = bitDepth;
         }
+        
+        public long getDuration() {
+            return duration;
+        }
+        
+        public void setDuration(long duration) {
+            this.duration = duration;
+        }
+        
+        public String getTitle() {
+            return title;
+        }
+        
+        public void setTitle(String title) {
+            this.title = title;
+        }
     }
     
     /**
@@ -193,17 +237,32 @@ public class StreamListResponse {
         @SerializedName("guid")
         private String guid;
         
-        @SerializedName("codec_name")  // 🔧 修复：API中是 codec_name
+        @SerializedName("media_guid")
+        private String mediaGuid;
+        
+        @SerializedName("codec_name")
         private String codec;
         
         @SerializedName("channels")
         private int channels;
         
-        @SerializedName("sample_rate")  // 🔧 注意：API返回字符串 "44100"
+        @SerializedName("channel_layout")
+        private String channelLayout;  // stereo/5.1等
+        
+        @SerializedName("sample_rate")
         private String sampleRate;
         
         @SerializedName("language")
         private String language;
+        
+        @SerializedName("title")
+        private String title;
+        
+        @SerializedName("bps")
+        private long bitrate;
+        
+        @SerializedName("is_default")
+        private int isDefault;
         
         // Getters and setters
         public String getGuid() {
@@ -212,6 +271,14 @@ public class StreamListResponse {
         
         public void setGuid(String guid) {
             this.guid = guid;
+        }
+        
+        public String getMediaGuid() {
+            return mediaGuid;
+        }
+        
+        public void setMediaGuid(String mediaGuid) {
+            this.mediaGuid = mediaGuid;
         }
         
         public String getCodec() {
@@ -230,11 +297,19 @@ public class StreamListResponse {
             this.channels = channels;
         }
         
-        public String getSampleRate() {  // 🔧 修复：API返回字符串类型
+        public String getChannelLayout() {
+            return channelLayout;
+        }
+        
+        public void setChannelLayout(String channelLayout) {
+            this.channelLayout = channelLayout;
+        }
+        
+        public String getSampleRate() {
             return sampleRate;
         }
         
-        public void setSampleRate(String sampleRate) {  // 🔧 修复：参数类型改为String
+        public void setSampleRate(String sampleRate) {
             this.sampleRate = sampleRate;
         }
         
@@ -244,6 +319,30 @@ public class StreamListResponse {
         
         public void setLanguage(String language) {
             this.language = language;
+        }
+        
+        public String getTitle() {
+            return title;
+        }
+        
+        public void setTitle(String title) {
+            this.title = title;
+        }
+        
+        public long getBitrate() {
+            return bitrate;
+        }
+        
+        public void setBitrate(long bitrate) {
+            this.bitrate = bitrate;
+        }
+        
+        public boolean isDefault() {
+            return isDefault == 1;
+        }
+        
+        public void setIsDefault(int isDefault) {
+            this.isDefault = isDefault;
         }
     }
     
@@ -332,6 +431,15 @@ public class StreamListResponse {
         @SerializedName("size")
         private long size;
         
+        @SerializedName("file_birth_time")
+        private long fileBirthTime;  // 文件创建时间
+        
+        @SerializedName("create_time")
+        private long createTime;  // 添加时间
+        
+        @SerializedName("update_time")
+        private long updateTime;
+        
         // Getters and setters
         public String getGuid() {
             return guid;
@@ -355,6 +463,30 @@ public class StreamListResponse {
         
         public void setSize(long size) {
             this.size = size;
+        }
+        
+        public long getFileBirthTime() {
+            return fileBirthTime;
+        }
+        
+        public void setFileBirthTime(long fileBirthTime) {
+            this.fileBirthTime = fileBirthTime;
+        }
+        
+        public long getCreateTime() {
+            return createTime;
+        }
+        
+        public void setCreateTime(long createTime) {
+            this.createTime = createTime;
+        }
+        
+        public long getUpdateTime() {
+            return updateTime;
+        }
+        
+        public void setUpdateTime(long updateTime) {
+            this.updateTime = updateTime;
         }
     }
 }

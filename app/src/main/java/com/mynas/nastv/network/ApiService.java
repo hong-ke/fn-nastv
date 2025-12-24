@@ -18,8 +18,10 @@ import com.mynas.nastv.model.SearchRequest;
 import com.mynas.nastv.model.SearchResponse;
 import com.mynas.nastv.model.WatchHistoryResponse;
 import com.mynas.nastv.model.FavoriteRequest;
+import com.mynas.nastv.model.FavoriteListResponse;
 import com.mynas.nastv.model.PlayRecordRequest;
 import com.mynas.nastv.model.PlayListResponse;
+import com.mynas.nastv.model.PersonInfo;
 
 import java.util.List;
 import java.util.Map;
@@ -142,9 +144,9 @@ public interface ApiService {
         @Header("authx") String signature
     );
 
-    // 👥 Person List
+    // 👥 Person List - 演职人员列表
     @GET("/v/api/v1/person/list/{itemGuid}")
-    Call<BaseResponse<Object>> getPersonList(
+    Call<BaseResponse<java.util.List<PersonInfo>>> getPersonList(
         @Header("Authorization") String token,
         @Header("authx") String signature,
         @Path("itemGuid") String itemGuid
@@ -182,6 +184,15 @@ public interface ApiService {
     );
 
     // ⭐ Favorites
+    @GET("/v/api/v1/favorite/list")
+    Call<BaseResponse<FavoriteListResponse>> getFavoriteList(
+        @Header("Authorization") String token,
+        @Header("authx") String signature,
+        @Query("type") String type,  // all/movie/tv/episode
+        @Query("page") int page,
+        @Query("page_size") int pageSize
+    );
+    
     @GET("/v/api/v1/user/favorites")
     Call<BaseResponse<Object>> getFavorites(
         @Header("Authorization") String token,

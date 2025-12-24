@@ -70,6 +70,15 @@ public class MediaDetailResponse {
     @SerializedName("genres")
     private int[] genres;  // 🚨 [修复] genres是数字数组，不是字符串
     
+    @SerializedName("genres_str")
+    private String genresStr;  // 类型标签字符串，如 "剧情 爱情"
+    
+    @SerializedName("origin_country")
+    private String[] originCountry;  // 制作地区数组
+    
+    @SerializedName("content_rating")
+    private String contentRating;  // 内容分级，如 "TV-PG"
+    
     @SerializedName("production_companies")
     private String productionCompanies;
     
@@ -126,7 +135,24 @@ public class MediaDetailResponse {
     public int getNumberOfEpisodes() { return numberOfEpisodes; }
     public String getType() { return type; }
     public String getStatus() { return status; }
-    public int[] getGenres() { return genres; }
+    public int[] getGenresArray() { return genres; }
+    public String getGenresStr() { return genresStr; }
+    public String[] getOriginCountryArray() { return originCountry; }
+    public String getOriginCountry() { 
+        if (originCountry != null && originCountry.length > 0) {
+            return String.join(" ", originCountry);
+        }
+        return null;
+    }
+    public String getContentRating() { return contentRating; }
+    
+    /**
+     * 获取格式化的类型标签字符串
+     * 优先使用 genresStr，如果没有则返回空
+     */
+    public String getGenres() {
+        return genresStr;
+    }
     public String getProductionCompanies() { return productionCompanies; }
     public String[] getProductionCountries() { return productionCountries; }
     public String getSpokenLanguages() { return spokenLanguages; }
@@ -162,6 +188,9 @@ public class MediaDetailResponse {
     public void setType(String type) { this.type = type; }
     public void setStatus(String status) { this.status = status; }
     public void setGenres(int[] genres) { this.genres = genres; }
+    public void setGenresStr(String genresStr) { this.genresStr = genresStr; }
+    public void setOriginCountry(String[] originCountry) { this.originCountry = originCountry; }
+    public void setContentRating(String contentRating) { this.contentRating = contentRating; }
     public void setProductionCompanies(String productionCompanies) { this.productionCompanies = productionCompanies; }
     public void setProductionCountries(String[] productionCountries) { this.productionCountries = productionCountries; }
     public void setSpokenLanguages(String spokenLanguages) { this.spokenLanguages = spokenLanguages; }

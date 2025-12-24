@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="200dp"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -9,15 +10,36 @@
     android:focusable="true"
     android:clickable="true">
 
-    <!-- 📱 内容封面 -->
-    <ImageView
-        android:id="@+id/continue_poster"
+    <!-- 📱 内容封面容器 -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="120dp"
-        android:background="@color/tv_card_background"
-        android:scaleType="centerCrop"
-        android:contentDescription="@string/poster_description"
-        android:layout_marginBottom="@dimen/tv_margin_small" />
+        android:layout_marginBottom="@dimen/tv_margin_small">
+
+        <!-- 封面图片 -->
+        <ImageView
+            android:id="@+id/continue_poster"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/tv_card_background"
+            android:scaleType="centerCrop"
+            android:contentDescription="@string/poster_description" />
+
+        <!-- 📊 进度条（底部） -->
+        <ProgressBar
+            android:id="@+id/continue_progress_bar"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_gravity="bottom"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/progress_bar_drawable"
+            android:visibility="gone"
+            tools:progress="60"
+            tools:visibility="visible" />
+
+    </FrameLayout>
 
     <!-- 📝 标题 -->
     <TextView
@@ -32,6 +54,20 @@
         android:ellipsize="end"
         android:layout_marginBottom="4dp" />
 
+    <!-- 📺 剧集进度文本（第X季·第X集） -->
+    <TextView
+        android:id="@+id/continue_episode_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="@dimen/tv_text_size_small"
+        android:textColor="@color/tv_accent"
+        android:fontFamily="@font/tv_font_regular"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:visibility="gone"
+        tools:text="第1季·第3集"
+        tools:visibility="visible" />
+
     <!-- 📝 副标题 -->
     <TextView
         android:id="@+id/continue_subtitle"
@@ -45,14 +81,14 @@
         android:ellipsize="end"
         android:layout_marginBottom="4dp" />
 
-    <!-- 📊 观看进度 -->
+    <!-- 📊 观看进度文本（已废弃，改用进度条） -->
     <TextView
         android:id="@+id/continue_progress"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="已观看 60%"
         android:textSize="@dimen/tv_text_size_small"
-        android:textColor="@color/tv_accent"
+        android:textColor="@color/tv_text_secondary"
         android:fontFamily="@font/tv_font_regular"
         android:visibility="gone" />
 

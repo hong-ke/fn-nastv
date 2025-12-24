@@ -61,6 +61,40 @@
             android:drawablePadding="@dimen/tv_margin_small"
             android:gravity="center_vertical" />
 
+        <!-- ⭐ 收藏 -->
+        <TextView
+            android:id="@+id/nav_favorite"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="收藏"
+            android:textSize="@dimen/tv_text_size_medium"
+            android:textColor="@color/tv_text_secondary"
+            android:fontFamily="@font/tv_font_medium"
+            android:padding="@dimen/tv_margin_medium"
+            android:background="?attr/selectableItemBackground"
+            android:focusable="true"
+            android:clickable="true"
+            android:drawableStart="@drawable/ic_favorite"
+            android:drawablePadding="@dimen/tv_margin_small"
+            android:gravity="center_vertical" />
+
+        <!-- 📂 分类 -->
+        <TextView
+            android:id="@+id/nav_category"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="分类"
+            android:textSize="@dimen/tv_text_size_medium"
+            android:textColor="@color/tv_text_secondary"
+            android:fontFamily="@font/tv_font_medium"
+            android:padding="@dimen/tv_margin_medium"
+            android:background="?attr/selectableItemBackground"
+            android:focusable="true"
+            android:clickable="true"
+            android:drawableStart="@drawable/ic_category"
+            android:drawablePadding="@dimen/tv_margin_small"
+            android:gravity="center_vertical" />
+
         <!-- 📚 媒体库标题 -->
         <TextView
             android:layout_width="match_parent"

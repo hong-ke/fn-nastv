@@ -257,9 +257,187 @@ public class CachedDataSourceFactory implements DataSource.Factory {
                 )
                 .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
             
-            DataSource dataSource = cacheFactory.createDataSource();
+            // 创建带日志的 DataSource 包装器
+            final CacheDataSource cacheDataSource = cacheFactory.createDataSource();
+            final CachedDataSourceFactory factoryRef = this;
             Log.e(TAG, "CacheDataSource created successfully");
-            return dataSource;
+            
+            // 返回一个包装器，用于记录所有 open/read/close 操作
+            final long[] totalBytesRead = {0}; // 用于跟踪已读取的总字节数
+            return new DataSource() {
+                @Override
+                public void addTransferListener(TransferListener transferListener) {
+                    cacheDataSource.addTransferListener(transferListener);
+                }
+                
+                @Override
+                public long open(DataSpec dataSpec) throws IOException {
+                    totalBytesRead[0] = 0; // 重置计数器
+                    // 获取 prefetchService 的 contentLength，用于验证请求范围
+                    long prefetchContentLength = -1;
+                    if (factoryRef.prefetchService != null) {
+                        prefetchContentLength = factoryRef.prefetchService.getContentLength();
+                    }
+                    
+                    Log.e(TAG, "[DS-OPEN] pos=" + (dataSpec.position/1024/1024) + "MB len=" + 
+                          (dataSpec.length > 0 ? dataSpec.length/1024 + "KB" : "unknown") + 
+                          " uri=" + dataSpec.uri.toString().substring(0, Math.min(60, dataSpec.uri.toString().length())) +
+                          " prefetchLen=" + (prefetchContentLength > 0 ? (prefetchContentLength/1024/1024) + "MB" : "unknown"));
+                    
+                    // 检查请求位置是否超出文件大小
+                    if (prefetchContentLength > 0 && dataSpec.position >= prefetchContentLength) {
+                        Log.e(TAG, "[DS-OPEN] WARNING: Request position " + (dataSpec.position/1024/1024) + "MB >= contentLength " + (prefetchContentLength/1024/1024) + "MB, this will cause 416 error");
+                    }
+                    
+                    try {
+                        long result = cacheDataSource.open(dataSpec);
+                        Log.e(TAG, "[DS-OPEN] CacheDataSource returned: " + (result > 0 ? result/1024/1024 + "MB" : result));
+                        
+                        // 如果 CacheDataSource 返回 -1（长度未知），尝试从 prefetchService 获取长度
+                        if (result == -1 && factoryRef.prefetchService != null) {
+                            // 等待 prefetchService 获取 contentLength（最多等待2秒）
+                            long contentLength = factoryRef.prefetchService.getContentLength();
+                            int waitCount = 0;
+                            while (contentLength <= 0 && waitCount < 20 && factoryRef.prefetchService.isRunning()) {
+                                try {
+                                    Thread.sleep(100);
+                                    contentLength = factoryRef.prefetchService.getContentLength();
+                                    waitCount++;
+                                } catch (InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                    break;
+                                }
+                            }
+                            
+                            if (contentLength > 0) {
+                                // 计算从当前位置到文件末尾的长度
+                                long remainingLength = contentLength - dataSpec.position;
+                                if (remainingLength < 0) {
+                                    Log.e(TAG, "[DS-OPEN] ERROR: Remaining length is negative: " + remainingLength + ", position=" + dataSpec.position + ", contentLength=" + contentLength);
+                                    remainingLength = 0; // 避免返回负数
+                                }
+                                Log.e(TAG, "[DS-OPEN] Using prefetch contentLength: " + (contentLength/1024/1024) + "MB, remaining: " + (remainingLength/1024/1024) + "MB");
+                                return remainingLength;
+                            } else {
+                                // 如果还是获取不到长度，返回-1让ExoPlayer使用流式读取
+                                // ExoPlayer会通过读取到EOF来判断文件结束，不会预分配大量内存
+                                Log.e(TAG, "[DS-OPEN] ContentLength not available yet, returning -1 for streaming read");
+                                return -1;
+                            }
+                        }
+                        
+                        return result;
+                    } catch (IOException e) {
+                        Log.e(TAG, "[DS-OPEN] ERROR: " + e.getMessage() + ", position=" + dataSpec.position + ", length=" + dataSpec.length);
+                        if (e.getMessage() != null && e.getMessage().contains("416")) {
+                            Log.e(TAG, "[DS-OPEN] 416 Error details: position=" + (dataSpec.position/1024/1024) + "MB, prefetchContentLength=" + (prefetchContentLength > 0 ? (prefetchContentLength/1024/1024) + "MB" : "unknown"));
+                        }
+                        throw e;
+                    }
+                }
+                
+                @Override
+                public int read(byte[] buffer, int offset, int length) throws IOException {
+                    // 检查请求参数
+                    if (length <= 0) {
+                        Log.e(TAG, "[DS-READ] ERROR: Invalid read request, length=" + length + ", offset=" + offset + ", buffer.length=" + (buffer != null ? buffer.length : 0));
+                        return -1; // 返回EOF表示错误
+                    }
+                    
+                    int result = cacheDataSource.read(buffer, offset, length);
+                    
+                    // 记录前32字节的十六进制内容，用于判断视频格式
+                    if (result > 0 && totalBytesRead[0] < 32) {
+                        int bytesToLog = Math.min(result, (int)(32 - totalBytesRead[0]));
+                        StringBuilder hex = new StringBuilder();
+                        for (int i = 0; i < bytesToLog; i++) {
+                            hex.append(String.format("%02X ", buffer[offset + i] & 0xFF));
+                        }
+                        Log.e(TAG, "[DS-READ] First bytes (offset=" + totalBytesRead[0] + "): " + hex.toString().trim());
+                        totalBytesRead[0] += result;
+                        
+                        // 如果已经读取了32字节，尝试识别格式
+                        if (totalBytesRead[0] >= 32) {
+                            String format = identifyFormat(buffer, offset, result);
+                            if (format != null) {
+                                Log.e(TAG, "[DS-READ] Detected format: " + format);
+                            }
+                        }
+                    }
+                    
+                    // 记录读取操作（限制频率）
+                    if (result > 0) {
+                        if (totalBytesRead[0] <= 32 || result > 100 * 1024) {
+                            Log.e(TAG, "[DS-READ] Success: requested=" + length + " bytes, read=" + result + " bytes, total=" + totalBytesRead[0] + " bytes");
+                        }
+                    } else if (result == 0) {
+                        Log.e(TAG, "[DS-READ] WARNING: read returned 0 bytes, requested=" + length + " bytes");
+                    } else if (result == -1) {
+                        Log.e(TAG, "[DS-READ] EOF reached, requested=" + length + " bytes");
+                    }
+                    return result;
+                }
+                
+                // 识别视频格式
+                private String identifyFormat(byte[] buffer, int offset, int length) {
+                    if (length < 4) return null;
+                    
+                    // MP4: 查找 ftyp box (通常在第4-8字节)
+                    if (length >= 8) {
+                        // 检查 MP4: 00 00 00 ?? 66 74 79 70 (ftyp)
+                        if (buffer[offset + 4] == 0x66 && buffer[offset + 5] == 0x74 && 
+                            buffer[offset + 6] == 0x79 && buffer[offset + 7] == 0x70) {
+                            return "MP4";
+                        }
+                    }
+                    
+                    // MKV: 1A 45 DF A3
+                    if (buffer[offset] == 0x1A && buffer[offset + 1] == 0x45 && 
+                        buffer[offset + 2] == (byte)0xDF && buffer[offset + 3] == (byte)0xA3) {
+                        return "MKV/WebM";
+                    }
+                    
+                    // AVI: 52 49 46 46 (RIFF)
+                    if (buffer[offset] == 0x52 && buffer[offset + 1] == 0x49 && 
+                        buffer[offset + 2] == 0x46 && buffer[offset + 3] == 0x46) {
+                        return "AVI";
+                    }
+                    
+                    // FLV: 46 4C 56 01 (FLV)
+                    if (buffer[offset] == 0x46 && buffer[offset + 1] == 0x4C && 
+                        buffer[offset + 2] == 0x56 && buffer[offset + 3] == 0x01) {
+                        return "FLV";
+                    }
+                    
+                    // MP3: FF FB 或 FF F3
+                    if (buffer[offset] == (byte)0xFF && (buffer[offset + 1] == (byte)0xFB || buffer[offset + 1] == (byte)0xF3)) {
+                        return "MP3";
+                    }
+                    
+                    // ID3 (MP3 with ID3 tag): 49 44 33 (ID3)
+                    if (buffer[offset] == 0x49 && buffer[offset + 1] == 0x44 && buffer[offset + 2] == 0x33) {
+                        return "MP3 (with ID3)";
+                    }
+                    
+                    return null;
+                }
+                
+                @Override
+                public android.net.Uri getUri() {
+                    return cacheDataSource.getUri();
+                }
+                
+                @Override
+                public java.util.Map<String, java.util.List<String>> getResponseHeaders() {
+                    return cacheDataSource.getResponseHeaders();
+                }
+                
+                @Override
+                public void close() throws IOException {
+                    Log.e(TAG, "[DS-CLOSE]");
+                    cacheDataSource.close();
+                }
+            };
         } catch (Exception e) {
             Log.e(TAG, "Error creating CacheDataSource, falling back to direct", e);
             return upstreamFactory.createDataSource();
@@ -280,7 +458,21 @@ public class CachedDataSourceFactory implements DataSource.Factory {
         }
         
         Log.e(TAG, "[FACTORY] Creating VideoPrefetchService...");
-        prefetchService = new VideoPrefetchService(context, httpClient, headers, cache, cacheKey);
+        
+        // 为预缓存服务创建独立的 OkHttpClient，避免与 ExoPlayer 共享连接池导致冲突
+        okhttp3.Dispatcher prefetchDispatcher = new okhttp3.Dispatcher();
+        prefetchDispatcher.setMaxRequests(32);
+        prefetchDispatcher.setMaxRequestsPerHost(8);
+        
+        okhttp3.ConnectionPool prefetchConnectionPool = new okhttp3.ConnectionPool(
+            8, 3, java.util.concurrent.TimeUnit.MINUTES);
+        
+        OkHttpClient prefetchClient = httpClient.newBuilder()
+            .dispatcher(prefetchDispatcher)
+            .connectionPool(prefetchConnectionPool)
+            .build();
+        
+        prefetchService = new VideoPrefetchService(context, prefetchClient, headers, cache, cacheKey);
         Log.e(TAG, "[FACTORY] Calling prefetchService.start()...");
         prefetchService.start(url);
         Log.e(TAG, "[FACTORY] prefetchService.start() returned, isRunning=" + prefetchService.isRunning());

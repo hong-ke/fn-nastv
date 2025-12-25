@@ -227,32 +227,33 @@ public class VideoPlayerActivity extends AppCompatActivity {
             // 🎬 优化播放体验：快速启动 + 后台缓冲
             // 策略：先用少量缓冲快速开始播放，然后后台持续缓冲
             
-            // 获取可用内存，动态计算缓冲大小
+            // 获取 App 可用堆内存，动态计算缓冲大小
             android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
-            android.app.ActivityManager.MemoryInfo memInfo = new android.app.ActivityManager.MemoryInfo();
-            am.getMemoryInfo(memInfo);
+            int memoryClass = am.getMemoryClass(); // App 最大堆内存（MB）
+            int largeMemoryClass = am.getLargeMemoryClass(); // 大内存模式下的最大堆内存（MB）
             
-            // 使用总内存的 30% 作为视频缓冲，最小200MB，最大1GB
-            long totalMemory = memInfo.totalMem;
-            int targetBufferBytes = (int) Math.min(1024 * 1024 * 1024L, 
-                                     Math.max(200 * 1024 * 1024, totalMemory * 30 / 100));
+            // 使用 App 堆内存的 3%，最小 4MB，最大 16MB（非常保守，避免 OOM）
+            // 对于11GB大文件，ExoPlayer解析格式时需要大量内存，必须严格控制缓冲
+            int targetBufferMB = Math.min(16, Math.max(4, memoryClass * 3 / 100));
+            int targetBufferBytes = targetBufferMB * 1024 * 1024;
             
-            Log.d(TAG, "🎬 Total memory: " + (totalMemory / 1024 / 1024) + "MB, target buffer: " + (targetBufferBytes / 1024 / 1024) + "MB (30%)");
+            Log.d(TAG, "🎬 App heap: " + memoryClass + "MB (large: " + largeMemoryClass + "MB), target buffer: " + targetBufferMB + "MB (3%)");
             
-            // 🔑 优化缓冲策略：快速启动 + 持续缓冲
-            // - 首次播放只需2秒缓冲（快速启动）
-            // - 卡顿后只需3秒恢复（快速恢复）
-            // - 后台持续缓冲到90秒
+            // 🔑 极简缓冲策略：最小内存占用
+            // - 首次播放只需500ms缓冲（极快启动，让ExoPlayer先开始解析）
+            // - 卡顿后只需1秒恢复（快速恢复）
+            // - 后台持续缓冲到10秒（最小内存占用）
+            // 对于大文件，必须严格控制内存，让ExoPlayer边解析边播放
             androidx.media3.exoplayer.DefaultLoadControl loadControl = new androidx.media3.exoplayer.DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
-                    30000,   // minBufferMs: 最小保持30秒缓冲
-                    90000,   // maxBufferMs: 最大缓冲90秒
-                    2000,    // bufferForPlaybackMs: 只需2秒就开始播放（快速启动！）
-                    3000     // bufferForPlaybackAfterRebufferMs: 卡顿后只需3秒恢复（快速恢复！）
+                    5000,    // minBufferMs: 最小保持5秒缓冲（极简配置，避免OOM）
+                    10000,   // maxBufferMs: 最大缓冲10秒（最小内存占用）
+                    500,     // bufferForPlaybackMs: 只需500ms就开始播放（极快启动！）
+                    1000     // bufferForPlaybackAfterRebufferMs: 卡顿后只需1秒恢复（快速恢复！）
                 )
                 .setTargetBufferBytes(targetBufferBytes)
                 .setPrioritizeTimeOverSizeThresholds(true) // 优先保证时间缓冲
-                .setBackBuffer(30000, true) // 保留30秒回看缓冲
+                .setBackBuffer(2000, false) // 保留2秒回看缓冲，不保留回看数据（最小内存占用）
                 .build();
             
             // 🔧 根据设置选择解码器
@@ -261,6 +262,23 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 .setLoadControl(loadControl);
             
             boolean useSoftware = forceUseSoftwareDecoder || SharedPreferencesManager.useSoftwareDecoder();
+            
+            // 🔍 诊断：检查可用的解码器（在任何解码器选择之前）
+            Log.e(TAG, "🔍 Starting decoder diagnostics...");
+            try {
+                java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> hevcDecoders = 
+                    androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT
+                        .getDecoderInfos("video/hevc", false, false);
+                Log.e(TAG, "🔍 Available HEVC decoders: " + hevcDecoders.size());
+                for (androidx.media3.exoplayer.mediacodec.MediaCodecInfo decoder : hevcDecoders) {
+                    String name = decoder.name;
+                    boolean isHardware = !name.contains("google") && !name.contains("c2.android");
+                    Log.e(TAG, "🔍   - " + name + " (hardware: " + isHardware + ", softwareOnly: " + decoder.softwareOnly + ")");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "🔍 Error checking decoders: " + e.getMessage(), e);
+            }
+            Log.e(TAG, "🔍 User setting - useSoftwareDecoder: " + SharedPreferencesManager.useSoftwareDecoder() + ", forceUseSoftwareDecoder: " + forceUseSoftwareDecoder);
             
             if (useSoftware) {
                 // 软解模式：创建自定义 MediaCodecSelector，优先选择软件解码器
@@ -300,14 +318,21 @@ public class VideoPlayerActivity extends AppCompatActivity {
                                 }
                             }
                             
-                            // 软件解码器优先，然后是硬件解码器作为后备
+                            // 🔧 对于 4K HEVC 视频，优先使用硬件解码器（如果可用）
+                            // 软件解码器可能无法处理 4K HEVC，导致黑屏
                             java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> result = 
                                 new java.util.ArrayList<>();
-                            result.addAll(softwareDecoders);
-                            result.addAll(hardwareDecoders);
                             
-                            Log.d(TAG, "🎬 Decoder order: " + result.size() + " decoders, " + 
-                                  softwareDecoders.size() + " software first");
+                            // 如果有硬件解码器，优先使用硬件解码器
+                            if (!hardwareDecoders.isEmpty()) {
+                                result.addAll(hardwareDecoders);
+                                Log.e(TAG, "🎬 For 4K HEVC, prioritizing hardware decoders: " + hardwareDecoders.size() + " hardware decoders first");
+                            }
+                            // 然后添加软件解码器作为后备
+                            result.addAll(softwareDecoders);
+                            
+                            Log.e(TAG, "🎬 Decoder order: " + result.size() + " decoders, " + 
+                                  hardwareDecoders.size() + " hardware first, " + softwareDecoders.size() + " software as fallback");
                             
                             return result;
                         }
@@ -363,6 +388,12 @@ public class VideoPlayerActivity extends AppCompatActivity {
             
             exoPlayer.addListener(new Player.Listener() {
                 @Override
+                public void onTimelineChanged(androidx.media3.common.Timeline timeline, int reason) {
+                    long duration = exoPlayer.getDuration();
+                    Log.e(TAG, "🎬 Timeline changed: duration=" + (duration > 0 ? (duration/1000) + "s" : "0") + ", reason=" + reason);
+                }
+                
+                @Override
                 public void onPlaybackStateChanged(int playbackState) {
                     String stateName = "UNKNOWN";
                     switch (playbackState) {
@@ -371,7 +402,9 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         case Player.STATE_READY: stateName = "READY"; break;
                         case Player.STATE_ENDED: stateName = "ENDED"; break;
                     }
-                    Log.d(TAG, "🎬 PlaybackState changed: " + stateName);
+                    long duration = exoPlayer.getDuration();
+                    long currentPosition = exoPlayer.getCurrentPosition();
+                    Log.e(TAG, "🎬 PlaybackState changed: " + stateName + ", duration=" + (duration > 0 ? (duration/1000) + "s" : "0") + ", position=" + (currentPosition/1000) + "s");
                     
                     if (playbackState == Player.STATE_READY) {
                         isPlayerReady = true;
@@ -453,7 +486,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 
                 @Override
                 public void onVideoSizeChanged(androidx.media3.common.VideoSize videoSize) {
-                    Log.d(TAG, "🎬 Video size: " + videoSize.width + "x" + videoSize.height);
+                    Log.e(TAG, "🎬 Video size changed: " + videoSize.width + "x" + videoSize.height);
                     
                     // 🎬 更新 ProgressRecorder 的视频信息
                     if (progressRecorder != null && videoSize.height > 0) {
@@ -484,12 +517,15 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 
                 @Override
                 public void onRenderedFirstFrame() {
-                    Log.d(TAG, "🎬 First frame rendered!");
+                    Log.e(TAG, "🎬 First frame rendered!");
                 }
                 
                 @Override
                 public void onPlayerError(androidx.media3.common.PlaybackException error) {
-                    Log.e(TAG, "Player Error", error);
+                    Log.e(TAG, "Player Error: " + error.getMessage(), error);
+                    if (error.getCause() != null) {
+                        Log.e(TAG, "Player Error Cause: " + error.getCause().getMessage(), error.getCause());
+                    }
                     
                     // 🔧 检测是否为解码器错误，自动切换到软解
                     if (shouldSwitchToSoftwareDecoder(error)) {
@@ -991,6 +1027,87 @@ public class VideoPlayerActivity extends AppCompatActivity {
     }
     
     /**
+     * 🔑 创建自定义ExtractorsFactory，禁用PNG Extractor以减少内存占用
+     * 避免在解析11GB大文件时因解析内嵌PNG封面导致OOM
+     * 保留SubtitleTranscodingExtractor以支持字幕
+     */
+    private androidx.media3.extractor.ExtractorsFactory createCustomExtractorsFactory() {
+        Log.e(TAG, "🔧 Creating custom ExtractorsFactory (excluding PngExtractor and SubtitleTranscodingExtractor to avoid OOM)");
+        return () -> {
+            // 直接从DefaultExtractorsFactory获取所有extractor，然后排除PngExtractor和SubtitleTranscodingExtractor
+            // SubtitleTranscodingExtractor内部使用了PngExtractor，所以必须同时排除
+            // 这样可以避免OOM，但会失去内嵌字幕支持（外部字幕文件仍然可以工作）
+            androidx.media3.extractor.DefaultExtractorsFactory defaultFactory = 
+                new androidx.media3.extractor.DefaultExtractorsFactory();
+            androidx.media3.extractor.Extractor[] defaultExtractors = defaultFactory.createExtractors();
+            
+            java.util.ArrayList<androidx.media3.extractor.Extractor> extractors = new java.util.ArrayList<>();
+            int pngExtractorCount = 0;
+            int subtitleExtractorCount = 0;
+            java.util.ArrayList<String> includedExtractors = new java.util.ArrayList<>();
+            java.util.HashSet<Class<?>> seenClasses = new java.util.HashSet<>();
+            
+            for (androidx.media3.extractor.Extractor ext : defaultExtractors) {
+                // 排除PngExtractor以避免OOM
+                if (ext instanceof androidx.media3.extractor.png.PngExtractor) {
+                    pngExtractorCount++;
+                    Log.e(TAG, "🔧 Excluding PngExtractor: " + ext.getClass().getName());
+                } 
+                // 排除SubtitleTranscodingExtractor，因为它内部使用了PngExtractor
+                else if (ext instanceof androidx.media3.extractor.text.SubtitleTranscodingExtractor) {
+                    subtitleExtractorCount++;
+                    Log.e(TAG, "🔧 Excluding SubtitleTranscodingExtractor: " + ext.getClass().getName() + " (uses PngExtractor internally)");
+                } 
+                else {
+                    // 避免重复添加相同类型的extractor
+                    Class<?> extClass = ext.getClass();
+                    if (!seenClasses.contains(extClass)) {
+                        extractors.add(ext);
+                        includedExtractors.add(ext.getClass().getSimpleName());
+                        seenClasses.add(extClass);
+                    }
+                }
+            }
+            
+            // 手动添加可能缺失的extractor（如果DefaultExtractorsFactory没有包含它们）
+            // 这些extractor不会导致OOM，因为它们不处理PNG
+            try {
+                if (!seenClasses.contains(androidx.media3.extractor.flv.FlvExtractor.class)) {
+                    extractors.add(new androidx.media3.extractor.flv.FlvExtractor());
+                    includedExtractors.add("FlvExtractor");
+                    Log.e(TAG, "🔧 Manually added FlvExtractor");
+                }
+                if (!seenClasses.contains(androidx.media3.extractor.mp3.Mp3Extractor.class)) {
+                    extractors.add(new androidx.media3.extractor.mp3.Mp3Extractor());
+                    includedExtractors.add("Mp3Extractor");
+                    Log.e(TAG, "🔧 Manually added Mp3Extractor");
+                }
+                if (!seenClasses.contains(androidx.media3.extractor.wav.WavExtractor.class)) {
+                    extractors.add(new androidx.media3.extractor.wav.WavExtractor());
+                    includedExtractors.add("WavExtractor");
+                    Log.e(TAG, "🔧 Manually added WavExtractor");
+                }
+                if (!seenClasses.contains(androidx.media3.extractor.ogg.OggExtractor.class)) {
+                    extractors.add(new androidx.media3.extractor.ogg.OggExtractor());
+                    includedExtractors.add("OggExtractor");
+                    Log.e(TAG, "🔧 Manually added OggExtractor");
+                }
+                if (!seenClasses.contains(androidx.media3.extractor.amr.AmrExtractor.class)) {
+                    extractors.add(new androidx.media3.extractor.amr.AmrExtractor());
+                    includedExtractors.add("AmrExtractor");
+                    Log.e(TAG, "🔧 Manually added AmrExtractor");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "🔧 Error adding manual extractors: " + e.getMessage());
+            }
+            
+            Log.e(TAG, "🔧 Using custom ExtractorsFactory: excluded " + pngExtractorCount + " PngExtractor(s) and " + subtitleExtractorCount + " SubtitleTranscodingExtractor(s), total extractors: " + extractors.size());
+            Log.e(TAG, "🔧 Included extractors: " + String.join(", ", includedExtractors));
+            return extractors.toArray(new androidx.media3.extractor.Extractor[0]);
+        };
+    }
+    
+    /**
      * 📝 创建直连视频 MediaSource（用于字幕合并）
      * 使用缓存数据源，支持 MKV 内嵌字幕解析
      */
@@ -1001,8 +1118,12 @@ public class VideoPlayerActivity extends AppCompatActivity {
             // 如果已有缓存数据源工厂，直接使用
             if (cachedDataSourceFactory != null) {
                 Log.d(TAG, "📝 Reusing existing CachedDataSourceFactory");
-                return new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(cachedDataSourceFactory)
-                    .createMediaSource(MediaItem.fromUri(url));
+                // 使用自定义ExtractorsFactory（排除PNG和字幕Extractor以避免OOM）
+                androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory factory = 
+                    new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
+                        cachedDataSourceFactory, 
+                        createCustomExtractorsFactory());
+                return factory.createMediaSource(MediaItem.fromUri(url));
             }
             
             // 否则创建新的
@@ -1072,8 +1193,12 @@ public class VideoPlayerActivity extends AppCompatActivity {
             com.mynas.nastv.player.CachedDataSourceFactory factory = 
                 new com.mynas.nastv.player.CachedDataSourceFactory(this, directLinkClient, headers, cacheKey);
             
-            return new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(factory)
-                .createMediaSource(MediaItem.fromUri(url));
+            // 使用自定义ExtractorsFactory（排除PNG和字幕Extractor以避免OOM）
+            androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory mediaSourceFactory = 
+                new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
+                    factory, 
+                    createCustomExtractorsFactory());
+            return mediaSourceFactory.createMediaSource(MediaItem.fromUri(url));
                 
         } catch (Exception e) {
             Log.e(TAG, "📝 Error creating direct link media source", e);
@@ -1283,41 +1408,55 @@ public class VideoPlayerActivity extends AppCompatActivity {
             prefetchService = cachedDataSourceFactory.startPrefetch(url);
             Log.e(TAG, "Prefetch service started: " + (prefetchService != null ? "SUCCESS" : "FAILED"));
             
-            // 等待初始缓存：等待关键缓存准备好后再开始播放
-            // 这样可以避免ExoPlayer启动时立即卡顿
+            // 等待初始缓存：降低要求，快速启动播放
+            // 对于大文件，ExoPlayer需要先开始解析才能知道需要多少数据
             if (prefetchService != null) {
                 new Thread(() -> {
                     try {
                         Log.e(TAG, "Waiting for initial cache...");
                         int waitCount = 0;
-                        int maxWait = 100; // 最多等待 20 秒
-                        // 等待条件：至少 4 个 head chunks 缓存好，或者 critical cache 准备好
+                        int maxWait = 60; // 最多等待 12 秒（增加等待时间，确保 prefetchService 获取到 contentLength）
+                        // 关键：必须等待 prefetchService 获取到 contentLength，否则会导致 416 错误
                         while (waitCount < maxWait) {
                             int cached = prefetchService.getCachedAheadChunks();
                             boolean criticalReady = prefetchService.isCriticalCacheReady();
+                            long contentLength = prefetchService.getContentLength();
                             
-                            if (waitCount % 10 == 0) {
-                                Log.e(TAG, "Wait #" + waitCount + " cached=" + cached + " critical=" + criticalReady);
+                            if (waitCount % 5 == 0) {
+                                Log.e(TAG, "Wait #" + waitCount + " cached=" + cached + " critical=" + criticalReady + " contentLength=" + (contentLength > 0 ? (contentLength/1024/1024) + "MB" : "unknown"));
                             }
                             
-                            // 至少 4 个 chunks 缓存好，且 critical cache 准备好
-                            if (cached >= 4 && criticalReady) {
-                                break;
+                            // 关键等待条件：必须等待 prefetchService 获取到 contentLength
+                            // 否则 ExoPlayer 在打开数据源时无法正确返回文件大小，会导致 416 错误
+                            if (contentLength > 0) {
+                                // contentLength 已获取到，再等待至少 1 个 chunk 缓存好
+                                if (cached >= 1) {
+                                    Log.e(TAG, "Initial cache ready: " + cached + " chunks cached, contentLength=" + (contentLength/1024/1024) + "MB, starting playback");
+                                    break;
+                                }
                             }
                             
                             Thread.sleep(200);
                             waitCount++;
                         }
                         int cached = prefetchService.getCachedAheadChunks();
-                        Log.e(TAG, "Initial cache ready: " + cached + " chunks cached after " + (waitCount * 200) + "ms");
+                        if (waitCount >= maxWait) {
+                            Log.e(TAG, "Timeout waiting for cache, starting playback anyway. cached=" + cached);
+                        } else {
+                            Log.e(TAG, "Initial cache ready: " + cached + " chunks cached after " + (waitCount * 200) + "ms");
+                        }
                         
                         // 在主线程创建MediaSource并开始播放
+                        // 即使缓存不足也要开始，让ExoPlayer边播放边缓冲
                         runOnUiThread(() -> {
                             Log.e(TAG, "Creating ProgressiveMediaSource with cachedDataSourceFactory");
-                            // 使用 ProgressiveMediaSource（支持 MKV 解析）
+                            // 使用自定义ExtractorsFactory（排除PNG和字幕Extractor以避免OOM）
+                            androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory mediaSourceFactory = 
+                                new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
+                                    cachedDataSourceFactory, 
+                                    createCustomExtractorsFactory());
                             androidx.media3.exoplayer.source.ProgressiveMediaSource mediaSource = 
-                                new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(cachedDataSourceFactory)
-                                    .createMediaSource(MediaItem.fromUri(url));
+                                mediaSourceFactory.createMediaSource(MediaItem.fromUri(url));
                             Log.e(TAG, "Calling exoPlayer.setMediaSource()");
                             exoPlayer.setMediaSource(mediaSource);
                             Log.e(TAG, "Calling exoPlayer.prepare()");
@@ -1333,9 +1472,13 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         // 出错时直接开始播放
                         runOnUiThread(() -> {
                             Log.e(TAG, "Error fallback: Creating MediaSource anyway");
+                            // 使用自定义ExtractorsFactory（排除PNG和字幕Extractor以避免OOM）
+                            androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory factory = 
+                                new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
+                                    cachedDataSourceFactory, 
+                                    createCustomExtractorsFactory());
                             androidx.media3.exoplayer.source.ProgressiveMediaSource mediaSource = 
-                                new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(cachedDataSourceFactory)
-                                    .createMediaSource(MediaItem.fromUri(url));
+                                factory.createMediaSource(MediaItem.fromUri(url));
                             exoPlayer.setMediaSource(mediaSource);
                             exoPlayer.prepare();
                             exoPlayer.setPlayWhenReady(true);
@@ -1350,10 +1493,13 @@ public class VideoPlayerActivity extends AppCompatActivity {
             // 如果prefetchService启动失败，直接创建MediaSource
             Log.e(TAG, "Prefetch service failed to start, using direct playback");
             
-            // 使用 ProgressiveMediaSource（支持 MKV 解析）
+            // 使用自定义ExtractorsFactory（排除PNG和字幕Extractor以避免OOM）
+            androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory mediaSourceFactory = 
+                new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
+                    cachedDataSourceFactory, 
+                    createCustomExtractorsFactory());
             androidx.media3.exoplayer.source.ProgressiveMediaSource mediaSource = 
-                new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(cachedDataSourceFactory)
-                    .createMediaSource(MediaItem.fromUri(url));
+                mediaSourceFactory.createMediaSource(MediaItem.fromUri(url));
             exoPlayer.setMediaSource(mediaSource);
             
             Log.e(TAG, "CachedDataSource + Prefetch configured");

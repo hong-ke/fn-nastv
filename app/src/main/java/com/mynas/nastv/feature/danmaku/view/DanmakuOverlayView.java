@@ -110,14 +110,15 @@ public class DanmakuOverlayView extends View {
     
     @Override
     protected void onDraw(Canvas canvas) {
-        super.onDraw(canvas);
+        // 不调用 super.onDraw() 和 drawColor，保持透明
+        // super.onDraw(canvas);
         
         // 零崩溃策略：捕获所有渲染异常
         try {
             frameCount++;
             
-            // 清空画布（透明）
-            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
+            // 🔧 不清空画布，保持透明背景，让播放器可见
+            // canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
             
             // 获取可见弹幕列表（线程安全）
             final List<DanmakuEntity> danmakuListSnapshot;
@@ -140,12 +141,6 @@ public class DanmakuOverlayView extends View {
             
         } catch (Exception e) {
             Log.e(TAG, "弹幕渲染错误（非致命）", e);
-            // 清空画布防止视觉异常
-            try {
-                canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
-            } catch (Exception ignored) {
-                // 最终防线
-            }
         }
     }
     

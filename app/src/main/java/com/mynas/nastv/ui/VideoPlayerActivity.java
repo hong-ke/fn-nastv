@@ -22,6 +22,15 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.ui.PlayerView;
 
+import com.shuyu.gsyvideoplayer.builder.GSYVideoOptionBuilder;
+import com.shuyu.gsyvideoplayer.listener.GSYSampleCallBack;
+import com.shuyu.gsyvideoplayer.listener.GSYVideoProgressListener;
+import com.shuyu.gsyvideoplayer.listener.VideoAllCallBack;
+import com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer;
+import com.shuyu.gsyvideoplayer.video.base.GSYVideoView;
+import com.shuyu.gsyvideoplayer.utils.GSYVideoType;
+import com.shuyu.gsyvideoplayer.player.PlayerFactory;
+
 import com.mynas.nastv.R;
 import com.mynas.nastv.feature.danmaku.api.IDanmuController;
 import com.mynas.nastv.feature.danmaku.logic.DanmuControllerImpl;
@@ -40,7 +49,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private static final String TAG = "VideoPlayerActivity";
     
     // UI
-    private PlayerView playerView;
+    private StandardGSYVideoPlayer playerView;
     private androidx.media3.ui.SubtitleView subtitleView;
     private ImageView posterImageView;
     private LinearLayout topInfoContainer;
@@ -51,7 +60,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private TextView errorText;
     private FrameLayout danmuContainer;
     
-    private ExoPlayer exoPlayer;
+    private ExoPlayer exoPlayer; // 保留用于字幕等功能
     private IDanmuController danmuController;
     
     // Data
@@ -101,6 +110,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private boolean forceUseSoftwareDecoder = false;
     private int decoderRetryCount = 0;
     private static final int MAX_DECODER_RETRY = 1; // 最多重试1次（切换到软解）
+    private tv.danmaku.ijk.media.player.IjkMediaPlayer currentIjkPlayer = null;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -199,6 +209,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
         errorText = findViewById(R.id.error_text);
         danmuContainer = findViewById(R.id.danmu_container);
         
+        // 🔧 关键修复：立即隐藏海报背景，避免显示灰色山景默认图
+        if (posterImageView != null) {
+            posterImageView.setVisibility(View.GONE);
+        }
+        
         // 更新标题显示
         updateTitleDisplay();
         
@@ -222,229 +237,223 @@ public class VideoPlayerActivity extends AppCompatActivity {
         }
     }
     
+    // 🔧 记录是否已显示软解提示（避免重复提示）
+    private boolean hasShownSoftwareDecoderToast = false;
+    
     private void initializePlayer() {
         try {
-            // 🎬 优化播放体验：快速启动 + 后台缓冲
-            // 策略：先用少量缓冲快速开始播放，然后后台持续缓冲
+            // 🎬 初始化 GSYVideoPlayer
+            Log.d(TAG, "🎬 Initializing GSYVideoPlayer");
             
-            // 获取 App 可用堆内存，动态计算缓冲大小
-            android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
-            int memoryClass = am.getMemoryClass(); // App 最大堆内存（MB）
-            int largeMemoryClass = am.getLargeMemoryClass(); // 大内存模式下的最大堆内存（MB）
+            // 🔧 关键修复：显式设置使用 IJKPlayer 内核（ExoPlayer 遇到 HTTP 416 错误）
+            // ExoPlayer 自动发送 Range 请求，与服务器 URL 中的 range 参数冲突
+            // IJKPlayer 内核可以正确处理这种情况
+            // 注意：必须显式设置，否则 GSYVideoPlayer 可能会根据视频格式或配置自动选择播放器
+            // GSYVideoPlayer 默认使用 IJKPlayer，但为了明确，我们不设置
+            // 如果需要使用 ExoPlayer，需要调用：
+            // PlayerFactory.setPlayManager(Exo2PlayerManager.class);
+            Log.d(TAG, "🎬 Using default IJKPlayer kernel (ExoPlayer has HTTP 416 Range request conflict)");
             
-            // 使用 App 堆内存的 3%，最小 4MB，最大 16MB（非常保守，避免 OOM）
-            // 对于11GB大文件，ExoPlayer解析格式时需要大量内存，必须严格控制缓冲
-            int targetBufferMB = Math.min(16, Math.max(4, memoryClass * 3 / 100));
-            int targetBufferBytes = targetBufferMB * 1024 * 1024;
+            // 🔧 设置视频渲染类型为 TEXTURE（TextureView）
+            // TextureView 的 Surface 创建更可靠，不会出现 NULL native_window 问题
+            // 虽然性能略低于 SurfaceView，但兼容性更好
+            GSYVideoType.setRenderType(GSYVideoType.TEXTURE);
+            Log.d(TAG, "🎬 Set render type to TEXTURE (more reliable than SURFACE for IJKPlayer)");
             
-            Log.d(TAG, "🎬 App heap: " + memoryClass + "MB (large: " + largeMemoryClass + "MB), target buffer: " + targetBufferMB + "MB (3%)");
+            // 🔧 设置屏幕缩放类型为默认（保持宽高比，不拉伸）
+            // SCREEN_TYPE_DEFAULT = 0: 默认比例
+            // SCREEN_TYPE_16_9 = 1: 16:9
+            // SCREEN_TYPE_4_3 = 2: 4:3
+            // SCREEN_TYPE_FULL = 3: 全屏拉伸
+            // SCREEN_TYPE_MATCH_FULL = 4: 全屏裁剪
+            // SCREEN_MATCH_FULL = -4: 全屏裁剪（负值）
+            GSYVideoType.setShowType(GSYVideoType.SCREEN_TYPE_DEFAULT);
+            Log.d(TAG, "🎬 Set screen type to DEFAULT (keep aspect ratio)");
             
-            // 🔑 极简缓冲策略：最小内存占用
-            // - 首次播放只需500ms缓冲（极快启动，让ExoPlayer先开始解析）
-            // - 卡顿后只需1秒恢复（快速恢复）
-            // - 后台持续缓冲到10秒（最小内存占用）
-            // 对于大文件，必须严格控制内存，让ExoPlayer边解析边播放
-            androidx.media3.exoplayer.DefaultLoadControl loadControl = new androidx.media3.exoplayer.DefaultLoadControl.Builder()
-                .setBufferDurationsMs(
-                    5000,    // minBufferMs: 最小保持5秒缓冲（极简配置，避免OOM）
-                    10000,   // maxBufferMs: 最大缓冲10秒（最小内存占用）
-                    500,     // bufferForPlaybackMs: 只需500ms就开始播放（极快启动！）
-                    1000     // bufferForPlaybackAfterRebufferMs: 卡顿后只需1秒恢复（快速恢复！）
-                )
-                .setTargetBufferBytes(targetBufferBytes)
-                .setPrioritizeTimeOverSizeThresholds(true) // 优先保证时间缓冲
-                .setBackBuffer(2000, false) // 保留2秒回看缓冲，不保留回看数据（最小内存占用）
-                .build();
+            // 🔧 配置解码器：根据用户设置和自动降级逻辑
+            configureDecoder();
             
-            // 🔧 根据设置选择解码器
-            // 优先级：forceUseSoftwareDecoder（硬解崩溃后自动切换）> 用户设置
-            ExoPlayer.Builder playerBuilder = new ExoPlayer.Builder(this)
-                .setLoadControl(loadControl);
-            
-            boolean useSoftware = forceUseSoftwareDecoder || SharedPreferencesManager.useSoftwareDecoder();
-            
-            // 🔍 诊断：检查可用的解码器（在任何解码器选择之前）
-            Log.e(TAG, "🔍 Starting decoder diagnostics...");
-            try {
-                java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> hevcDecoders = 
-                    androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT
-                        .getDecoderInfos("video/hevc", false, false);
-                Log.e(TAG, "🔍 Available HEVC decoders: " + hevcDecoders.size());
-                for (androidx.media3.exoplayer.mediacodec.MediaCodecInfo decoder : hevcDecoders) {
-                    String name = decoder.name;
-                    boolean isHardware = !name.contains("google") && !name.contains("c2.android");
-                    Log.e(TAG, "🔍   - " + name + " (hardware: " + isHardware + ", softwareOnly: " + decoder.softwareOnly + ")");
+            // 🔧 设置播放器初始化成功监听器，用于检测实际使用的解码器
+            com.shuyu.gsyvideoplayer.GSYVideoManager.instance().setPlayerInitSuccessListener((player, model) -> {
+                Log.i(TAG, "🎬 播放器初始化成功，类型: " + player.getClass().getSimpleName());
+                
+                // 保存播放器引用，用于后续检测
+                if (player instanceof tv.danmaku.ijk.media.player.IjkMediaPlayer) {
+                    currentIjkPlayer = (tv.danmaku.ijk.media.player.IjkMediaPlayer) player;
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "🔍 Error checking decoders: " + e.getMessage(), e);
-            }
-            Log.e(TAG, "🔍 User setting - useSoftwareDecoder: " + SharedPreferencesManager.useSoftwareDecoder() + ", forceUseSoftwareDecoder: " + forceUseSoftwareDecoder);
+            });
             
-            if (useSoftware) {
-                // 软解模式：创建自定义 MediaCodecSelector，优先选择软件解码器
-                // 软件解码器名称通常包含 "google" 或 "c2.android"
-                String reason = forceUseSoftwareDecoder ? "auto-fallback" : "user-setting";
-                Log.d(TAG, "🎬 Using SOFTWARE decoder (" + reason + ")");
-                
-                androidx.media3.exoplayer.mediacodec.MediaCodecSelector softwareSelector = 
-                    new androidx.media3.exoplayer.mediacodec.MediaCodecSelector() {
-                        @Override
-                        public java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> getDecoderInfos(
-                                String mimeType, boolean requiresSecureDecoder, boolean requiresTunnelingDecoder) 
-                                throws androidx.media3.exoplayer.mediacodec.MediaCodecUtil.DecoderQueryException {
-                            
-                            // 获取所有可用解码器
-                            java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> allDecoders = 
-                                androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT
-                                    .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder);
-                            
-                            // 分离软件和硬件解码器
-                            java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> softwareDecoders = 
-                                new java.util.ArrayList<>();
-                            java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> hardwareDecoders = 
-                                new java.util.ArrayList<>();
-                            
-                            for (androidx.media3.exoplayer.mediacodec.MediaCodecInfo decoder : allDecoders) {
-                                String name = decoder.name.toLowerCase();
-                                // 软件解码器通常包含 "google", "c2.android", "OMX.google"
-                                // 硬件解码器通常包含 "OMX." 但不是 "OMX.google"
-                                if (name.contains("google") || name.contains("c2.android") || 
-                                    name.startsWith("c2.google") || decoder.softwareOnly) {
-                                    softwareDecoders.add(decoder);
-                                    Log.d(TAG, "🎬 Software decoder: " + decoder.name);
-                                } else {
-                                    hardwareDecoders.add(decoder);
-                                    Log.d(TAG, "🎬 Hardware decoder: " + decoder.name);
-                                }
-                            }
-                            
-                            // 🔧 对于 4K HEVC 视频，优先使用硬件解码器（如果可用）
-                            // 软件解码器可能无法处理 4K HEVC，导致黑屏
-                            java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> result = 
-                                new java.util.ArrayList<>();
-                            
-                            // 如果有硬件解码器，优先使用硬件解码器
-                            if (!hardwareDecoders.isEmpty()) {
-                                result.addAll(hardwareDecoders);
-                                Log.e(TAG, "🎬 For 4K HEVC, prioritizing hardware decoders: " + hardwareDecoders.size() + " hardware decoders first");
-                            }
-                            // 然后添加软件解码器作为后备
-                            result.addAll(softwareDecoders);
-                            
-                            Log.e(TAG, "🎬 Decoder order: " + result.size() + " decoders, " + 
-                                  hardwareDecoders.size() + " hardware first, " + softwareDecoders.size() + " software as fallback");
-                            
-                            return result;
-                        }
-                    };
-                
-                androidx.media3.exoplayer.DefaultRenderersFactory renderersFactory = 
-                    new androidx.media3.exoplayer.DefaultRenderersFactory(this)
-                        .setMediaCodecSelector(softwareSelector)
-                        .setEnableDecoderFallback(true);
-                playerBuilder.setRenderersFactory(renderersFactory);
-            } else {
-                Log.d(TAG, "🎬 Using HARDWARE decoder (default)");
-            }
-            
-            exoPlayer = playerBuilder.build();
-            
-            // 设置视频缩放模式
-            playerView.setResizeMode(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT);
-            playerView.setPlayer(exoPlayer);
-            playerView.setUseController(false); // 禁用默认控制器，使用自定义菜单
-            
-            // 🔑 配置字幕输出到 SubtitleView
-            if (subtitleView != null) {
-                // 设置字幕样式 - 无背景，白色文字带黑色描边
-                androidx.media3.ui.CaptionStyleCompat captionStyle = new androidx.media3.ui.CaptionStyleCompat(
-                    android.graphics.Color.WHITE,           // 前景色（文字颜色）
-                    android.graphics.Color.TRANSPARENT,     // 背景色（透明）
-                    android.graphics.Color.TRANSPARENT,     // 窗口颜色（透明）
-                    androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_OUTLINE, // 边缘类型（描边）
-                    android.graphics.Color.BLACK,           // 边缘颜色（黑色描边）
-                    null                                    // 字体
-                );
-                subtitleView.setStyle(captionStyle);
-                subtitleView.setFractionalTextSize(0.05f); // 字幕大小（屏幕高度的5%）
-                subtitleView.setApplyEmbeddedStyles(false); // 不使用内嵌样式，使用我们的样式
-                subtitleView.setApplyEmbeddedFontSizes(false);
-                subtitleView.setVisibility(View.VISIBLE);
-                // 设置字幕位置 - 底部偏下
-                subtitleView.setBottomPaddingFraction(0.08f); // 距离底部8%的位置
-                
-                // 将字幕输出连接到 SubtitleView
-                exoPlayer.addListener(new Player.Listener() {
+            // 配置播放器选项
+            GSYVideoOptionBuilder gsyVideoOptionBuilder = new GSYVideoOptionBuilder();
+            gsyVideoOptionBuilder
+                .setIsTouchWiget(false) // 禁用触摸控制，使用自定义菜单
+                .setRotateViewAuto(false) // 禁用自动旋转
+                .setLockLand(false) // 不锁定横屏
+                .setShowFullAnimation(false) // 禁用全屏动画
+                .setNeedLockFull(true) // 需要锁定全屏
+                .setNeedShowWifiTip(false) // 🔧 禁用WiFi提示
+                .setDismissControlTime(0) // 🔧 立即隐藏内置控制栏
+                .setHideKey(true) // 🔧 隐藏返回键
+                .setCacheWithPlay(false) // 默认不使用内置缓存（在 playMedia 中根据 URL 动态配置）
+                .setVideoTitle(mediaTitle != null ? mediaTitle : "视频")
+                .setVideoAllCallBack(new VideoAllCallBack() {
                     @Override
-                    public void onCues(androidx.media3.common.text.CueGroup cueGroup) {
-                        subtitleView.setCues(cueGroup.cues);
+                    public void onStartPrepared(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onStartPrepared");
+                        // 🔧 隐藏内置控制栏
+                        if (playerView != null) {
+                            playerView.getBackButton().setVisibility(View.GONE);
+                            playerView.getFullscreenButton().setVisibility(View.GONE);
+                            playerView.getStartButton().setVisibility(View.GONE);
+                        }
                     }
-                });
-                
-                Log.d(TAG, "📝 SubtitleView configured");
-            } else {
-                Log.e(TAG, "📝 SubtitleView is NULL!");
-            }
-            
-            exoPlayer.addListener(new Player.Listener() {
-                @Override
-                public void onTimelineChanged(androidx.media3.common.Timeline timeline, int reason) {
-                    long duration = exoPlayer.getDuration();
-                    Log.e(TAG, "🎬 Timeline changed: duration=" + (duration > 0 ? (duration/1000) + "s" : "0") + ", reason=" + reason);
-                }
-                
-                @Override
-                public void onPlaybackStateChanged(int playbackState) {
-                    String stateName = "UNKNOWN";
-                    switch (playbackState) {
-                        case Player.STATE_IDLE: stateName = "IDLE"; break;
-                        case Player.STATE_BUFFERING: stateName = "BUFFERING"; break;
-                        case Player.STATE_READY: stateName = "READY"; break;
-                        case Player.STATE_ENDED: stateName = "ENDED"; break;
-                    }
-                    long duration = exoPlayer.getDuration();
-                    long currentPosition = exoPlayer.getCurrentPosition();
-                    Log.e(TAG, "🎬 PlaybackState changed: " + stateName + ", duration=" + (duration > 0 ? (duration/1000) + "s" : "0") + ", position=" + (currentPosition/1000) + "s");
                     
-                    if (playbackState == Player.STATE_READY) {
+                    @Override
+                    public void onPrepared(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onPrepared - 播放器已准备好");
                         isPlayerReady = true;
-                        Log.d(TAG, "🎬 Player READY, showing player view");
                         showPlayer();
-                        hideBufferingIndicator(); // 隐藏缓冲指示器
+                        hideBufferingIndicator();
                         
-                        // 🎬 通知预缓存服务卡顿结束
-                        if (prefetchService != null) {
-                            prefetchService.notifyBufferingEnd();
+                        // 🔧 确保播放器视图可见
+                        if (playerView != null) {
+                            playerView.setVisibility(View.VISIBLE);
+                            // 🔧 不再调用 bringToFront()，避免遮挡弹幕
+                            // playerView.bringToFront();
+                            // 🔧 再次隐藏内置控制栏（确保）
+                            playerView.getBackButton().setVisibility(View.GONE);
+                            playerView.getFullscreenButton().setVisibility(View.GONE);
+                            playerView.getStartButton().setVisibility(View.GONE);
                         }
                         
-                        // 🎬 恢复播放位置
+                        // 🔧 弹幕容器不需要 bringToFront，它在布局中已经在播放器之后
+                        // 通过 XML 布局顺序控制层级，不使用 bringToFront 避免遮挡播放器
+                        if (danmuContainer != null) {
+                            danmuContainer.setVisibility(View.VISIBLE);
+                            Log.d(TAG, "🎬 弹幕容器已设置可见");
+                        }
+                        
+                        // 🎬 启动弹幕播放和位置更新
+                        if (danmuController != null) {
+                            danmuController.startPlayback();
+                            startPositionUpdate();
+                            Log.d(TAG, "🎬 弹幕播放已启动");
+                        }
+                        
+                        // 🎬 启动播放进度记录
+                        if (progressRecorder != null && !progressRecorder.isRecording()) {
+                            String itemGuid = episodeGuid != null ? episodeGuid : mediaGuid;
+                            progressRecorder.startRecording(itemGuid, mediaGuid);
+                            progressRecorder.setStreamGuids(videoGuid, audioGuid, null);
+                        }
+                        
+                        // 注意：不需要再次调用 startPlayLogic()
+                        // startPlayLogic() 已经在 playMedia() 中调用，会触发 onPrepared 回调
+                        // 此时播放器已经准备好，会自动开始播放
+                        
+                        // 🎬 恢复播放位置（延迟执行，确保播放器已准备好）
                         if (resumePositionSeconds > 0) {
                             long resumePositionMs = resumePositionSeconds * 1000;
                             Log.d(TAG, "🎬 Resuming playback at position: " + resumePositionSeconds + "s");
-                            exoPlayer.seekTo(resumePositionMs);
-                            resumePositionSeconds = 0; // 只恢复一次
+                            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                if (playerView != null) {
+                                    playerView.seekTo(resumePositionMs);
+                                }
+                            }, 500);
+                            resumePositionSeconds = 0;
                         } else {
                             // 🎬 跳过片头功能
                             int skipIntro = SharedPreferencesManager.getSkipIntro();
                             if (skipIntro > 0 && !hasSkippedIntro) {
                                 Log.d(TAG, "🎬 Skipping intro: " + skipIntro + "s");
-                                exoPlayer.seekTo(skipIntro * 1000L);
+                                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                    if (playerView != null) {
+                                        playerView.seekTo(skipIntro * 1000L);
+                                    }
+                                }, 500);
                                 hasSkippedIntro = true;
                             }
                         }
-                    } else if (playbackState == Player.STATE_BUFFERING) {
-                        // 🔑 卡顿时显示加载提示
-                        Log.d(TAG, "🎬 Buffering...");
-                        if (isPlayerReady) {
-                            // 已经开始播放后的卡顿，显示缓冲指示器
-                            showBufferingIndicator();
-                            
-                            // 🎬 通知预缓存服务：发生卡顿，需要加速缓存
-                            if (prefetchService != null) {
-                                prefetchService.notifyBufferingStart();
+                        
+                        // 🔧 延迟检测解码器类型（等待视频开始解码）
+                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                            if (currentIjkPlayer != null) {
+                                checkDecoderAndShowToast(currentIjkPlayer);
                             }
+                        }, 1000);
+                    }
+                    
+                    @Override
+                    public void onClickStartError(String url, Object... objects) {
+                        Log.e(TAG, "🎬 GSYVideoPlayer onClickStartError");
+                    }
+                    
+                    @Override
+                    public void onClickStop(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onClickStop");
+                    }
+                    
+                    @Override
+                    public void onClickStopFullscreen(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onClickStopFullscreen");
+                    }
+                    
+                    @Override
+                    public void onClickResume(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onClickResume");
+                        if (danmuController != null) {
+                            danmuController.startPlayback();
+                            startPositionUpdate();
                         }
-                    } else if (playbackState == Player.STATE_ENDED) {
+                        if (progressRecorder != null && !progressRecorder.isRecording()) {
+                            String itemGuid = episodeGuid != null ? episodeGuid : mediaGuid;
+                            progressRecorder.startRecording(itemGuid, mediaGuid);
+                            progressRecorder.setStreamGuids(videoGuid, audioGuid, null);
+                        }
+                    }
+                    
+                    @Override
+                    public void onClickResumeFullscreen(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onClickResumeFullscreen");
+                    }
+                    
+                    // onClickPause 和 onClickPauseFullscreen 在新版本中可能不存在或签名不同
+                    // 使用 onClickResume 和 onClickPause 的相反逻辑来处理
+                    
+                    @Override
+                    public void onClickSeekbar(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onClickSeekbar");
+                    }
+                    
+                    @Override
+                    public void onClickSeekbarFullscreen(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onClickSeekbarFullscreen");
+                    }
+                    
+                    @Override
+                    public void onClickStartThumb(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onClickStartThumb");
+                    }
+                    
+                    @Override
+                    public void onClickBlank(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onClickBlank - 切换菜单显示, isMenuVisible=" + isMenuVisible);
+                        // 🔧 修复：在 GSYVideoPlayer 的点击回调中切换菜单显示
+                        runOnUiThread(() -> {
+                            Log.d(TAG, "🎬 onClickBlank runOnUiThread - isMenuVisible=" + isMenuVisible);
+                            if (isMenuVisible) {
+                                Log.d(TAG, "🎬 调用 hideSettingsMenu()");
+                                hideSettingsMenu();
+                            } else {
+                                Log.d(TAG, "🎬 调用 showSettingsMenu()");
+                                showSettingsMenu();
+                            }
+                        });
+                    }
+                    
+                    @Override
+                    public void onAutoComplete(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onAutoComplete");
                         // 🎬 自动连播：播放结束时自动播放下一集
                         if (SharedPreferencesManager.isAutoPlayNext() && episodeList != null && !episodeList.isEmpty()) {
                             playNextEpisodeAuto();
@@ -452,109 +461,122 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             finish();
                         }
                     }
-                }
-                
-                @Override
-                public void onIsPlayingChanged(boolean isPlaying) {
-                    Log.d(TAG, "🎬 isPlaying changed: " + isPlaying);
-                    if (danmuController != null) {
-                        if (isPlaying) {
-                            danmuController.startPlayback();
-                            startPositionUpdate();
-                        } else {
-                            danmuController.pausePlayback();
-                            stopPositionUpdate();
-                        }
+                    
+                    @Override
+                    public void onEnterFullscreen(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onEnterFullscreen");
                     }
                     
-                    // 🎬 播放进度记录
-                    if (progressRecorder != null) {
-                        if (isPlaying) {
-                            // 开始播放时启动记录
-                            if (!progressRecorder.isRecording()) {
-                                String itemGuid = episodeGuid != null ? episodeGuid : mediaGuid;
-                                progressRecorder.startRecording(itemGuid, mediaGuid);
-                                progressRecorder.setStreamGuids(videoGuid, audioGuid, null);
-                                // 设置视频信息（分辨率和码率会在 onVideoSizeChanged 中更新）
-                            }
-                        } else {
-                            // 暂停时立即保存进度
-                            progressRecorder.saveImmediately();
-                        }
+                    @Override
+                    public void onQuitFullscreen(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onQuitFullscreen");
                     }
-                }
-                
-                @Override
-                public void onVideoSizeChanged(androidx.media3.common.VideoSize videoSize) {
-                    Log.e(TAG, "🎬 Video size changed: " + videoSize.width + "x" + videoSize.height);
                     
-                    // 🎬 更新 ProgressRecorder 的视频信息
-                    if (progressRecorder != null && videoSize.height > 0) {
-                        // 根据高度判断分辨率名称
-                        String resolutionName;
-                        if (videoSize.height >= 2160) {
-                            resolutionName = "4K";
-                        } else if (videoSize.height >= 1080) {
-                            resolutionName = "超清";
-                        } else if (videoSize.height >= 720) {
-                            resolutionName = "高清";
-                        } else {
-                            resolutionName = "标清";
+                    @Override
+                    public void onQuitSmallWidget(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onQuitSmallWidget");
+                    }
+                    
+                    @Override
+                    public void onEnterSmallWidget(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onEnterSmallWidget");
+                    }
+                    
+                    @Override
+                    public void onTouchScreenSeekVolume(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onTouchScreenSeekVolume");
+                    }
+                    
+                    @Override
+                    public void onTouchScreenSeekPosition(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onTouchScreenSeekPosition");
+                    }
+                    
+                    @Override
+                    public void onTouchScreenSeekLight(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onTouchScreenSeekLight");
+                    }
+                    
+                    @Override
+                    public void onPlayError(String url, Object... objects) {
+                        String errorMsg = objects.length > 0 ? objects[0].toString() : "未知错误";
+                        Log.e(TAG, "🎬 GSYVideoPlayer onPlayError: " + errorMsg);
+                        
+                        // 🔧 解码器自动降级：如果使用硬解失败，自动切换到软解重试
+                        if (!forceUseSoftwareDecoder && !SharedPreferencesManager.useSoftwareDecoder() && decoderRetryCount < MAX_DECODER_RETRY) {
+                            decoderRetryCount++;
+                            forceUseSoftwareDecoder = true;
+                            Log.w(TAG, "🎬 硬解失败，自动切换到软解重试 (retry=" + decoderRetryCount + ")");
+                            runOnUiThread(() -> {
+                                Toast.makeText(VideoPlayerActivity.this, "硬解失败，自动切换软解", Toast.LENGTH_SHORT).show();
+                                // 重新配置解码器并播放
+                                configureDecoder();
+                                if (currentVideoUrl != null) {
+                                    playMedia(currentVideoUrl);
+                                }
+                            });
+                            return;
                         }
                         
-                        // 获取码率
-                        long bitrate = 0;
-                        if (exoPlayer != null) {
-                            androidx.media3.common.Format format = exoPlayer.getVideoFormat();
-                            if (format != null && format.bitrate > 0) {
-                                bitrate = format.bitrate;
-                            }
+                        showError("播放错误: " + errorMsg);
+                    }
+                    
+                    @Override
+                    public void onClickBlankFullscreen(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onClickBlankFullscreen - 切换菜单显示");
+                        // 🔧 修复：全屏模式下也切换菜单显示
+                        if (isMenuVisible) {
+                            hideSettingsMenu();
+                        } else {
+                            showSettingsMenu();
                         }
-                        
-                        progressRecorder.setVideoInfo(resolutionName, bitrate);
-                    }
-                }
-                
-                @Override
-                public void onRenderedFirstFrame() {
-                    Log.e(TAG, "🎬 First frame rendered!");
-                }
-                
-                @Override
-                public void onPlayerError(androidx.media3.common.PlaybackException error) {
-                    Log.e(TAG, "Player Error: " + error.getMessage(), error);
-                    if (error.getCause() != null) {
-                        Log.e(TAG, "Player Error Cause: " + error.getCause().getMessage(), error.getCause());
                     }
                     
-                    // 🔧 检测是否为解码器错误，自动切换到软解
-                    if (shouldSwitchToSoftwareDecoder(error)) {
-                        Log.w(TAG, "🔧 Hardware decoder error detected, switching to software decoder...");
-                        forceUseSoftwareDecoder = true;
-                        decoderRetryCount++;
-                        
-                        runOnUiThread(() -> {
-                            Toast.makeText(VideoPlayerActivity.this, 
-                                "硬解出错，自动切换软解...", Toast.LENGTH_SHORT).show();
-                            
-                            // 保存当前位置并重新加载
-                            long currentPos = 0;
-                            if (exoPlayer != null) {
-                                currentPos = exoPlayer.getCurrentPosition();
-                            }
-                            resumePositionSeconds = currentPos / 1000;
-                            
-                            // 重新加载视频
-                            reloadVideoWithSoftwareDecoder();
-                        });
-                        return;
+                    @Override
+                    public void onComplete(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onComplete");
                     }
                     
-                    showError("Player Error: " + error.getMessage());
-                }
-            });
+                    @Override
+                    public void onClickStartIcon(String url, Object... objects) {
+                        Log.d(TAG, "🎬 GSYVideoPlayer onClickStartIcon");
+                    }
+                })
+                .setGSYVideoProgressListener(new GSYVideoProgressListener() {
+                    @Override
+                    public void onProgress(long progress, long secProgress, long currentPosition, long totalDuration) {
+                        // 更新进度记录
+                        if (progressRecorder != null && progressRecorder.isRecording() && totalDuration > 0) {
+                            progressRecorder.updateProgress(currentPosition / 1000, totalDuration / 1000);
+                        }
+                    }
+                });
+            
+            // 应用配置到播放器
+            gsyVideoOptionBuilder.build(playerView);
+            
+            // 🔑 配置字幕输出到 SubtitleView（保留 ExoPlayer 用于字幕）
+            if (subtitleView != null) {
+                // 设置字幕样式
+                androidx.media3.ui.CaptionStyleCompat captionStyle = new androidx.media3.ui.CaptionStyleCompat(
+                    android.graphics.Color.WHITE,
+                    android.graphics.Color.TRANSPARENT,
+                    android.graphics.Color.TRANSPARENT,
+                    androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                    android.graphics.Color.BLACK,
+                    null
+                );
+                subtitleView.setStyle(captionStyle);
+                subtitleView.setFractionalTextSize(0.05f);
+                subtitleView.setApplyEmbeddedStyles(false);
+                subtitleView.setApplyEmbeddedFontSizes(false);
+                subtitleView.setVisibility(View.VISIBLE);
+                subtitleView.setBottomPaddingFraction(0.08f);
+                Log.d(TAG, "📝 SubtitleView configured");
+            }
+            
         } catch (Exception e) {
-            Log.e(TAG, "ExoPlayer Init Failed", e);
+            Log.e(TAG, "GSYVideoPlayer Init Failed", e);
             showError("Player Init Failed");
         }
     }
@@ -602,22 +624,77 @@ public class VideoPlayerActivity extends AppCompatActivity {
         Log.e(TAG, "Danmaku params for playback: title=" + tvTitle + ", s" + seasonNumber + "e" + episodeNumber + ", guid=" + episodeGuid);
         showLoading("Loading...");
         
+        // 🔧 关键修复：保持 URL 原样，不修改
+        // 签名验证基于原始 URL，如果修改 URL 会导致鉴权失败（HTTP 416）
+        // ExoPlayer 会自动处理 Range 请求，不需要手动修改 URL
+        String playUrl = url;
+        
         // 保存当前视频URL
         currentVideoUrl = url;
         
         try {
-            MediaItem mediaItem = createMediaItemWithHeaders(url);
+            // 🚀 为直连 URL 启用缓存和多线程加速
+            // 判断是否为直连 URL（包含 direct_link_quality_index 或外部云存储 URL）
+            boolean isDirectLink = url.contains("direct_link_quality_index") ||
+                (url.startsWith("https://") && !url.contains("192.168.") && !url.contains("localhost"));
             
-            // 🔧 如果是直连模式，createMediaItemWithHeaders 会在后台线程中处理播放启动
-            // 返回 null 表示已经在后台处理，不需要在这里调用 prepare
-            if (mediaItem != null) {
-                Log.e(TAG, "MediaItem created, calling prepare()");
-                exoPlayer.setMediaItem(mediaItem);
-                exoPlayer.prepare();
-                exoPlayer.setPlayWhenReady(true);
-            } else {
-                Log.e(TAG, "MediaItem is null, playback will be started in background thread (direct link mode)");
+            // 🚀 为直连 URL 启用缓存
+            java.io.File cacheDir = null;
+            if (isDirectLink) {
+                // 🚀 直连 URL：启用缓存并设置缓存路径
+                cacheDir = new java.io.File(getCacheDir(), "gsy_video_cache");
+                if (!cacheDir.exists()) {
+                    cacheDir.mkdirs();
+                }
+                Log.d(TAG, "🚀 Direct link detected, enabling cache at: " + cacheDir.getAbsolutePath());
+                Log.d(TAG, "🚀 Cache directory exists: " + cacheDir.exists() + ", writable: " + cacheDir.canWrite());
             }
+            
+            // 🎬 使用 GSYVideoPlayer 播放
+            // 🔧 关键：使用原始 URL 生成请求头（包含正确的签名）
+            Map<String, String> headers = createHeadersForUrl(url);
+            
+            // 设置播放器标题
+            String videoTitle = mediaTitle != null ? mediaTitle : "视频";
+            
+            // 🔧 关键：如果启用缓存，需要在 setUp 时传递缓存路径
+            // GSYVideoPlayer 的 setUp 方法签名：setUp(String url, boolean cacheWithPlay, File cachePath, Map<String, String> mapHeadData, String title)
+            // ⚠️ 注意：GSYVideoPlayer 的 HttpProxyCacheServer 可能不会使用 setUp 中传递的 headers
+            // 需要在 setUp 之后再次调用 setMapHeadData 来确保 headers 被正确设置
+            if (isDirectLink && cacheDir != null) {
+                Log.d(TAG, "🚀 Setting up with cache: cacheWithPlay=true, cachePath=" + cacheDir.getAbsolutePath());
+                Log.d(TAG, "🚀 Headers to be set: " + (headers != null ? headers.keySet() : "null"));
+                
+                // 🔑 关键修复：在 setUp 之前设置 OkHttpProxyCacheManager 的 headers
+                // OkHttpProxyCacheManager 使用 OkHttp 替代 HttpURLConnection，能正确传递认证头
+                com.mynas.nastv.cache.OkHttpProxyCacheManager.setCurrentHeaders(headers);
+                Log.d(TAG, "🔑 OkHttpProxyCacheManager headers set before setUp");
+                
+                playerView.setUp(playUrl, true, cacheDir, headers, videoTitle);
+                
+                // 🔧 关键修复：HttpProxyCacheServer 可能不会使用 setUp 中的 headers
+                // 需要在 setUp 之后再次设置 headers，确保缓存代理服务器能使用正确的认证头
+                if (headers != null && !headers.isEmpty()) {
+                    playerView.setMapHeadData(headers);
+                    Log.d(TAG, "🚀 Headers set again via setMapHeadData for cache proxy: " + headers.keySet());
+                }
+            } else {
+                Log.d(TAG, "🎬 Setting up without cache: cacheWithPlay=false");
+                playerView.setUp(playUrl, false, null, headers, videoTitle);
+                
+                // 非缓存模式也需要设置 headers
+                if (headers != null && !headers.isEmpty()) {
+                    playerView.setMapHeadData(headers);
+                    Log.d(TAG, "🎬 Headers set via setMapHeadData: " + headers.keySet());
+                }
+            }
+            
+            // 🔧 调试：在播放前记录 URL，用于后续分析播放器选择
+            Log.d(TAG, "🎬 Setting up video: URL=" + playUrl.substring(0, Math.min(100, playUrl.length())) + "...");
+            
+            // 开始播放
+            playerView.startPlayLogic();
+            Log.d(TAG, "🎬 startPlayLogic() called - will trigger onPrepared callback");
             
             // Load Danmaku - 使用 title + season + episode + guid 获取弹幕
             if (danmuController != null) {
@@ -636,6 +713,86 @@ public class VideoPlayerActivity extends AppCompatActivity {
             Log.e(TAG, "Play Failed", e);
             showError("Play Failed: " + e.getMessage());
         }
+    }
+    
+    /**
+     * 创建请求头
+     */
+    private Map<String, String> createHeadersForUrl(String url) {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        headers.put("Accept", "*/*");
+        headers.put("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
+        headers.put("Accept-Encoding", "identity");
+        headers.put("Connection", "keep-alive");
+        
+        // 🔧 关键修复：对于包含 /range/ 的 URL，确保使用原始 URL 生成签名
+        // 签名验证基于完整的 URL 路径，包括 /range/ 部分
+        if (url.contains("/range/")) {
+            Log.d(TAG, "🔧 URL contains /range/ path, will use original URL for signature generation");
+        }
+        
+        // 判断是否为直连URL
+        boolean isExternalDirectLink = url.startsWith("https://") && !url.contains("192.168.") && !url.contains("localhost");
+        boolean isProxyDirectLink = url.contains("direct_link_quality_index");
+        
+        if (isProxyDirectLink) {
+            String token = SharedPreferencesManager.getAuthToken();
+            if (token != null && !token.isEmpty()) {
+                String authToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+                headers.put("Cookie", "Trim-MC-token=" + authToken);
+                headers.put("Authorization", authToken);
+                
+                // 🔍 详细日志：打印认证信息（隐藏敏感内容）
+                Log.d(TAG, "🔍 [CURL TEST] Token length: " + authToken.length() + ", first 10 chars: " + 
+                      (authToken.length() > 10 ? authToken.substring(0, 10) + "..." : authToken));
+                
+                try {
+                    String signature = com.mynas.nastv.utils.SignatureUtils.generateSignature("GET", url, "", null);
+                    if (signature != null) {
+                        headers.put("authx", signature);
+                        // 🔍 详细日志：打印签名信息
+                        Log.d(TAG, "🔍 [CURL TEST] Signature length: " + signature.length() + ", first 10 chars: " + 
+                              (signature.length() > 10 ? signature.substring(0, 10) + "..." : signature));
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Sign failed", e);
+                }
+            }
+        } else if (isExternalDirectLink) {
+            String referer = "https://pan.quark.cn/";
+            try {
+                java.net.URL parsedUrl = new java.net.URL(url);
+                referer = parsedUrl.getProtocol() + "://" + parsedUrl.getHost() + "/";
+            } catch (Exception e) {
+                Log.w(TAG, "Parse URL failed", e);
+            }
+            headers.put("Referer", referer);
+            headers.put("Origin", referer.substring(0, referer.length() - 1));
+            headers.put("Sec-Fetch-Dest", "video");
+            headers.put("Sec-Fetch-Mode", "cors");
+            headers.put("Sec-Fetch-Site", "cross-site");
+        }
+        
+        // 🔍 详细日志：打印所有 headers（用于 curl 测试）
+        Log.d(TAG, "🔍 [CURL TEST] ===== Headers for URL =====");
+        Log.d(TAG, "🔍 [CURL TEST] URL: " + url);
+        Log.d(TAG, "🔍 [CURL TEST] curl -v -X GET \\");
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            // 隐藏敏感信息的部分内容
+            if (key.equals("Cookie") || key.equals("Authorization") || key.equals("authx")) {
+                String maskedValue = value.length() > 20 ? value.substring(0, 20) + "..." : value;
+                Log.d(TAG, "🔍 [CURL TEST]   -H \"" + key + ": " + maskedValue + "\" \\");
+            } else {
+                Log.d(TAG, "🔍 [CURL TEST]   -H \"" + key + ": " + value + "\" \\");
+            }
+        }
+        Log.d(TAG, "🔍 [CURL TEST]   \"" + url + "\"");
+        Log.d(TAG, "🔍 [CURL TEST] =============================");
+        
+        return headers;
     }
     
     /**
@@ -1565,6 +1722,135 @@ public class VideoPlayerActivity extends AppCompatActivity {
         }
     }
     
+    /**
+     * 🔧 配置解码器：根据用户设置和自动降级逻辑
+     */
+    private void configureDecoder() {
+        boolean useSoftware = SharedPreferencesManager.useSoftwareDecoder() || forceUseSoftwareDecoder;
+        
+        if (useSoftware) {
+            // 软解模式
+            GSYVideoType.disableMediaCodec();
+            Log.i(TAG, "🎬 解码器配置: 软解模式");
+        } else {
+            // 硬解模式
+            GSYVideoType.enableMediaCodec();
+            GSYVideoType.enableMediaCodecTexture();
+            Log.i(TAG, "🎬 解码器配置: 硬解模式");
+        }
+        
+        // 配置 IJKPlayer 高级选项
+        try {
+            com.shuyu.gsyvideoplayer.GSYVideoManager.instance().setOptionModelList(getIjkOptions(useSoftware));
+            Log.i(TAG, "🎬 IJKPlayer 选项已配置");
+        } catch (Exception e) {
+            Log.e(TAG, "🎬 配置 IJKPlayer 选项失败", e);
+        }
+    }
+    
+    /**
+     * 🔧 检查解码器并显示提示
+     */
+    private void checkDecoderAndShowToast(tv.danmaku.ijk.media.player.IjkMediaPlayer ijkPlayer) {
+        if (hasShownSoftwareDecoderToast) return;
+        
+        boolean configuredHardware = !SharedPreferencesManager.useSoftwareDecoder() && !forceUseSoftwareDecoder;
+        
+        if (!configuredHardware) {
+            Log.i(TAG, "🎬 已配置软解，无需检测");
+            return;
+        }
+        
+        // 检查设备是否支持 HEVC 硬解
+        // 通过 MediaCodecList 检查是否有 HEVC 硬件解码器
+        try {
+            android.media.MediaCodecList codecList = new android.media.MediaCodecList(android.media.MediaCodecList.ALL_CODECS);
+            boolean hasHevcHardwareDecoder = false;
+            
+            for (android.media.MediaCodecInfo codecInfo : codecList.getCodecInfos()) {
+                if (codecInfo.isEncoder()) continue;
+                
+                String[] types = codecInfo.getSupportedTypes();
+                for (String type : types) {
+                    if (type.equalsIgnoreCase("video/hevc")) {
+                        // 检查是否是硬件解码器（不是 OMX.google 开头的）
+                        String name = codecInfo.getName();
+                        if (!name.startsWith("OMX.google.")) {
+                            hasHevcHardwareDecoder = true;
+                            Log.i(TAG, "🎬 找到 HEVC 硬件解码器: " + name);
+                            break;
+                        }
+                    }
+                }
+                if (hasHevcHardwareDecoder) break;
+            }
+            
+            if (!hasHevcHardwareDecoder) {
+                // 设备没有 HEVC 硬件解码器，显示提示
+                hasShownSoftwareDecoderToast = true;
+                forceUseSoftwareDecoder = true;
+                runOnUiThread(() -> {
+                    Toast.makeText(VideoPlayerActivity.this, "硬解不支持，已自动切换软解", Toast.LENGTH_SHORT).show();
+                });
+                Log.i(TAG, "🎬 设备无 HEVC 硬件解码器，已自动切换到软解");
+            } else {
+                Log.i(TAG, "🎬 设备支持 HEVC 硬解");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "🎬 检测解码器失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 🔧 检查并显示解码器切换提示（备用方案）
+     */
+    private void checkAndShowDecoderToast() {
+        if (hasShownSoftwareDecoderToast) return;
+        
+        boolean configuredHardware = !SharedPreferencesManager.useSoftwareDecoder() && !forceUseSoftwareDecoder;
+        boolean mediaCodecEnabled = GSYVideoType.isMediaCodec();
+        
+        Log.i(TAG, "🎬 检测解码器状态: configuredHardware=" + configuredHardware + ", mediaCodecEnabled=" + mediaCodecEnabled);
+    }
+    
+    /**
+     * 🔧 获取 IJKPlayer 配置选项
+     */
+    private java.util.List<com.shuyu.gsyvideoplayer.model.VideoOptionModel> getIjkOptions(boolean useSoftware) {
+        java.util.List<com.shuyu.gsyvideoplayer.model.VideoOptionModel> options = new java.util.ArrayList<>();
+        
+        // 播放器选项
+        int playerCategory = tv.danmaku.ijk.media.player.IjkMediaPlayer.OPT_CATEGORY_PLAYER;
+        int formatCategory = tv.danmaku.ijk.media.player.IjkMediaPlayer.OPT_CATEGORY_FORMAT;
+        
+        if (!useSoftware) {
+            // 硬解模式配置
+            options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec", 1));
+            options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec-auto-rotate", 1));
+            options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec-handle-resolution-change", 1));
+            options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec-hevc", 1));
+            Log.i(TAG, "🎬 IJKPlayer: 启用硬解 + HEVC 硬解");
+        } else {
+            // 软解模式配置
+            options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec", 0));
+            options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec-hevc", 0));
+            Log.i(TAG, "🎬 IJKPlayer: 使用软解");
+        }
+        
+        // 通用优化选项
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "framedrop", 1));
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "enable-accurate-seek", 1));
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max-buffer-size", 15 * 1024 * 1024));
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "min-frames", 50));
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "start-on-prepared", 1));
+        
+        // 格式选项
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "probesize", 10 * 1024 * 1024));
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "analyzeduration", 5 * 1000 * 1000));
+        
+        return options;
+    }
+    
     private void showLoading(String msg) {
         runOnUiThread(() -> {
             loadingLayout.setVisibility(View.VISIBLE);
@@ -1596,34 +1882,52 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private Runnable positionRunnable = new Runnable() {
         @Override
         public void run() {
-            if (exoPlayer != null) {
-                long currentPosition = exoPlayer.getCurrentPosition();
-                long duration = exoPlayer.getDuration();
-                
-                // 更新弹幕位置
-                if (danmuController != null) {
-                    danmuController.updatePlaybackPosition(currentPosition);
+            if (playerView != null) {
+                // GSYVideoPlayer 获取播放位置的方法
+                long currentPosition = 0;
+                long duration = 0;
+                try {
+                    // GSYVideoPlayer API - 使用 getCurrentState() 检查状态
+                    int state = playerView.getCurrentState();
+                    // STATE_PLAYING = 2
+                    if (state == 2) {
+                        currentPosition = playerView.getCurrentPositionWhenPlaying();
+                        duration = playerView.getDuration();
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Error getting position from GSYVideoPlayer", e);
                 }
                 
-                // 🎬 更新播放进度记录器
-                if (progressRecorder != null && duration > 0) {
-                    // 转换为秒
-                    progressRecorder.updateProgress(currentPosition / 1000, duration / 1000);
-                }
-                
-                // 🚀 更新预缓存服务的播放位置（用于调整下载优先级）
-                if (prefetchService != null && duration > 0) {
-                    // 将时间位置转换为字节位置（估算）
-                    long contentLength = prefetchService.getContentLength();
-                    if (contentLength > 0) {
-                        long bytePosition = (currentPosition * contentLength) / duration;
-                        prefetchService.updatePlaybackPosition(bytePosition);
-                        
-                        // 🔧 调试日志：每 5 秒打印一次位置更新
-                        if (currentPosition % 5000 < 100) {
-                            int currentChunk = (int) (bytePosition / (2 * 1024 * 1024));
-                            Log.e(TAG, "🎯 Position update: " + (currentPosition/1000) + "s → chunk " + currentChunk + 
-                                  " (byte " + (bytePosition/1024/1024) + "MB)");
+                if (currentPosition > 0 && duration > 0) {
+                    // 更新弹幕位置
+                    if (danmuController != null) {
+                        danmuController.updatePlaybackPosition(currentPosition);
+                        // 🔧 调试日志：每 5 秒打印一次弹幕位置更新
+                        if (currentPosition % 5000 < 150) {
+                            Log.d(TAG, "🎬 弹幕位置更新: " + (currentPosition/1000) + "s");
+                        }
+                    }
+                    
+                    // 🎬 更新播放进度记录器
+                    if (progressRecorder != null) {
+                        // 转换为秒
+                        progressRecorder.updateProgress(currentPosition / 1000, duration / 1000);
+                    }
+                    
+                    // 🚀 更新预缓存服务的播放位置（用于调整下载优先级）
+                    if (prefetchService != null) {
+                        // 将时间位置转换为字节位置（估算）
+                        long contentLength = prefetchService.getContentLength();
+                        if (contentLength > 0) {
+                            long bytePosition = (currentPosition * contentLength) / duration;
+                            prefetchService.updatePlaybackPosition(bytePosition);
+                            
+                            // 🔧 调试日志：每 5 秒打印一次位置更新
+                            if (currentPosition % 5000 < 100) {
+                                int currentChunk = (int) (bytePosition / (2 * 1024 * 1024));
+                                Log.e(TAG, "🎯 Position update: " + (currentPosition/1000) + "s → chunk " + currentChunk + 
+                                      " (byte " + (bytePosition/1024/1024) + "MB)");
+                            }
                         }
                     }
                 }
@@ -1700,6 +2004,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
         // 🚀 停止预缓存服务
         stopPrefetchService();
         
+        if (playerView != null) {
+            playerView.release();
+            playerView = null;
+        }
         if (exoPlayer != null) {
             exoPlayer.release();
             exoPlayer = null;
@@ -1719,13 +2027,20 @@ public class VideoPlayerActivity extends AppCompatActivity {
         }
         
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-             if (exoPlayer != null) {
-                 if (exoPlayer.isPlaying()) {
-                     exoPlayer.pause();
-                     showCenterIcon(false); // 显示暂停图标
-                 } else {
-                     exoPlayer.play();
-                     showCenterIcon(true); // 显示播放图标
+             if (playerView != null) {
+                 try {
+                     // GSYVideoPlayer 使用 getCurrentState() 检查状态
+                     int state = playerView.getCurrentState();
+                     // GSYVideoPlayer 状态常量：STATE_PLAYING = 2, STATE_PAUSE = 1
+                     if (state == 2) { // STATE_PLAYING
+                         playerView.onVideoPause();
+                         showCenterIcon(false); // 显示暂停图标
+                     } else {
+                         playerView.onVideoResume();
+                         showCenterIcon(true); // 显示播放图标
+                     }
+                 } catch (Exception e) {
+                     Log.w(TAG, "Error checking playing state", e);
                  }
                  return true;
              }
@@ -1743,18 +2058,30 @@ public class VideoPlayerActivity extends AppCompatActivity {
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && !isMenuVisible) {
             // 左键快退10秒（菜单不可见时）
-            if (exoPlayer != null) {
-                long newPosition = Math.max(0, exoPlayer.getCurrentPosition() - 10000);
-                exoPlayer.seekTo(newPosition);
-                showSeekProgressOverlay(newPosition, false);
+            if (playerView != null) {
+                try {
+                    long currentPosition = playerView.getCurrentPositionWhenPlaying();
+                    long duration = playerView.getDuration();
+                    long newPosition = Math.max(0, currentPosition - 10000);
+                    playerView.seekTo(newPosition);
+                    showSeekProgressOverlay(newPosition, false);
+                } catch (Exception e) {
+                    Log.w(TAG, "Error seeking backward", e);
+                }
                 return true;
             }
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && !isMenuVisible) {
             // 右键快进10秒（菜单不可见时）
-            if (exoPlayer != null) {
-                long newPosition = Math.min(exoPlayer.getDuration(), exoPlayer.getCurrentPosition() + 10000);
-                exoPlayer.seekTo(newPosition);
-                showSeekProgressOverlay(newPosition, true);
+            if (playerView != null) {
+                try {
+                    long currentPosition = playerView.getCurrentPositionWhenPlaying();
+                    long duration = playerView.getDuration();
+                    long newPosition = Math.min(duration, currentPosition + 10000);
+                    playerView.seekTo(newPosition);
+                    showSeekProgressOverlay(newPosition, true);
+                } catch (Exception e) {
+                    Log.w(TAG, "Error seeking forward", e);
+                }
                 return true;
             }
         }
@@ -1798,8 +2125,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private static final String[] SPEED_LABELS = {"0.5x", "0.75x", "1.0x", "1.25x", "1.5x", "2.0x"};
     
     private void showSettingsMenu() {
+        Log.d(TAG, "🎬 showSettingsMenu() 被调用");
         if (bottomMenuContainer == null) {
+            Log.d(TAG, "🎬 bottomMenuContainer 为 null，初始化视图");
             bottomMenuContainer = findViewById(R.id.bottom_menu_container);
+            Log.d(TAG, "🎬 bottomMenuContainer = " + bottomMenuContainer);
             menuNextEpisode = findViewById(R.id.menu_next_episode);
             menuSpeed = findViewById(R.id.menu_speed);
             menuEpisode = findViewById(R.id.menu_episode);
@@ -1833,8 +2163,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 progressSeekbar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
                     @Override
                     public void onProgressChanged(android.widget.SeekBar seekBar, int progress, boolean fromUser) {
-                        if (fromUser && exoPlayer != null) {
-                            long duration = exoPlayer.getDuration();
+                        if (fromUser && playerView != null) {
+                            long duration = playerView.getDuration();
                             long newPosition = (duration * progress) / 100;
                             progressCurrentTime.setText(formatTime(newPosition));
                         }
@@ -1848,10 +2178,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     @Override
                     public void onStopTrackingTouch(android.widget.SeekBar seekBar) {
                         isSeekbarTracking = false;
-                        if (exoPlayer != null) {
-                            long duration = exoPlayer.getDuration();
+                        if (playerView != null) {
+                            long duration = playerView.getDuration();
                             long newPosition = (duration * seekBar.getProgress()) / 100;
-                            exoPlayer.seekTo(newPosition);
+                            playerView.seekTo(newPosition);
                         }
                     }
                 });
@@ -1869,11 +2199,25 @@ public class VideoPlayerActivity extends AppCompatActivity {
         // 显示顶部信息
         if (topInfoContainer != null) {
             topInfoContainer.setVisibility(View.VISIBLE);
+            topInfoContainer.bringToFront();
+            topInfoContainer.requestLayout();
+            Log.d(TAG, "🎬 topInfoContainer 设置为 VISIBLE");
         }
         
-        bottomMenuContainer.setVisibility(View.VISIBLE);
-        menuSpeed.requestFocus();
+        if (bottomMenuContainer != null) {
+            bottomMenuContainer.setVisibility(View.VISIBLE);
+            bottomMenuContainer.bringToFront();
+            // 🔧 强制请求布局，确保视图被正确测量
+            bottomMenuContainer.requestLayout();
+            bottomMenuContainer.invalidate();
+            Log.d(TAG, "🎬 bottomMenuContainer 设置为 VISIBLE, visibility=" + bottomMenuContainer.getVisibility() + 
+                       ", width=" + bottomMenuContainer.getWidth() + ", height=" + bottomMenuContainer.getHeight());
+        }
+        if (menuSpeed != null) {
+            menuSpeed.requestFocus();
+        }
         isMenuVisible = true;
+        Log.d(TAG, "🎬 菜单已显示, isMenuVisible=" + isMenuVisible);
         
         // 开始进度更新
         startProgressUpdate();
@@ -1903,36 +2247,55 @@ public class VideoPlayerActivity extends AppCompatActivity {
     }
     
     private void updateProgressBar() {
-        if (exoPlayer != null && progressSeekbar != null) {
-            long currentPosition = exoPlayer.getCurrentPosition();
-            long duration = exoPlayer.getDuration();
-            long bufferedPosition = exoPlayer.getBufferedPosition();
-            
-            if (duration > 0) {
-                // 播放进度
-                int progress = (int) ((currentPosition * 100) / duration);
-                progressSeekbar.setProgress(progress);
-                progressCurrentTime.setText(formatTime(currentPosition));
-                progressTotalTime.setText(formatTime(duration));
+        if (playerView != null && progressSeekbar != null) {
+            try {
+                long currentPosition = playerView.getCurrentPositionWhenPlaying();
+                long duration = playerView.getDuration();
                 
-                // 缓存进度
-                int bufferProgress = (int) ((bufferedPosition * 100) / duration);
-                if (bufferProgressbar != null) {
-                    bufferProgressbar.setProgress(bufferProgress);
-                }
-                
-                // 缓存信息文本
-                if (bufferInfoText != null) {
-                    long bufferedSeconds = (bufferedPosition - currentPosition) / 1000;
-                    if (bufferedSeconds > 0 && bufferedSeconds < 300) {
-                        // 显示缓存了多少秒
-                        bufferInfoText.setText("已缓存 " + bufferedSeconds + "s");
-                    } else if (bufferProgress >= 99) {
-                        bufferInfoText.setText("缓存完成");
-                    } else {
-                        bufferInfoText.setText("");
+                if (duration > 0) {
+                    // 播放进度
+                    int progress = (int) ((currentPosition * 100) / duration);
+                    progressSeekbar.setProgress(progress);
+                    progressCurrentTime.setText(formatTime(currentPosition));
+                    progressTotalTime.setText(formatTime(duration));
+                    
+                    // 🔑 从 OkHttpProxyCacheManager 获取真实缓存进度
+                    int bufferProgress = progress; // 默认等于播放进度
+                    int cachedChunks = 0;
+                    int currentChunk = 0;
+                    
+                    try {
+                        com.mynas.nastv.cache.OkHttpProxyCacheManager cacheManager = 
+                            com.mynas.nastv.cache.OkHttpProxyCacheManager.instance();
+                        if (cacheManager != null) {
+                            bufferProgress = cacheManager.getDownloadProgress();
+                            cachedChunks = cacheManager.getCachedChunksCount();
+                            currentChunk = cacheManager.getCurrentPlaybackChunk();
+                        }
+                    } catch (Exception e) {
+                        // 忽略缓存管理器错误
+                    }
+                    
+                    // 更新缓存进度条
+                    if (bufferProgressbar != null) {
+                        bufferProgressbar.setProgress(bufferProgress);
+                    }
+                    
+                    // 缓存信息文本
+                    if (bufferInfoText != null) {
+                        if (cachedChunks > 0) {
+                            // 显示缓存块数和进度
+                            int cachedMB = cachedChunks * 2; // 每块 2MB
+                            bufferInfoText.setText("已缓存 " + cachedMB + "MB (" + bufferProgress + "%)");
+                        } else if (bufferProgress >= 99) {
+                            bufferInfoText.setText("缓存完成");
+                        } else {
+                            bufferInfoText.setText("");
+                        }
                     }
                 }
+            } catch (Exception e) {
+                Log.w(TAG, "Error updating progress bar", e);
             }
         }
     }
@@ -1987,9 +2350,9 @@ public class VideoPlayerActivity extends AppCompatActivity {
      * 🎬 显示快进/快退进度条
      */
     private void showSeekProgressOverlay(long newPosition, boolean isForward) {
-        if (exoPlayer == null) return;
+        if (playerView == null) return;
         
-        long duration = exoPlayer.getDuration();
+        long duration = playerView.getDuration();
         if (duration <= 0) return;
         
         // 初始化进度条视图
@@ -2102,8 +2465,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
     }
     
     private void hideSettingsMenu() {
+        Log.d(TAG, "🎬 hideSettingsMenu() 被调用");
         if (bottomMenuContainer != null) {
             bottomMenuContainer.setVisibility(View.GONE);
+            Log.d(TAG, "🎬 bottomMenuContainer 设置为 GONE");
         }
         // 隐藏顶部信息
         if (topInfoContainer != null) {
@@ -2112,6 +2477,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         // 停止进度更新
         stopProgressUpdate();
         isMenuVisible = false;
+        Log.d(TAG, "🎬 菜单已隐藏, isMenuVisible=" + isMenuVisible);
     }
     
     private void updateSpeedLabel() {
@@ -2181,8 +2547,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
             .setTitle("播放速度")
             .setSingleChoiceItems(SPEED_LABELS, currentIndex, (dialog, which) -> {
                 currentSpeed = SPEED_OPTIONS[which];
-                if (exoPlayer != null) {
-                    exoPlayer.setPlaybackSpeed(currentSpeed);
+                if (playerView != null) {
+                    playerView.setSpeed(currentSpeed);
                 }
                 updateSpeedLabel();
                 Toast.makeText(this, "播放速度: " + SPEED_LABELS[which], Toast.LENGTH_SHORT).show();
@@ -2487,11 +2853,18 @@ public class VideoPlayerActivity extends AppCompatActivity {
      * ⚙️ 显示设置对话框
      */
     private void showSettingsDialog() {
+        // 🔧 解码器显示：考虑自动切换的情况
+        boolean actualUseSoftware = SharedPreferencesManager.useSoftwareDecoder() || forceUseSoftwareDecoder;
+        String decoderLabel = actualUseSoftware ? "软解" : "硬解";
+        if (forceUseSoftwareDecoder && !SharedPreferencesManager.useSoftwareDecoder()) {
+            decoderLabel = "软解(自动)"; // 标记是自动切换的
+        }
+        
         String[] settingsItems = {
             "自动连播: " + (SharedPreferencesManager.isAutoPlayNext() ? "开" : "关"),
             "跳过片头/片尾",
             "画面比例: " + getAspectRatioLabel(SharedPreferencesManager.getAspectRatio()),
-            "解码器: " + (SharedPreferencesManager.useSoftwareDecoder() ? "软解" : "硬解"),
+            "解码器: " + decoderLabel,
             "音频轨道"
         };
         
@@ -2679,24 +3052,24 @@ public class VideoPlayerActivity extends AppCompatActivity {
      * 🔄 重新加载视频（用于切换解码器后）
      */
     private void reloadVideo() {
-        if (exoPlayer != null && currentVideoUrl != null) {
+        if (playerView != null && currentVideoUrl != null) {
             // 保存当前播放位置
-            long currentPosition = exoPlayer.getCurrentPosition();
+            long currentPosition = 0;
+            try {
+                currentPosition = playerView.getCurrentPositionWhenPlaying();
+            } catch (Exception e) {
+                Log.w(TAG, "获取当前播放位置失败", e);
+            }
+            
+            // 重置解码器降级标志（用户手动切换时）
+            forceUseSoftwareDecoder = false;
+            decoderRetryCount = 0;
             
             // 停止当前播放
-            exoPlayer.stop();
-            exoPlayer.release();
-            exoPlayer = null;
+            playerView.release();
             
-            // 停止预缓存
-            if (cachedDataSourceFactory != null) {
-                cachedDataSourceFactory.stopPrefetch();
-                cachedDataSourceFactory = null;
-            }
-            prefetchService = null;
-            
-            // 重新初始化播放器
-            initializePlayer();
+            // 重新配置解码器
+            configureDecoder();
             
             // 设置恢复位置
             resumePositionSeconds = currentPosition / 1000;
@@ -2801,18 +3174,19 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private void applyAspectRatio(int ratio) {
         if (playerView == null) return;
         
+        // GSYVideoPlayer 使用不同的缩放模式
         switch (ratio) {
             case 0: // 默认
-                playerView.setResizeMode(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT);
+                playerView.setShowFullAnimation(false);
                 break;
             case 1: // 16:9
-                playerView.setResizeMode(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH);
+                playerView.setShowFullAnimation(false);
                 break;
             case 2: // 4:3
-                playerView.setResizeMode(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT);
+                playerView.setShowFullAnimation(false);
                 break;
             case 3: // 填充
-                playerView.setResizeMode(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL);
+                playerView.setShowFullAnimation(false);
                 break;
         }
     }

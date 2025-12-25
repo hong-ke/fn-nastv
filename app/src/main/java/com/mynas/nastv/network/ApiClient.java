@@ -54,7 +54,7 @@ public class ApiClient {
         
         // 🔍 日志拦截器
         HttpLoggingInterceptor loggingInterceptor = new HttpLoggingInterceptor();
-        loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BASIC); // 🔧 改为BASIC级别，避免打印大量响应体
+        loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY); // 🔧 临时改为BODY级别，查看完整响应
         
         // 🔧 OkHttp客户端配置
         OkHttpClient okHttpClient = new OkHttpClient.Builder()

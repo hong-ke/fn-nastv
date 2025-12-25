@@ -4,12 +4,12 @@ plugins {
 
 android {
     namespace 'com.mynas.nastv'
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.mynas.nastv"
         minSdk 23                // Android 6.0 (Marshmallow)
-        targetSdk 34
+        targetSdk 35
         versionCode 1
         versionName "1.0"
 
@@ -52,10 +52,37 @@ android {
             universalApk true // 同时生成一个包含所有架构的通用包
         }
     }
+    
+    // 🔧 解决 native 库冲突（GSYVideoPlayer 可能包含多个版本的解码库）
+    packagingOptions {
+        pickFirst 'lib/armeabi-v7a/libijkffmpeg.so'
+        pickFirst 'lib/arm64-v8a/libijkffmpeg.so'
+        pickFirst 'lib/x86/libijkffmpeg.so'
+        pickFirst 'lib/x86_64/libijkffmpeg.so'
+        pickFirst 'lib/armeabi-v7a/libijksdl.so'
+        pickFirst 'lib/arm64-v8a/libijksdl.so'
+        pickFirst 'lib/x86/libijksdl.so'
+        pickFirst 'lib/x86_64/libijksdl.so'
+        pickFirst 'lib/armeabi-v7a/libijkplayer.so'
+        pickFirst 'lib/arm64-v8a/libijkplayer.so'
+        pickFirst 'lib/x86/libijkplayer.so'
+        pickFirst 'lib/x86_64/libijkplayer.so'
+    }
 }
 
 dependencies {
-    // 🎬 AndroidX Media3 核心库
+    // 🎬 GSYVideoPlayer 播放器 (使用 JitPack)
+    // 使用最新版本 v11.3.0，格式：com.github.用户名:仓库名:版本号
+    // 排除扩展解码库，避免 native 库冲突（如果需要扩展解码库，可以单独添加）
+    implementation('com.github.CarGuo:GSYVideoPlayer:v11.3.0') {
+        exclude group: 'com.github.CarGuo.GSYVideoPlayer', module: 'gsyvideoplayer-ex_so'
+    }
+    
+    // 🔧 添加 ExoPlayer 内核支持（解决黑屏问题）
+    // ExoPlayer 对多种视频格式有更好的支持
+    implementation 'com.github.CarGuo.GSYVideoPlayer:gsyvideoplayer-exo2:v11.3.0'
+    
+    // 🎬 AndroidX Media3 核心库 (保留用于字幕等功能)
     implementation 'androidx.media3:media3-exoplayer:1.4.0'
     implementation 'androidx.media3:media3-exoplayer-hls:1.4.0'
     implementation 'androidx.media3:media3-ui:1.4.0'

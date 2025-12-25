@@ -886,10 +886,26 @@ public class MediaManager {
              call.enqueue(new Callback<BaseResponse<List<EpisodeListResponse.Episode>>>() {
                  @Override
                  public void onResponse(Call<BaseResponse<List<EpisodeListResponse.Episode>>> call, Response<BaseResponse<List<EpisodeListResponse.Episode>>> response) {
+                     // 打印原始响应体
+                     try {
+                         String rawBody = response.raw().toString();
+                         Log.d(TAG, "📺 Episode API raw response: " + rawBody);
+                     } catch (Exception e) {
+                         Log.e(TAG, "📺 Failed to log raw response", e);
+                     }
+                     
                      if (response.isSuccessful() && response.body() != null) {
                          BaseResponse<List<EpisodeListResponse.Episode>> res = response.body();
                          if (res.getCode() == 0) {
-                             callback.onSuccess(res.getData());
+                             List<EpisodeListResponse.Episode> episodes = res.getData();
+                             // 调试日志：打印前3集的stillPath
+                             if (episodes != null && !episodes.isEmpty()) {
+                                 for (int i = 0; i < Math.min(3, episodes.size()); i++) {
+                                     EpisodeListResponse.Episode ep = episodes.get(i);
+                                     Log.d(TAG, "📺 Episode " + ep.getEpisodeNumber() + " stillPath: [" + ep.getStillPath() + "], title: " + ep.getTitle());
+                                 }
+                             }
+                             callback.onSuccess(episodes);
                          } else {
                              callback.onError(res.getMessage());
                          }

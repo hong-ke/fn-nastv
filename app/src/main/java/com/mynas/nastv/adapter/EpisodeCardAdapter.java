@@ -92,6 +92,7 @@ public class EpisodeCardAdapter extends RecyclerView.Adapter<EpisodeCardAdapter.
         private TextView overviewText;
         private TextView durationText;
         private TextView currentIndicator;
+        private TextView resolutionText;
 
         public EpisodeViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -100,6 +101,7 @@ public class EpisodeCardAdapter extends RecyclerView.Adapter<EpisodeCardAdapter.
             overviewText = itemView.findViewById(R.id.episode_overview);
             durationText = itemView.findViewById(R.id.episode_duration);
             currentIndicator = itemView.findViewById(R.id.episode_current_indicator);
+            resolutionText = itemView.findViewById(R.id.episode_resolution);
 
             itemView.setOnClickListener(v -> {
                 int position = getAdapterPosition();
@@ -115,7 +117,10 @@ public class EpisodeCardAdapter extends RecyclerView.Adapter<EpisodeCardAdapter.
             if (stillPath != null && !stillPath.isEmpty()) {
                 String imageUrl = stillPath;
                 if (!imageUrl.startsWith("http")) {
-                    imageUrl = SharedPreferencesManager.getServerBaseUrl() + "/v/api/v1/sys/img" + stillPath + "?w=320";
+                    // stillPath 格式: /2b/10/xxx.webp
+                    // 需要拼接成: baseUrl + /v/api/v1/sys/img + stillPath
+                    String baseUrl = SharedPreferencesManager.getServerBaseUrl();
+                    imageUrl = baseUrl + "/v/api/v1/sys/img" + stillPath + "?w=320";
                 }
                 Glide.with(thumbnailImage.getContext())
                         .load(imageUrl)
@@ -163,6 +168,15 @@ public class EpisodeCardAdapter extends RecyclerView.Adapter<EpisodeCardAdapter.
             } else {
                 currentIndicator.setVisibility(View.GONE);
                 itemView.setSelected(false);
+            }
+
+            // 📺 清晰度标签
+            String resolution = episode.getResolution();
+            if (resolution != null && !resolution.isEmpty()) {
+                resolutionText.setText(resolution);
+                resolutionText.setVisibility(View.VISIBLE);
+            } else {
+                resolutionText.setVisibility(View.GONE);
             }
 
             // 焦点动画

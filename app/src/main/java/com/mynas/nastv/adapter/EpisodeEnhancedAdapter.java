@@ -116,11 +116,13 @@ public class EpisodeEnhancedAdapter extends RecyclerView.Adapter<EpisodeEnhanced
         public void bind(EpisodeListResponse.Episode episode, boolean isCurrent) {
             // 📱 加载缩略图
             String stillPath = episode.getStillPath();
+            android.util.Log.d("EpisodeAdapter", "📺 Episode " + episode.getEpisodeNumber() + " stillPath: " + stillPath);
             if (stillPath != null && !stillPath.isEmpty()) {
                 String imageUrl = stillPath;
                 if (!imageUrl.startsWith("http")) {
                     imageUrl = SharedPreferencesManager.getServerBaseUrl() + "/v/api/v1/sys/img" + stillPath + "?w=320";
                 }
+                android.util.Log.d("EpisodeAdapter", "📺 Loading image: " + imageUrl);
                 Glide.with(thumbnailImage.getContext())
                         .load(imageUrl)
                         .diskCacheStrategy(DiskCacheStrategy.DATA)
@@ -129,6 +131,7 @@ public class EpisodeEnhancedAdapter extends RecyclerView.Adapter<EpisodeEnhanced
                         .centerCrop()
                         .into(thumbnailImage);
             } else {
+                android.util.Log.d("EpisodeAdapter", "📺 No stillPath for episode " + episode.getEpisodeNumber());
                 thumbnailImage.setImageResource(R.color.tv_card_background);
             }
 

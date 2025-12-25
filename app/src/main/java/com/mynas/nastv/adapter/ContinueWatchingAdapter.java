@@ -127,11 +127,21 @@ public class ContinueWatchingAdapter extends RecyclerView.Adapter<ContinueWatchi
             
             titleText.setText(item.getTitle());
             
+            // 📺 类型显示：Episode 类型不显示，Movie 显示
+            String type = item.getType();
             String subtitle = item.getSubtitle();
-            if (subtitle == null || subtitle.isEmpty()) {
-                subtitle = item.getType();
+            if ("Episode".equalsIgnoreCase(type)) {
+                // Episode 类型不显示类型标签
+                subtitleText.setVisibility(View.GONE);
+            } else if (subtitle != null && !subtitle.isEmpty()) {
+                subtitleText.setText(subtitle);
+                subtitleText.setVisibility(View.VISIBLE);
+            } else if (type != null && !type.isEmpty()) {
+                subtitleText.setText(type);
+                subtitleText.setVisibility(View.VISIBLE);
+            } else {
+                subtitleText.setVisibility(View.GONE);
             }
-            subtitleText.setText(subtitle);
             
             // 📺 显示剧集进度文本（第X季·第X集）
             int seasonNum = item.getSeasonNumber();

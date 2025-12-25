@@ -67,8 +67,11 @@ public class EpisodeListResponse {
         @SerializedName("runtime")
         private int runtime;
         
-        @SerializedName("still_path")
-        private String stillPath;
+        @SerializedName("poster")
+        private String poster;
+        
+        @SerializedName("media_stream")
+        private MediaStream mediaStream;
         
         // Getters and setters
         public String getGuid() {
@@ -128,11 +131,37 @@ public class EpisodeListResponse {
         }
         
         public String getStillPath() {
-            return stillPath;
+            return poster;
         }
         
-        public void setStillPath(String stillPath) {
-            this.stillPath = stillPath;
+        public void setStillPath(String poster) {
+            this.poster = poster;
+        }
+        
+        public String getPoster() {
+            return poster;
+        }
+        
+        public void setPoster(String poster) {
+            this.poster = poster;
+        }
+        
+        public MediaStream getMediaStream() {
+            return mediaStream;
+        }
+        
+        public void setMediaStream(MediaStream mediaStream) {
+            this.mediaStream = mediaStream;
+        }
+        
+        /**
+         * 获取最高清晰度（如 "1080p"）
+         */
+        public String getResolution() {
+            if (mediaStream != null && mediaStream.getResolutions() != null && !mediaStream.getResolutions().isEmpty()) {
+                return mediaStream.getResolutions().get(0);
+            }
+            return null;
         }
         
         @Override
@@ -145,8 +174,46 @@ public class EpisodeListResponse {
                     ", airDate='" + airDate + '\'' +
                     ", overview='" + overview + '\'' +
                     ", runtime=" + runtime +
-                    ", stillPath='" + stillPath + '\'' +
+                    ", poster='" + poster + '\'' +
                     '}';
+        }
+    }
+    
+    /**
+     * 📺 媒体流信息
+     */
+    public static class MediaStream {
+        @SerializedName("resolutions")
+        private List<String> resolutions;
+        
+        @SerializedName("audio_type")
+        private String audioType;
+        
+        @SerializedName("color_range_type")
+        private String colorRangeType;
+        
+        public List<String> getResolutions() {
+            return resolutions;
+        }
+        
+        public void setResolutions(List<String> resolutions) {
+            this.resolutions = resolutions;
+        }
+        
+        public String getAudioType() {
+            return audioType;
+        }
+        
+        public void setAudioType(String audioType) {
+            this.audioType = audioType;
+        }
+        
+        public String getColorRangeType() {
+            return colorRangeType;
+        }
+        
+        public void setColorRangeType(String colorRangeType) {
+            this.colorRangeType = colorRangeType;
         }
     }
 }

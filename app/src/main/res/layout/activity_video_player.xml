@@ -16,18 +16,12 @@
         android:alpha="0.3"
         android:src="@drawable/ic_default_backdrop" />
 
-    <!-- 🎬 视频播放器 (在海报之上) -->
-    <androidx.media3.ui.PlayerView
+    <!-- 🎬 GSYVideoPlayer 播放器 (在海报之上) -->
+    <com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer
         android:id="@+id/player_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="visible"
-        app:use_controller="true"
-        app:controller_layout_id="@layout/custom_player_control"
-        app:show_buffering="always"
-        app:surface_type="surface_view"
-        app:use_artwork="false"
-        app:show_subtitle_button="true" />
+        android:visibility="visible" />
 
     <!-- �  加载状态 -->
     <LinearLayout
@@ -98,12 +92,13 @@
 
     </LinearLayout>
 
-    <!-- 🎬 弹幕容器层 - 放在最上层，确保不被遮挡 -->
+    <!-- 🎬 弹幕容器层 - 透明背景，不遮挡播放器 -->
     <FrameLayout
         android:id="@+id/danmu_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clickable="false"
+        android:focusable="false"
         android:background="@android:color/transparent"
         android:visibility="visible">
         
@@ -128,6 +123,7 @@
         android:src="@drawable/ic_play_arrow"
         android:tint="@color/white"
         android:alpha="0.9"
+        android:elevation="15dp"
         android:visibility="gone"
         android:background="@drawable/center_play_background" />
 
@@ -141,6 +137,7 @@
         android:gravity="center"
         android:padding="20dp"
         android:background="#99000000"
+        android:elevation="15dp"
         android:visibility="gone">
 
         <ProgressBar
@@ -172,6 +169,7 @@
         android:paddingHorizontal="60dp"
         android:paddingVertical="30dp"
         android:background="@drawable/dialog_background"
+        android:elevation="15dp"
         android:visibility="gone">
 
         <TextView
@@ -206,6 +204,7 @@
         android:paddingHorizontal="48dp"
         android:paddingTop="24dp"
         android:paddingBottom="28dp"
+        android:elevation="10dp"
         android:visibility="gone">
 
         <!-- 📊 进度条区域 -->

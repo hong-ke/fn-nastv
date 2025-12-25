@@ -36,7 +36,7 @@
             android:id="@+id/episode_current_indicator"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="top|end"
+            android:layout_gravity="top|start"
             android:layout_margin="8dp"
             android:text="正在播放"
             android:textSize="10sp"
@@ -45,6 +45,22 @@
             android:paddingHorizontal="8dp"
             android:paddingVertical="3dp"
             android:visibility="gone"
+            tools:visibility="visible" />
+
+        <!-- 📺 清晰度标签 -->
+        <TextView
+            android:id="@+id/episode_resolution"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_margin="8dp"
+            android:textSize="10sp"
+            android:textColor="@android:color/white"
+            android:background="@drawable/resolution_badge_bg"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp"
+            android:visibility="gone"
+            tools:text="1080p"
             tools:visibility="visible" />
 
         <!-- ⏱️ 时长标签 -->

@@ -130,6 +130,11 @@ public class DanmuPresenter {
             // 使用帧间隔时间计算可见弹幕（实现线性滚动）
             List<DanmakuEntity> visibleList = renderer.calculateVisibleDanmakuSmooth(currentPositionMs, deltaTimeMs);
             
+            // 🔧 调试日志：每秒打印一次
+            if (System.currentTimeMillis() % 1000 < 20) {
+                Log.d(TAG, "🎬 弹幕帧更新: position=" + currentPositionMs + "ms, visible=" + visibleList.size());
+            }
+            
             // 更新视图
             overlayView.renderDanmaku(visibleList);
             

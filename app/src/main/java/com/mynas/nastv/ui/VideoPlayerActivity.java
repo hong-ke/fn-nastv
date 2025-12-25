@@ -14,22 +14,12 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.media3.common.MediaItem;
-import androidx.media3.common.Player;
-import androidx.media3.datasource.DefaultHttpDataSource;
-import androidx.media3.exoplayer.ExoPlayer;
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
-import androidx.media3.exoplayer.source.MediaSource;
-import androidx.media3.ui.PlayerView;
 
 import com.shuyu.gsyvideoplayer.builder.GSYVideoOptionBuilder;
-import com.shuyu.gsyvideoplayer.listener.GSYSampleCallBack;
 import com.shuyu.gsyvideoplayer.listener.GSYVideoProgressListener;
 import com.shuyu.gsyvideoplayer.listener.VideoAllCallBack;
 import com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer;
-import com.shuyu.gsyvideoplayer.video.base.GSYVideoView;
 import com.shuyu.gsyvideoplayer.utils.GSYVideoType;
-import com.shuyu.gsyvideoplayer.player.PlayerFactory;
 
 import com.mynas.nastv.R;
 import com.mynas.nastv.feature.danmaku.api.IDanmuController;
@@ -50,7 +40,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     // UI
     private StandardGSYVideoPlayer playerView;
-    private androidx.media3.ui.SubtitleView subtitleView;
+    // subtitleView 已移除 - GSYVideoPlayer + IJKPlayer 不支持字幕
     private ImageView posterImageView;
     private LinearLayout topInfoContainer;
     private TextView titleText;
@@ -60,7 +50,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private TextView errorText;
     private FrameLayout danmuContainer;
     
-    private ExoPlayer exoPlayer; // 保留用于字幕等功能
+    // ExoPlayer 已移除 - 使用 GSYVideoPlayer + IJKPlayer
     private IDanmuController danmuController;
     
     // Data
@@ -94,9 +84,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private String currentVideoUrl; // 保存当前视频URL用于字幕重载
     private boolean isDirectLinkMode = false; // 是否为直连模式
     
-    // 🚀 缓存预加载相关
-    private com.mynas.nastv.player.CachedDataSourceFactory cachedDataSourceFactory;
-    private com.mynas.nastv.player.VideoPrefetchService prefetchService;
+    // 🚀 缓存由 GSYVideoPlayer + OkHttpProxyCacheManager 处理
     
     // Manager
     private MediaManager mediaManager;
@@ -199,7 +187,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     private void initializeViews() {
         playerView = findViewById(R.id.player_view);
-        subtitleView = findViewById(R.id.subtitle_view);
+        // subtitleView 已移除 - GSYVideoPlayer + IJKPlayer 不支持字幕
         posterImageView = findViewById(R.id.poster_image);
         topInfoContainer = findViewById(R.id.top_info_container);
         titleText = findViewById(R.id.title_text);
@@ -555,25 +543,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
             // 应用配置到播放器
             gsyVideoOptionBuilder.build(playerView);
             
-            // 🔑 配置字幕输出到 SubtitleView（保留 ExoPlayer 用于字幕）
-            if (subtitleView != null) {
-                // 设置字幕样式
-                androidx.media3.ui.CaptionStyleCompat captionStyle = new androidx.media3.ui.CaptionStyleCompat(
-                    android.graphics.Color.WHITE,
-                    android.graphics.Color.TRANSPARENT,
-                    android.graphics.Color.TRANSPARENT,
-                    androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_OUTLINE,
-                    android.graphics.Color.BLACK,
-                    null
-                );
-                subtitleView.setStyle(captionStyle);
-                subtitleView.setFractionalTextSize(0.05f);
-                subtitleView.setApplyEmbeddedStyles(false);
-                subtitleView.setApplyEmbeddedFontSizes(false);
-                subtitleView.setVisibility(View.VISIBLE);
-                subtitleView.setBottomPaddingFraction(0.08f);
-                Log.d(TAG, "📝 SubtitleView configured");
-            }
+            // �  字幕功能已禁用 - GSYVideoPlayer + IJKPlayer 不支持外挂字幕
+            // subtitleView 配置代码已移除
             
         } catch (Exception e) {
             Log.e(TAG, "GSYVideoPlayer Init Failed", e);
@@ -996,731 +967,33 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     /**
      * 📝 添加字幕到播放器
+     * 注意：GSYVideoPlayer + IJKPlayer 不支持外挂字幕，此方法仅显示提示
      */
     private void addSubtitleToPlayer(java.io.File subtitleFile, 
             com.mynas.nastv.model.StreamListResponse.SubtitleStream subtitle,
             String format, int subtitleIndex) {
         
-        // 获取字幕 MIME 类型
-        String mimeType = getMimeTypeForSubtitle(format);
-        
-        Log.e(TAG, "📝 Adding subtitle to player: file=" + subtitleFile.getAbsolutePath() + 
-              " format=" + format + " mimeType=" + mimeType);
-        
-        // 创建字幕配置 - 使用 SELECTION_FLAG_DEFAULT 和 SELECTION_FLAG_AUTOSELECT
-        androidx.media3.common.MediaItem.SubtitleConfiguration subtitleConfig =
-            new androidx.media3.common.MediaItem.SubtitleConfiguration.Builder(
-                android.net.Uri.fromFile(subtitleFile))
-                .setMimeType(mimeType)
-                .setLanguage(subtitle.getLanguage() != null ? subtitle.getLanguage() : "und")
-                .setLabel(subtitle.getTitle() != null ? subtitle.getTitle() : "字幕")
-                .setSelectionFlags(androidx.media3.common.C.SELECTION_FLAG_DEFAULT | 
-                                   androidx.media3.common.C.SELECTION_FLAG_AUTOSELECT)
-                .build();
-        
-        long currentPosition = exoPlayer.getCurrentPosition();
-        boolean wasPlaying = exoPlayer.isPlaying();
-        
-        Log.e(TAG, "📝 Current position: " + currentPosition + ", wasPlaying: " + wasPlaying);
-        
-        if (isDirectLinkMode) {
-            // 📝 直连模式：使用 MergingMediaSource 合并视频和字幕
-            Log.e(TAG, "📝 Direct link mode: using MergingMediaSource");
-            
-            // 创建字幕 MediaSource
-            androidx.media3.exoplayer.source.SingleSampleMediaSource subtitleSource =
-                new androidx.media3.exoplayer.source.SingleSampleMediaSource.Factory(
-                    new androidx.media3.datasource.DefaultDataSource.Factory(this))
-                    .createMediaSource(subtitleConfig, androidx.media3.common.C.TIME_UNSET);
-            
-            // 获取当前的视频 MediaSource（需要重新创建）
-            // 由于直连模式使用 ParallelDataSource，我们需要重新创建视频源
-            androidx.media3.exoplayer.source.MediaSource videoSource = createDirectLinkMediaSource(currentVideoUrl);
-            
-            if (videoSource != null) {
-                // 合并视频和字幕
-                androidx.media3.exoplayer.source.MergingMediaSource mergingSource =
-                    new androidx.media3.exoplayer.source.MergingMediaSource(videoSource, subtitleSource);
-                
-                exoPlayer.setMediaSource(mergingSource);
-                exoPlayer.prepare();
-                
-                // 🔑 关键：启用字幕轨道
-                enableSubtitleTrack();
-                
-                exoPlayer.seekTo(currentPosition);
-                if (wasPlaying) {
-                    exoPlayer.play();
-                }
-                
-                currentSubtitleIndex = subtitleIndex;
-                Log.e(TAG, "📝 Subtitle added via MergingMediaSource");
-                Toast.makeText(this, "字幕已加载: " + subtitle.getTitle(), Toast.LENGTH_SHORT).show();
-            } else {
-                Log.e(TAG, "📝 Failed to create video source for merging");
-                Toast.makeText(this, "字幕加载失败", Toast.LENGTH_SHORT).show();
-            }
-        } else {
-            // 📝 普通模式：使用 MediaItem 的字幕配置
-            Log.e(TAG, "📝 Normal mode: using MediaItem subtitle configuration");
-            
-            androidx.media3.common.MediaItem currentItem = exoPlayer.getCurrentMediaItem();
-            if (currentItem != null) {
-                java.util.List<androidx.media3.common.MediaItem.SubtitleConfiguration> subtitles = 
-                    new java.util.ArrayList<>();
-                subtitles.add(subtitleConfig);
-                
-                androidx.media3.common.MediaItem newItem = currentItem.buildUpon()
-                    .setSubtitleConfigurations(subtitles)
-                    .build();
-                
-                exoPlayer.setMediaItem(newItem);
-                exoPlayer.prepare();
-                
-                // 🔑 关键：启用字幕轨道
-                enableSubtitleTrack();
-                
-                exoPlayer.seekTo(currentPosition);
-                if (wasPlaying) {
-                    exoPlayer.play();
-                }
-                
-                currentSubtitleIndex = subtitleIndex;
-                Log.e(TAG, "📝 Subtitle added to player");
-                Toast.makeText(this, "字幕已加载: " + subtitle.getTitle(), Toast.LENGTH_SHORT).show();
-            }
-        }
+        Log.e(TAG, "📝 GSYVideoPlayer + IJKPlayer 不支持外挂字幕");
+        Toast.makeText(this, "当前播放器不支持外挂字幕", Toast.LENGTH_SHORT).show();
     }
     
-    /**
-     * 📝 启用字幕轨道
-     */
-    private void enableSubtitleTrack() {
-        if (exoPlayer == null) return;
-        
-        // 添加监听器，在播放器准备好后启用字幕
-        exoPlayer.addListener(new Player.Listener() {
-            @Override
-            public void onPlaybackStateChanged(int playbackState) {
-                if (playbackState == Player.STATE_READY) {
-                    try {
-                        // 确保字幕轨道未被禁用
-                        androidx.media3.common.TrackSelectionParameters params = exoPlayer.getTrackSelectionParameters()
-                            .buildUpon()
-                            .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
-                            .build();
-                        exoPlayer.setTrackSelectionParameters(params);
-                        
-                        // 打印当前轨道信息
-                        logCurrentTracks();
-                        
-                        Log.e(TAG, "📝 Subtitle track enabled after player ready");
-                    } catch (Exception e) {
-                        Log.e(TAG, "📝 Error enabling subtitle track", e);
-                    }
-                    exoPlayer.removeListener(this);
-                }
-            }
-        });
-        
-        // 如果播放器已经准备好，直接启用
-        if (exoPlayer.getPlaybackState() == Player.STATE_READY) {
-            try {
-                androidx.media3.common.TrackSelectionParameters params = exoPlayer.getTrackSelectionParameters()
-                    .buildUpon()
-                    .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
-                    .build();
-                exoPlayer.setTrackSelectionParameters(params);
-                logCurrentTracks();
-                Log.e(TAG, "📝 Subtitle track enabled immediately");
-            } catch (Exception e) {
-                Log.e(TAG, "📝 Error enabling subtitle track", e);
-            }
-        }
-    }
+    // enableSubtitleTrack, logCurrentTracks 已移除 - ExoPlayer 相关代码
     
-    /**
-     * 📝 打印当前轨道信息（用于调试）
-     */
-    private void logCurrentTracks() {
-        if (exoPlayer == null) return;
-        
-        try {
-            androidx.media3.common.Tracks tracks = exoPlayer.getCurrentTracks();
-            java.util.List<androidx.media3.common.Tracks.Group> groups = tracks.getGroups();
-            
-            Log.e(TAG, "📝 ===== Current Tracks =====");
-            Log.e(TAG, "📝 Total track groups: " + groups.size());
-            
-            for (int i = 0; i < groups.size(); i++) {
-                androidx.media3.common.Tracks.Group group = groups.get(i);
-                int trackType = group.getType();
-                String typeName = "UNKNOWN";
-                
-                switch (trackType) {
-                    case androidx.media3.common.C.TRACK_TYPE_VIDEO: typeName = "VIDEO"; break;
-                    case androidx.media3.common.C.TRACK_TYPE_AUDIO: typeName = "AUDIO"; break;
-                    case androidx.media3.common.C.TRACK_TYPE_TEXT: typeName = "TEXT"; break;
-                }
-                
-                Log.e(TAG, "📝 Group " + i + " [" + typeName + "]: " + group.length + " tracks, selected=" + group.isSelected());
-                
-                for (int j = 0; j < group.length; j++) {
-                    androidx.media3.common.Format format = group.getTrackFormat(j);
-                    boolean isSelected = group.isTrackSelected(j);
-                    boolean isSupported = group.isTrackSupported(j);
-                    
-                    Log.e(TAG, "📝   Track " + j + ": lang=" + format.language + 
-                          ", label=" + format.label + 
-                          ", mime=" + format.sampleMimeType +
-                          ", selected=" + isSelected + 
-                          ", supported=" + isSupported);
-                }
-            }
-            Log.e(TAG, "📝 ===========================");
-        } catch (Exception e) {
-            Log.e(TAG, "📝 Error logging tracks", e);
-        }
-    }
-    
-    /**
-     * 🔑 创建自定义ExtractorsFactory，禁用PNG Extractor以减少内存占用
-     * 避免在解析11GB大文件时因解析内嵌PNG封面导致OOM
-     * 保留SubtitleTranscodingExtractor以支持字幕
-     */
-    private androidx.media3.extractor.ExtractorsFactory createCustomExtractorsFactory() {
-        Log.e(TAG, "🔧 Creating custom ExtractorsFactory (excluding PngExtractor and SubtitleTranscodingExtractor to avoid OOM)");
-        return () -> {
-            // 直接从DefaultExtractorsFactory获取所有extractor，然后排除PngExtractor和SubtitleTranscodingExtractor
-            // SubtitleTranscodingExtractor内部使用了PngExtractor，所以必须同时排除
-            // 这样可以避免OOM，但会失去内嵌字幕支持（外部字幕文件仍然可以工作）
-            androidx.media3.extractor.DefaultExtractorsFactory defaultFactory = 
-                new androidx.media3.extractor.DefaultExtractorsFactory();
-            androidx.media3.extractor.Extractor[] defaultExtractors = defaultFactory.createExtractors();
-            
-            java.util.ArrayList<androidx.media3.extractor.Extractor> extractors = new java.util.ArrayList<>();
-            int pngExtractorCount = 0;
-            int subtitleExtractorCount = 0;
-            java.util.ArrayList<String> includedExtractors = new java.util.ArrayList<>();
-            java.util.HashSet<Class<?>> seenClasses = new java.util.HashSet<>();
-            
-            for (androidx.media3.extractor.Extractor ext : defaultExtractors) {
-                // 排除PngExtractor以避免OOM
-                if (ext instanceof androidx.media3.extractor.png.PngExtractor) {
-                    pngExtractorCount++;
-                    Log.e(TAG, "🔧 Excluding PngExtractor: " + ext.getClass().getName());
-                } 
-                // 排除SubtitleTranscodingExtractor，因为它内部使用了PngExtractor
-                else if (ext instanceof androidx.media3.extractor.text.SubtitleTranscodingExtractor) {
-                    subtitleExtractorCount++;
-                    Log.e(TAG, "🔧 Excluding SubtitleTranscodingExtractor: " + ext.getClass().getName() + " (uses PngExtractor internally)");
-                } 
-                else {
-                    // 避免重复添加相同类型的extractor
-                    Class<?> extClass = ext.getClass();
-                    if (!seenClasses.contains(extClass)) {
-                        extractors.add(ext);
-                        includedExtractors.add(ext.getClass().getSimpleName());
-                        seenClasses.add(extClass);
-                    }
-                }
-            }
-            
-            // 手动添加可能缺失的extractor（如果DefaultExtractorsFactory没有包含它们）
-            // 这些extractor不会导致OOM，因为它们不处理PNG
-            try {
-                if (!seenClasses.contains(androidx.media3.extractor.flv.FlvExtractor.class)) {
-                    extractors.add(new androidx.media3.extractor.flv.FlvExtractor());
-                    includedExtractors.add("FlvExtractor");
-                    Log.e(TAG, "🔧 Manually added FlvExtractor");
-                }
-                if (!seenClasses.contains(androidx.media3.extractor.mp3.Mp3Extractor.class)) {
-                    extractors.add(new androidx.media3.extractor.mp3.Mp3Extractor());
-                    includedExtractors.add("Mp3Extractor");
-                    Log.e(TAG, "🔧 Manually added Mp3Extractor");
-                }
-                if (!seenClasses.contains(androidx.media3.extractor.wav.WavExtractor.class)) {
-                    extractors.add(new androidx.media3.extractor.wav.WavExtractor());
-                    includedExtractors.add("WavExtractor");
-                    Log.e(TAG, "🔧 Manually added WavExtractor");
-                }
-                if (!seenClasses.contains(androidx.media3.extractor.ogg.OggExtractor.class)) {
-                    extractors.add(new androidx.media3.extractor.ogg.OggExtractor());
-                    includedExtractors.add("OggExtractor");
-                    Log.e(TAG, "🔧 Manually added OggExtractor");
-                }
-                if (!seenClasses.contains(androidx.media3.extractor.amr.AmrExtractor.class)) {
-                    extractors.add(new androidx.media3.extractor.amr.AmrExtractor());
-                    includedExtractors.add("AmrExtractor");
-                    Log.e(TAG, "🔧 Manually added AmrExtractor");
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "🔧 Error adding manual extractors: " + e.getMessage());
-            }
-            
-            Log.e(TAG, "🔧 Using custom ExtractorsFactory: excluded " + pngExtractorCount + " PngExtractor(s) and " + subtitleExtractorCount + " SubtitleTranscodingExtractor(s), total extractors: " + extractors.size());
-            Log.e(TAG, "🔧 Included extractors: " + String.join(", ", includedExtractors));
-            return extractors.toArray(new androidx.media3.extractor.Extractor[0]);
-        };
-    }
-    
-    /**
-     * 📝 创建直连视频 MediaSource（用于字幕合并）
-     * 使用缓存数据源，支持 MKV 内嵌字幕解析
-     */
-    private androidx.media3.exoplayer.source.MediaSource createDirectLinkMediaSource(String url) {
-        if (url == null) return null;
-        
-        try {
-            // 如果已有缓存数据源工厂，直接使用
-            if (cachedDataSourceFactory != null) {
-                Log.d(TAG, "📝 Reusing existing CachedDataSourceFactory");
-                // 使用自定义ExtractorsFactory（排除PNG和字幕Extractor以避免OOM）
-                androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory factory = 
-                    new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
-                        cachedDataSourceFactory, 
-                        createCustomExtractorsFactory());
-                return factory.createMediaSource(MediaItem.fromUri(url));
-            }
-            
-            // 否则创建新的
-            boolean isProxyDirectLink = url.contains("direct_link_quality_index");
-            
-            // 提取域名用于 Referer
-            String referer = "https://pan.quark.cn/";
-            try {
-                java.net.URL parsedUrl = new java.net.URL(url);
-                referer = parsedUrl.getProtocol() + "://" + parsedUrl.getHost() + "/";
-            } catch (Exception e) {
-                Log.w(TAG, "Parse URL failed", e);
-            }
-            final String finalReferer = referer;
-            
-            // 配置 OkHttpClient
-            okhttp3.Dispatcher dispatcher = new okhttp3.Dispatcher();
-            dispatcher.setMaxRequests(64);
-            dispatcher.setMaxRequestsPerHost(16);
-            
-            okhttp3.ConnectionPool connectionPool = new okhttp3.ConnectionPool(
-                16, 5, java.util.concurrent.TimeUnit.MINUTES);
-            
-            // 构建请求头
-            Map<String, String> headers = new HashMap<>();
-            headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-            headers.put("Accept", "*/*");
-            headers.put("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
-            headers.put("Accept-Encoding", "identity");
-            headers.put("Connection", "keep-alive");
-            
-            if (isProxyDirectLink) {
-                String token = SharedPreferencesManager.getAuthToken();
-                if (token != null && !token.isEmpty()) {
-                    String authToken = token.startsWith("Bearer ") ? token.substring(7) : token;
-                    headers.put("Cookie", "Trim-MC-token=" + authToken);
-                    headers.put("Authorization", authToken);
-                    
-                    try {
-                        String signature = com.mynas.nastv.utils.SignatureUtils.generateSignature("GET", url, "", null);
-                        if (signature != null) {
-                            headers.put("authx", signature);
-                        }
-                    } catch (Exception e) {
-                        Log.w(TAG, "Sign failed", e);
-                    }
-                }
-            } else {
-                headers.put("Referer", finalReferer);
-                headers.put("Origin", finalReferer.substring(0, finalReferer.length() - 1));
-                headers.put("Sec-Fetch-Dest", "video");
-                headers.put("Sec-Fetch-Mode", "cors");
-                headers.put("Sec-Fetch-Site", "cross-site");
-            }
-            
-            okhttp3.OkHttpClient directLinkClient = new okhttp3.OkHttpClient.Builder()
-                .dispatcher(dispatcher)
-                .connectionPool(connectionPool)
-                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-                .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                .retryOnConnectionFailure(true)
-                .build();
-            
-            // 使用缓存数据源
-            String cacheKey = "video_" + url.hashCode();
-            com.mynas.nastv.player.CachedDataSourceFactory factory = 
-                new com.mynas.nastv.player.CachedDataSourceFactory(this, directLinkClient, headers, cacheKey);
-            
-            // 使用自定义ExtractorsFactory（排除PNG和字幕Extractor以避免OOM）
-            androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory mediaSourceFactory = 
-                new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
-                    factory, 
-                    createCustomExtractorsFactory());
-            return mediaSourceFactory.createMediaSource(MediaItem.fromUri(url));
-                
-        } catch (Exception e) {
-            Log.e(TAG, "📝 Error creating direct link media source", e);
-            return null;
-        }
-    }
-    
-    /**
-     * 📝 获取字幕 MIME 类型
-     */
-    private String getMimeTypeForSubtitle(String format) {
-        if (format == null) return androidx.media3.common.MimeTypes.APPLICATION_SUBRIP;
-        
-        switch (format.toLowerCase()) {
-            case "srt":
-                return androidx.media3.common.MimeTypes.APPLICATION_SUBRIP;
-            case "ass":
-            case "ssa":
-                return androidx.media3.common.MimeTypes.TEXT_SSA;
-            case "vtt":
-            case "webvtt":
-                return androidx.media3.common.MimeTypes.TEXT_VTT;
-            case "ttml":
-                return androidx.media3.common.MimeTypes.APPLICATION_TTML;
-            default:
-                return androidx.media3.common.MimeTypes.APPLICATION_SUBRIP;
-        }
-    }
+    // 📝 createDirectLinkMediaSource 已移除 - GSYVideoPlayer 使用 OkHttpProxyCacheManager 处理缓存
+    // 📝 getMimeTypeForSubtitle 已移除 - ExoPlayer 相关代码
+    // 📝 createCustomExtractorsFactory 已移除 - ExoPlayer 相关代码
     
     /**
      * 📝 启用内嵌字幕（通过轨道选择）
+     * 注意：GSYVideoPlayer + IJKPlayer 不支持内嵌字幕选择，此方法仅显示提示
      */
     private void enableInternalSubtitle(int index) {
-        if (exoPlayer == null || subtitleStreams == null || index < 0 || index >= subtitleStreams.size()) {
-            Log.e(TAG, "📝 Cannot enable internal subtitle: invalid state");
-            return;
-        }
-        
-        Log.e(TAG, "📝 Enabling internal subtitle at index " + index);
-        
-        // 等待播放器准备好后再选择字幕轨道
-        exoPlayer.addListener(new Player.Listener() {
-            @Override
-            public void onTracksChanged(androidx.media3.common.Tracks tracks) {
-                Log.e(TAG, "📝 Tracks changed, selecting subtitle track");
-                selectSubtitleTrack(index);
-                exoPlayer.removeListener(this);
-            }
-        });
-        
-        // 如果播放器已经准备好，直接选择
-        if (exoPlayer.getPlaybackState() == Player.STATE_READY) {
-            selectSubtitleTrack(index);
-        }
-        
-        currentSubtitleIndex = index;
+        Log.e(TAG, "📝 GSYVideoPlayer + IJKPlayer 不支持内嵌字幕选择");
+        Toast.makeText(this, "当前播放器不支持内嵌字幕", Toast.LENGTH_SHORT).show();
     }
     
-    /**
-     * 📝 选择字幕轨道
-     */
-    private void selectSubtitleTrack(int subtitleIndex) {
-        if (exoPlayer == null) return;
-        
-        try {
-            androidx.media3.common.Tracks tracks = exoPlayer.getCurrentTracks();
-            java.util.List<androidx.media3.common.Tracks.Group> groups = tracks.getGroups();
-            
-            Log.e(TAG, "📝 Total track groups: " + groups.size());
-            
-            int textTrackCount = 0;
-            for (int i = 0; i < groups.size(); i++) {
-                androidx.media3.common.Tracks.Group group = groups.get(i);
-                int trackType = group.getType();
-                
-                if (trackType == androidx.media3.common.C.TRACK_TYPE_TEXT) {
-                    Log.e(TAG, "📝 Found text track group at index " + i + ", tracks: " + group.length);
-                    
-                    for (int j = 0; j < group.length; j++) {
-                        androidx.media3.common.Format format = group.getTrackFormat(j);
-                        Log.e(TAG, "📝   Track " + j + ": " + format.language + " - " + format.label);
-                        
-                        if (textTrackCount == subtitleIndex) {
-                            // 选择这个字幕轨道
-                            androidx.media3.common.TrackSelectionParameters params = exoPlayer.getTrackSelectionParameters()
-                                .buildUpon()
-                                .setPreferredTextLanguage(format.language)
-                                .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
-                                .build();
-                            exoPlayer.setTrackSelectionParameters(params);
-                            
-                            Log.e(TAG, "📝 Selected subtitle track: " + format.language);
-                            
-                            String title = subtitleStreams.get(subtitleIndex).getTitle();
-                            Toast.makeText(this, "字幕已启用: " + title, Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-                        textTrackCount++;
-                    }
-                }
-            }
-            
-            Log.e(TAG, "📝 No matching subtitle track found for index " + subtitleIndex);
-        } catch (Exception e) {
-            Log.e(TAG, "📝 Error selecting subtitle track", e);
-        }
-    }
-    
-    private MediaItem createMediaItemWithHeaders(String url) {
-        Log.e(TAG, "🚀🚀🚀 createMediaItemWithHeaders called with URL: " + url);
-        
-        // 🔑 判断是否为直连URL
-        // 1. 外部云存储URL: https://dl-pc-zb-w.drive.quark.cn/...
-        // 2. 本地服务器代理的直连: /v/api/v1/media/range/...?direct_link_quality_index=0
-        boolean isExternalDirectLink = url.startsWith("https://") && !url.contains("192.168.") && !url.contains("localhost");
-        boolean isProxyDirectLink = url.contains("direct_link_quality_index");
-        boolean isDirectLink = isExternalDirectLink || isProxyDirectLink;
-        
-        Log.e(TAG, "🚀🚀🚀 URL analysis: isExternalDirectLink=" + isExternalDirectLink + 
-              ", isProxyDirectLink=" + isProxyDirectLink + ", isDirectLink=" + isDirectLink);
-        
-        // 设置直连模式标志
-        isDirectLinkMode = isDirectLink;
-        
-        if (isDirectLink) {
-            // 🚀 直连URL - 使用缓存数据源 + 多线程预缓存
-            Log.d(TAG, "🚀 Using CachedDataSource with prefetch for direct link");
-            
-            // 提取域名用于 Referer
-            String referer = "https://pan.quark.cn/";
-            try {
-                java.net.URL parsedUrl = new java.net.URL(url);
-                referer = parsedUrl.getProtocol() + "://" + parsedUrl.getHost() + "/";
-            } catch (Exception e) {
-                Log.w(TAG, "Parse URL failed", e);
-            }
-            final String finalReferer = referer;
-            
-            // 🔑 多线程加速：使用 Dispatcher 配置并发请求
-            okhttp3.Dispatcher dispatcher = new okhttp3.Dispatcher();
-            dispatcher.setMaxRequests(64);           // 最大并发请求数
-            dispatcher.setMaxRequestsPerHost(16);    // 每个主机最大并发数
-            
-            // 使用连接池优化
-            okhttp3.ConnectionPool connectionPool = new okhttp3.ConnectionPool(
-                16, // 最大空闲连接数
-                5, java.util.concurrent.TimeUnit.MINUTES
-            );
-            
-            // 构建请求头
-            Map<String, String> headers = new HashMap<>();
-            headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-            headers.put("Accept", "*/*");
-            headers.put("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
-            headers.put("Accept-Encoding", "identity");
-            headers.put("Connection", "keep-alive");
-            
-            // 🔑 如果是代理直连，需要添加认证头
-            if (isProxyDirectLink) {
-                String token = SharedPreferencesManager.getAuthToken();
-                if (token != null && !token.isEmpty()) {
-                    String authToken = token.startsWith("Bearer ") ? token.substring(7) : token;
-                    headers.put("Cookie", "Trim-MC-token=" + authToken);
-                    headers.put("Authorization", authToken);
-                    
-                    // Sign request for authx
-                    try {
-                        String signature = com.mynas.nastv.utils.SignatureUtils.generateSignature("GET", url, "", null);
-                        if (signature != null) {
-                            headers.put("authx", signature);
-                            Log.d(TAG, "🚀 Added authx header for proxy direct link");
-                        }
-                    } catch (Exception e) {
-                        Log.w(TAG, "Sign failed", e);
-                    }
-                }
-            } else {
-                // 外部直连需要 Referer
-                headers.put("Referer", finalReferer);
-                headers.put("Origin", finalReferer.substring(0, finalReferer.length() - 1));
-                headers.put("Sec-Fetch-Dest", "video");
-                headers.put("Sec-Fetch-Mode", "cors");
-                headers.put("Sec-Fetch-Site", "cross-site");
-            }
-            
-            // 创建 OkHttpClient
-            okhttp3.OkHttpClient directLinkClient = new okhttp3.OkHttpClient.Builder()
-                .dispatcher(dispatcher)
-                .connectionPool(connectionPool)
-                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-                .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                .retryOnConnectionFailure(true)
-                .build();
-            
-            // 使用缓存数据源
-            // 从URL中提取mediaGuid作为cacheKey，确保同一视频使用相同的缓存
-            String cacheKey = extractCacheKeyFromUrl(url);
-            Log.e(TAG, "Creating CachedDataSourceFactory, cacheKey=" + cacheKey);
-            
-            // 创建缓存数据源工厂
-            cachedDataSourceFactory = new com.mynas.nastv.player.CachedDataSourceFactory(
-                this, directLinkClient, headers, cacheKey);
-            
-            // 关键优化：先启动预缓存服务，等待初始数据下载
-            Log.e(TAG, "Starting prefetch service for URL: " + url.substring(0, Math.min(80, url.length())));
-            prefetchService = cachedDataSourceFactory.startPrefetch(url);
-            Log.e(TAG, "Prefetch service started: " + (prefetchService != null ? "SUCCESS" : "FAILED"));
-            
-            // 等待初始缓存：降低要求，快速启动播放
-            // 对于大文件，ExoPlayer需要先开始解析才能知道需要多少数据
-            if (prefetchService != null) {
-                new Thread(() -> {
-                    try {
-                        Log.e(TAG, "Waiting for initial cache...");
-                        int waitCount = 0;
-                        int maxWait = 60; // 最多等待 12 秒（增加等待时间，确保 prefetchService 获取到 contentLength）
-                        // 关键：必须等待 prefetchService 获取到 contentLength，否则会导致 416 错误
-                        while (waitCount < maxWait) {
-                            int cached = prefetchService.getCachedAheadChunks();
-                            boolean criticalReady = prefetchService.isCriticalCacheReady();
-                            long contentLength = prefetchService.getContentLength();
-                            
-                            if (waitCount % 5 == 0) {
-                                Log.e(TAG, "Wait #" + waitCount + " cached=" + cached + " critical=" + criticalReady + " contentLength=" + (contentLength > 0 ? (contentLength/1024/1024) + "MB" : "unknown"));
-                            }
-                            
-                            // 关键等待条件：必须等待 prefetchService 获取到 contentLength
-                            // 否则 ExoPlayer 在打开数据源时无法正确返回文件大小，会导致 416 错误
-                            if (contentLength > 0) {
-                                // contentLength 已获取到，再等待至少 1 个 chunk 缓存好
-                                if (cached >= 1) {
-                                    Log.e(TAG, "Initial cache ready: " + cached + " chunks cached, contentLength=" + (contentLength/1024/1024) + "MB, starting playback");
-                                    break;
-                                }
-                            }
-                            
-                            Thread.sleep(200);
-                            waitCount++;
-                        }
-                        int cached = prefetchService.getCachedAheadChunks();
-                        if (waitCount >= maxWait) {
-                            Log.e(TAG, "Timeout waiting for cache, starting playback anyway. cached=" + cached);
-                        } else {
-                            Log.e(TAG, "Initial cache ready: " + cached + " chunks cached after " + (waitCount * 200) + "ms");
-                        }
-                        
-                        // 在主线程创建MediaSource并开始播放
-                        // 即使缓存不足也要开始，让ExoPlayer边播放边缓冲
-                        runOnUiThread(() -> {
-                            Log.e(TAG, "Creating ProgressiveMediaSource with cachedDataSourceFactory");
-                            // 使用自定义ExtractorsFactory（排除PNG和字幕Extractor以避免OOM）
-                            androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory mediaSourceFactory = 
-                                new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
-                                    cachedDataSourceFactory, 
-                                    createCustomExtractorsFactory());
-                            androidx.media3.exoplayer.source.ProgressiveMediaSource mediaSource = 
-                                mediaSourceFactory.createMediaSource(MediaItem.fromUri(url));
-                            Log.e(TAG, "Calling exoPlayer.setMediaSource()");
-                            exoPlayer.setMediaSource(mediaSource);
-                            Log.e(TAG, "Calling exoPlayer.prepare()");
-                            exoPlayer.prepare();
-                            Log.e(TAG, "Calling exoPlayer.setPlayWhenReady(true)");
-                            exoPlayer.setPlayWhenReady(true);
-                            
-                            Log.e(TAG, "CachedDataSource + Prefetch configured, playback started");
-                        });
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error waiting for initial cache: " + e.getMessage());
-                        e.printStackTrace();
-                        // 出错时直接开始播放
-                        runOnUiThread(() -> {
-                            Log.e(TAG, "Error fallback: Creating MediaSource anyway");
-                            // 使用自定义ExtractorsFactory（排除PNG和字幕Extractor以避免OOM）
-                            androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory factory = 
-                                new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
-                                    cachedDataSourceFactory, 
-                                    createCustomExtractorsFactory());
-                            androidx.media3.exoplayer.source.ProgressiveMediaSource mediaSource = 
-                                factory.createMediaSource(MediaItem.fromUri(url));
-                            exoPlayer.setMediaSource(mediaSource);
-                            exoPlayer.prepare();
-                            exoPlayer.setPlayWhenReady(true);
-                        });
-                    }
-                }).start();
-                
-                // 返回null，因为我们在后台线程中设置MediaSource
-                return null;
-            }
-            
-            // 如果prefetchService启动失败，直接创建MediaSource
-            Log.e(TAG, "Prefetch service failed to start, using direct playback");
-            
-            // 使用自定义ExtractorsFactory（排除PNG和字幕Extractor以避免OOM）
-            androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory mediaSourceFactory = 
-                new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
-                    cachedDataSourceFactory, 
-                    createCustomExtractorsFactory());
-            androidx.media3.exoplayer.source.ProgressiveMediaSource mediaSource = 
-                mediaSourceFactory.createMediaSource(MediaItem.fromUri(url));
-            exoPlayer.setMediaSource(mediaSource);
-            
-            Log.e(TAG, "CachedDataSource + Prefetch configured");
-            return null;
-        }
-        
-        // 本地服务器URL需要添加认证头
-        String token = SharedPreferencesManager.getAuthToken();
-        Log.d(TAG, "Creating media item with headers, token: " + (token != null ? "present" : "null"));
-        
-        if (token != null && !token.isEmpty()) {
-            Map<String, String> headers = new HashMap<>();
-            
-            // 添加认证头 - 使用与Web端一致的Cookie名称 Trim-MC-token
-            String authToken = token.startsWith("Bearer ") ? token.substring(7) : token;
-            headers.put("Cookie", "Trim-MC-token=" + authToken);
-            headers.put("Authorization", authToken);
-            
-            // Sign request for authx
-            try {
-                String signature = com.mynas.nastv.utils.SignatureUtils.generateSignature("GET", url, "", null);
-                if (signature != null) {
-                    headers.put("authx", signature);
-                    Log.d(TAG, "Added authx header: " + signature);
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "Sign failed", e);
-            }
-            
-            Log.d(TAG, "Headers: " + headers.keySet());
-            
-            // 使用 OkHttp 作为数据源，优化网络配置
-            okhttp3.OkHttpClient okHttpClient = new okhttp3.OkHttpClient.Builder()
-                .connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
-                .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-                .retryOnConnectionFailure(true)
-                .addInterceptor(chain -> {
-                    okhttp3.Request original = chain.request();
-                    okhttp3.Request.Builder builder = original.newBuilder();
-                    
-                    // 如果没有 Range 头，添加 Range: bytes=0-
-                    if (original.header("Range") == null) {
-                        builder.header("Range", "bytes=0-");
-                        Log.d(TAG, "Added Range header: bytes=0-");
-                    }
-                    
-                    return chain.proceed(builder.build());
-                })
-                .build();
-            
-            androidx.media3.datasource.okhttp.OkHttpDataSource.Factory okHttpDataSourceFactory = 
-                new androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient)
-                    .setDefaultRequestProperties(headers);
-                
-            MediaSource mediaSource = new DefaultMediaSourceFactory(okHttpDataSourceFactory)
-                .createMediaSource(MediaItem.fromUri(url));
-            exoPlayer.setMediaSource(mediaSource);
-            return null;
-        } else {
-            Log.w(TAG, "No token, playing without auth headers");
-            return MediaItem.fromUri(url);
-        }
-    }
+    // selectSubtitleTrack 已移除 - ExoPlayer 相关代码
+    // createMediaItemWithHeaders 已移除 - GSYVideoPlayer 使用 OkHttpProxyCacheManager 处理缓存和认证
     
     /**
      * 🔧 配置解码器：根据用户设置和自动降级逻辑
@@ -1913,23 +1186,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         // 转换为秒
                         progressRecorder.updateProgress(currentPosition / 1000, duration / 1000);
                     }
-                    
-                    // 🚀 更新预缓存服务的播放位置（用于调整下载优先级）
-                    if (prefetchService != null) {
-                        // 将时间位置转换为字节位置（估算）
-                        long contentLength = prefetchService.getContentLength();
-                        if (contentLength > 0) {
-                            long bytePosition = (currentPosition * contentLength) / duration;
-                            prefetchService.updatePlaybackPosition(bytePosition);
-                            
-                            // 🔧 调试日志：每 5 秒打印一次位置更新
-                            if (currentPosition % 5000 < 100) {
-                                int currentChunk = (int) (bytePosition / (2 * 1024 * 1024));
-                                Log.e(TAG, "🎯 Position update: " + (currentPosition/1000) + "s → chunk " + currentChunk + 
-                                      " (byte " + (bytePosition/1024/1024) + "MB)");
-                            }
-                        }
-                    }
                 }
                 
                 positionHandler.postDelayed(this, 100);
@@ -1945,45 +1201,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
         positionHandler.removeCallbacks(positionRunnable);
     }
     
-    /**
-     * 从URL中提取稳定的cacheKey
-     * 从/media/range/{mediaGuid}中提取mediaGuid作为key
-     * 这样即使URL参数变化，同一视频也使用相同的缓存
-     */
-    private String extractCacheKeyFromUrl(String url) {
-        try {
-            // URL格式: http://server/v/api/v1/media/range/{mediaGuid}?...
-            if (url.contains("/media/range/")) {
-                int startIdx = url.indexOf("/media/range/") + "/media/range/".length();
-                int endIdx = url.indexOf("?", startIdx);
-                if (endIdx == -1) {
-                    endIdx = url.length();
-                }
-                String mediaGuid = url.substring(startIdx, endIdx);
-                return "video_" + mediaGuid;
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "Failed to extract mediaGuid from URL, using hashCode", e);
-        }
-        // 降级方案：使用URL的hashCode
-        return "video_" + Math.abs(url.hashCode());
-    }
-    
-    /**
-     * 停止预缓存服务（切换剧集时调用）
-     */
-    private void stopPrefetchService() {
-        Log.d(TAG, "stopPrefetchService called, cachedDataSourceFactory=" + 
-              (cachedDataSourceFactory != null ? "exists" : "null") + 
-              ", prefetchService=" + (prefetchService != null ? "exists" : "null"));
-        if (cachedDataSourceFactory != null) {
-            cachedDataSourceFactory.stopPrefetch();
-            cachedDataSourceFactory = null;
-            Log.d(TAG, "cachedDataSourceFactory stopped and set to null");
-        }
-        prefetchService = null;
-        Log.d(TAG, "prefetchService set to null");
-    }
+    // 🚀 缓存由 GSYVideoPlayer + OkHttpProxyCacheManager 自动管理，无需手动停止
+    // extractCacheKeyFromUrl 已移除 - ExoPlayer 相关代码
     
     @Override
     protected void onDestroy() {
@@ -2001,16 +1220,9 @@ public class VideoPlayerActivity extends AppCompatActivity {
             iconHandler.removeCallbacks(hideIconRunnable);
         }
         
-        // 🚀 停止预缓存服务
-        stopPrefetchService();
-        
         if (playerView != null) {
             playerView.release();
             playerView = null;
-        }
-        if (exoPlayer != null) {
-            exoPlayer.release();
-            exoPlayer = null;
         }
         if (danmuController != null) {
             danmuController.destroy();
@@ -2631,53 +1843,38 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     // 重置恢复位置
                     resumePositionSeconds = playInfo.getResumePositionSeconds();
                     
-                    // 🔧 步骤1：停止预缓存服务
-                    Log.e(TAG, "🔄 Step 1: Stopping prefetch service");
-                    stopPrefetchService();
-                    
-                    // 🔧 步骤2：停止并释放 ExoPlayer
-                    Log.e(TAG, "🔄 Step 2: Releasing ExoPlayer");
-                    if (exoPlayer != null) {
-                        exoPlayer.stop();
-                        exoPlayer.clearMediaItems();
-                        exoPlayer.release();
-                        exoPlayer = null;
+                    // 🔧 步骤1：停止 GSYVideoPlayer
+                    Log.e(TAG, "🔄 Step 1: Stopping GSYVideoPlayer");
+                    if (playerView != null) {
+                        playerView.release();
                         isPlayerReady = false;
                     }
                     
-                    // 🔧 步骤3：释放共享缓存并清除缓存数据
-                    Log.e(TAG, "🔄 Step 3: Releasing and clearing shared cache");
-                    if (cachedDataSourceFactory != null) {
-                        cachedDataSourceFactory.stopPrefetch();
-                        cachedDataSourceFactory = null;
-                    }
-                    com.mynas.nastv.player.CachedDataSourceFactory.releaseAndClearCache(VideoPlayerActivity.this);
-                    
-                    // 🔧 步骤4：清空弹幕缓存
-                    Log.e(TAG, "🔄 Step 4: Clearing danmaku cache");
+                    // 🔧 步骤2：清空弹幕缓存
+                    Log.e(TAG, "🔄 Step 2: Clearing danmaku cache");
                     if (danmuController != null) {
                         danmuController.clearDanmaku();
                     }
                     
-                    // 🔧 步骤5：重置播放器状态
-                    Log.e(TAG, "🔄 Step 5: Resetting player state");
+                    // 🔧 步骤3：重置播放器状态
+                    Log.e(TAG, "🔄 Step 3: Resetting player state");
                     hasSkippedIntro = false;
                     currentSubtitleIndex = -1;
                     subtitleStreams = null;
                     
-                    // 🔧 步骤6：重新初始化 ExoPlayer（就像首次进入）
-                    Log.e(TAG, "🔄 Step 6: Reinitializing ExoPlayer");
+                    // 🔧 步骤4：重新初始化播放器
+                    Log.e(TAG, "🔄 Step 4: Reinitializing player");
                     initializePlayer();
                     
-                    // 🔧 步骤7：显示加载界面并播放新视频
-                    Log.e(TAG, "🔄 Step 7: Playing new video");
-                    showLoading("加载中...");  // 显示 loading，等缓存好了会自动隐藏
+                    // 🔧 步骤5：显示加载界面并播放新视频
+                    Log.e(TAG, "🔄 Step 5: Playing new video");
+                    showLoading("加载中...");
                     videoUrl = playInfo.getPlayUrl();
                     playMedia(videoUrl);
                     
                     hideSettingsMenu();
                     
-                    Log.e(TAG, "🔄 FULL REINITIALIZATION completed");
+                    Log.e(TAG, "🔄 Episode switch completed");
                 });
             }
             
@@ -2814,21 +2011,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private void disableSubtitle() {
         currentSubtitleIndex = -1;
         
-        // 禁用字幕轨道
-        if (exoPlayer != null) {
-            try {
-                androidx.media3.common.TrackSelectionParameters params = exoPlayer.getTrackSelectionParameters()
-                    .buildUpon()
-                    .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
-                    .build();
-                exoPlayer.setTrackSelectionParameters(params);
-                Log.e(TAG, "📝 Subtitle track disabled");
-            } catch (Exception e) {
-                Log.e(TAG, "📝 Error disabling subtitle", e);
-            }
-        }
-        
-        Log.e(TAG, "📝 Subtitle disabled");
+        // GSYVideoPlayer + IJKPlayer 不支持字幕轨道控制
+        Log.e(TAG, "📝 Subtitle disabled (GSYVideoPlayer + IJKPlayer 不支持字幕轨道控制)");
     }
     
     private boolean isDanmakuEnabled = true;
@@ -3081,57 +2265,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         }
     }
     
-    /**
-     * 🔧 检测是否应该切换到软解
-     * 检测解码器相关错误（MediaCodec 崩溃、解码器初始化失败等）
-     */
-    private boolean shouldSwitchToSoftwareDecoder(androidx.media3.common.PlaybackException error) {
-        // 如果已经在使用软解，或者已经重试过，不再切换
-        if (forceUseSoftwareDecoder || decoderRetryCount >= MAX_DECODER_RETRY) {
-            return false;
-        }
-        
-        // 如果用户手动选择了软解，不需要自动切换
-        if (SharedPreferencesManager.useSoftwareDecoder()) {
-            return false;
-        }
-        
-        // 检查错误类型
-        Throwable cause = error.getCause();
-        String errorMessage = error.getMessage() != null ? error.getMessage().toLowerCase() : "";
-        String causeMessage = cause != null && cause.getMessage() != null ? 
-            cause.getMessage().toLowerCase() : "";
-        
-        // 检测解码器相关错误
-        boolean isDecoderError = false;
-        
-        // 1. 检查错误码 - ERROR_CODE_DECODER_INIT_FAILED 或 ERROR_CODE_DECODING_FAILED
-        if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
-            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED) {
-            isDecoderError = true;
-            Log.d(TAG, "🔧 Decoder error detected by error code: " + error.errorCode);
-        }
-        
-        // 2. 检查错误消息中是否包含解码器相关关键词
-        if (errorMessage.contains("decoder") || errorMessage.contains("mediacodec") ||
-            errorMessage.contains("codec") || errorMessage.contains("omx") ||
-            causeMessage.contains("decoder") || causeMessage.contains("mediacodec") ||
-            causeMessage.contains("codec") || causeMessage.contains("omx")) {
-            isDecoderError = true;
-            Log.d(TAG, "🔧 Decoder error detected by message: " + errorMessage);
-        }
-        
-        // 3. 检查是否为 MediaCodecDecoderException
-        if (cause != null) {
-            String causeName = cause.getClass().getSimpleName();
-            if (causeName.contains("MediaCodec") || causeName.contains("Decoder")) {
-                isDecoderError = true;
-                Log.d(TAG, "🔧 Decoder error detected by exception type: " + causeName);
-            }
-        }
-        
-        return isDecoderError;
-    }
+    // shouldSwitchToSoftwareDecoder 已移除 - ExoPlayer 相关代码
     
     /**
      * 🔧 使用软解重新加载视频
@@ -3145,18 +2279,9 @@ public class VideoPlayerActivity extends AppCompatActivity {
         Log.d(TAG, "🔧 Reloading video with software decoder...");
         
         // 停止当前播放
-        if (exoPlayer != null) {
-            exoPlayer.stop();
-            exoPlayer.release();
-            exoPlayer = null;
+        if (playerView != null) {
+            playerView.release();
         }
-        
-        // 停止预缓存
-        if (cachedDataSourceFactory != null) {
-            cachedDataSourceFactory.stopPrefetch();
-            cachedDataSourceFactory = null;
-        }
-        prefetchService = null;
         
         // 重置播放器状态
         isPlayerReady = false;
@@ -3193,110 +2318,17 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     /**
      * ⚙️ 显示音频轨道对话框
+     * 注意：GSYVideoPlayer + IJKPlayer 不支持音频轨道选择
      */
     private void showAudioTrackDialog() {
-        if (exoPlayer == null) {
-            Toast.makeText(this, "播放器未就绪", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        
-        // 获取音频轨道列表
-        java.util.List<String> audioTracks = new java.util.ArrayList<>();
-        java.util.List<Integer> trackIndices = new java.util.ArrayList<>();
-        int selectedIndex = -1;
-        
-        try {
-            androidx.media3.common.Tracks tracks = exoPlayer.getCurrentTracks();
-            int audioTrackCount = 0;
-            
-            for (int i = 0; i < tracks.getGroups().size(); i++) {
-                androidx.media3.common.Tracks.Group group = tracks.getGroups().get(i);
-                if (group.getType() == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
-                    for (int j = 0; j < group.length; j++) {
-                        androidx.media3.common.Format format = group.getTrackFormat(j);
-                        String label = format.label;
-                        if (label == null || label.isEmpty()) {
-                            label = format.language;
-                        }
-                        if (label == null || label.isEmpty()) {
-                            label = "音轨 " + (audioTrackCount + 1);
-                        }
-                        
-                        // 添加编码信息
-                        if (format.sampleMimeType != null) {
-                            if (format.sampleMimeType.contains("ac3")) {
-                                label += " (AC3)";
-                            } else if (format.sampleMimeType.contains("eac3")) {
-                                label += " (EAC3)";
-                            } else if (format.sampleMimeType.contains("aac")) {
-                                label += " (AAC)";
-                            }
-                        }
-                        
-                        audioTracks.add(label);
-                        trackIndices.add(audioTrackCount);
-                        
-                        if (group.isTrackSelected(j)) {
-                            selectedIndex = audioTrackCount;
-                        }
-                        audioTrackCount++;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error getting audio tracks", e);
-        }
-        
-        if (audioTracks.isEmpty()) {
-            audioTracks.add("默认音频");
-            trackIndices.add(0);
-            selectedIndex = 0;
-        }
-        
-        String[] options = audioTracks.toArray(new String[0]);
-        final int checkedItem = selectedIndex >= 0 ? selectedIndex : 0;
-        
-        new android.app.AlertDialog.Builder(this)
-            .setTitle("音频轨道")
-            .setSingleChoiceItems(options, checkedItem, (dialog, which) -> {
-                selectAudioTrack(which);
-                Toast.makeText(this, "已选择: " + options[which], Toast.LENGTH_SHORT).show();
-                dialog.dismiss();
-            })
-            .show();
+        Toast.makeText(this, "当前播放器不支持音频轨道选择", Toast.LENGTH_SHORT).show();
     }
     
     /**
      * ⚙️ 选择音频轨道
+     * 注意：GSYVideoPlayer + IJKPlayer 不支持音频轨道选择
      */
     private void selectAudioTrack(int trackIndex) {
-        if (exoPlayer == null) return;
-        
-        try {
-            androidx.media3.common.Tracks tracks = exoPlayer.getCurrentTracks();
-            int audioTrackCount = 0;
-            
-            for (int i = 0; i < tracks.getGroups().size(); i++) {
-                androidx.media3.common.Tracks.Group group = tracks.getGroups().get(i);
-                if (group.getType() == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
-                    for (int j = 0; j < group.length; j++) {
-                        if (audioTrackCount == trackIndex) {
-                            // 选择这个音轨
-                            androidx.media3.common.Format format = group.getTrackFormat(j);
-                            androidx.media3.common.TrackSelectionParameters params = exoPlayer.getTrackSelectionParameters()
-                                .buildUpon()
-                                .setPreferredAudioLanguage(format.language)
-                                .build();
-                            exoPlayer.setTrackSelectionParameters(params);
-                            Log.d(TAG, "Selected audio track: " + format.language);
-                            return;
-                        }
-                        audioTrackCount++;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error selecting audio track", e);
-        }
+        Log.d(TAG, "GSYVideoPlayer + IJKPlayer 不支持音频轨道选择");
     }
 }

@@ -24,13 +24,6 @@
             android:contentDescription="@string/poster_description"
             tools:src="@color/tv_card_background" />
 
-        <!-- 渐变遮罩 -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:layout_gravity="bottom"
-            android:background="@drawable/gradient_bottom_overlay" />
-
         <!-- 🎯 当前播放指示器 -->
         <TextView
             android:id="@+id/episode_current_indicator"
@@ -63,7 +56,7 @@
             tools:text="1080p"
             tools:visibility="visible" />
 
-        <!-- ⏱️ 时长标签 -->
+        <!-- ⏱️ 时长标签（圆角） -->
         <TextView
             android:id="@+id/episode_duration"
             android:layout_width="wrap_content"
@@ -72,7 +65,7 @@
             android:layout_margin="8dp"
             android:textSize="11sp"
             android:textColor="@android:color/white"
-            android:background="#80000000"
+            android:background="@drawable/duration_badge_bg"
             android:paddingHorizontal="8dp"
             android:paddingVertical="3dp"
             tools:text="46:30" />

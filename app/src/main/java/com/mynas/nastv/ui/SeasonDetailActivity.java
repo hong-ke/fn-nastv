@@ -1,5 +1,7 @@
 package com.mynas.nastv.ui;
 
+import com.mynas.nastv.utils.ToastUtils;
+
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
@@ -95,7 +97,7 @@ public class SeasonDetailActivity extends AppCompatActivity {
         currentEpisodeNumber = intent.getIntExtra("current_episode", -1); // 当前播放的剧集号
         
         if (seasonGuid == null || seasonGuid.isEmpty()) {
-            Toast.makeText(this, "Invalid Season GUID", Toast.LENGTH_SHORT).show();
+            ToastUtils.show(this, "Invalid Season GUID");
             finish();
             return;
         }
@@ -281,7 +283,7 @@ public class SeasonDetailActivity extends AppCompatActivity {
             @Override
             public void onError(String error) {
                 runOnUiThread(() -> {
-                    Toast.makeText(SeasonDetailActivity.this, "加载剧集失败: " + error, Toast.LENGTH_SHORT).show();
+                    ToastUtils.show(SeasonDetailActivity.this, "加载剧集失败: " + error);
                 });
             }
         });
@@ -464,7 +466,7 @@ public class SeasonDetailActivity extends AppCompatActivity {
     }
     
     private void playEpisode(EpisodeListResponse.Episode episode) {
-        Toast.makeText(this, "正在加载第" + episode.getEpisodeNumber() + "集...", Toast.LENGTH_SHORT).show();
+        ToastUtils.show(this, "正在加载第" + episode.getEpisodeNumber() + "集...");
         
         mediaManager.startPlayWithInfo(episode.getGuid(), new MediaManager.MediaCallback<com.mynas.nastv.model.PlayStartInfo>() {
             @Override
@@ -506,7 +508,7 @@ public class SeasonDetailActivity extends AppCompatActivity {
             @Override
             public void onError(String error) {
                 runOnUiThread(() -> {
-                    Toast.makeText(SeasonDetailActivity.this, "播放失败: " + error, Toast.LENGTH_LONG).show();
+                    ToastUtils.show(SeasonDetailActivity.this, "播放失败: " + error);
                 });
             }
         });

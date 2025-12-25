@@ -1,9 +1,12 @@
 package com.mynas.nastv.ui;
 
+import com.mynas.nastv.utils.ToastUtils;
+
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -35,7 +38,6 @@ public class EpisodeDetailActivity extends AppCompatActivity {
     public static final String EXTRA_SEASON_GUID = "season_guid";
     
     // UI
-    private ImageView backgroundPoster;
     private ImageView episodeThumbnail;
     private TextView episodeHeader;
     private TextView episodeTitle;
@@ -49,6 +51,11 @@ public class EpisodeDetailActivity extends AppCompatActivity {
     private TextView videoInfo;
     private TextView audioInfo;
     private TextView subtitleInfo;
+    
+    // 新增简要信息UI
+    private TextView subtitleBrief;
+    private TextView audioBrief;
+    private LinearLayout tagsContainer;
     
     // Data
     private String episodeGuid;
@@ -74,7 +81,7 @@ public class EpisodeDetailActivity extends AppCompatActivity {
         doubanId = intent.getLongExtra("douban_id", 0);
         
         if (episodeGuid == null || episodeGuid.isEmpty()) {
-            Toast.makeText(this, "Invalid Episode GUID", Toast.LENGTH_SHORT).show();
+            ToastUtils.show(this, "Invalid Episode GUID");
             finish();
             return;
         }
@@ -85,7 +92,6 @@ public class EpisodeDetailActivity extends AppCompatActivity {
     }
     
     private void initViews() {
-        backgroundPoster = findViewById(R.id.background_poster);
         episodeThumbnail = findViewById(R.id.episode_thumbnail);
         episodeHeader = findViewById(R.id.episode_header);
         episodeTitle = findViewById(R.id.episode_title);
@@ -99,6 +105,11 @@ public class EpisodeDetailActivity extends AppCompatActivity {
         videoInfo = findViewById(R.id.video_info);
         audioInfo = findViewById(R.id.audio_info);
         subtitleInfo = findViewById(R.id.subtitle_info);
+        
+        // 新增简要信息
+        subtitleBrief = findViewById(R.id.subtitle_brief);
+        audioBrief = findViewById(R.id.audio_brief);
+        tagsContainer = findViewById(R.id.tags_container);
         
         // 设置初始值
         String header = tvTitle != null ? tvTitle : "Loading...";
@@ -122,8 +133,8 @@ public class EpisodeDetailActivity extends AppCompatActivity {
             @Override
             public void onError(String error) {
                 Log.e(TAG, "Failed to load episode detail: " + error);
-                runOnUiThread(() -> Toast.makeText(EpisodeDetailActivity.this, 
-                    "加载失败: " + error, Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> ToastUtils.show(EpisodeDetailActivity.this, 
+                    "加载失败: " + error));
             }
         });
         
@@ -172,19 +183,37 @@ public class EpisodeDetailActivity extends AppCompatActivity {
             episodeOverview.setText("暂无简介");
         }
         
-        // 加载缩略图 - 使用 poster 作为缩略图
+        // 加载缩略图 - 使用poster，需要拼接服务地址
         String posterPath = detail.getPoster();
+        Log.i(TAG, "剧集详情 poster字段值: " + posterPath);
+        Log.i(TAG, "剧集详情 still字段值: " + detail.getStill());
         if (posterPath != null && !posterPath.isEmpty()) {
             String imageUrl = posterPath;
             if (!imageUrl.startsWith("http")) {
                 imageUrl = SharedPreferencesManager.getImageServiceUrl() + posterPath + "?w=640";
             }
-            Glide.with(this).load(imageUrl).placeholder(R.drawable.bg_card).into(episodeThumbnail);
-            
-            // 背景图（不使用模糊，直接加载）
+            Log.i(TAG, "加载剧集缩略图: " + imageUrl);
+            // 使用asBitmap()强制作为图片解码，避免webp被误识别为视频
             Glide.with(this)
+                .asBitmap()
                 .load(imageUrl)
-                .into(backgroundPoster);
+                .placeholder(R.drawable.bg_card)
+                .into(episodeThumbnail);
+        } else {
+            Log.i(TAG, "poster为空，尝试使用still");
+            String stillPath = detail.getStill();
+            if (stillPath != null && !stillPath.isEmpty()) {
+                String imageUrl = stillPath;
+                if (!imageUrl.startsWith("http")) {
+                    imageUrl = SharedPreferencesManager.getImageServiceUrl() + stillPath + "?w=640";
+                }
+                Log.i(TAG, "加载剧集剧照: " + imageUrl);
+                Glide.with(this)
+                    .asBitmap()
+                    .load(imageUrl)
+                    .placeholder(R.drawable.bg_card)
+                    .into(episodeThumbnail);
+            }
         }
     }
     
@@ -213,6 +242,9 @@ public class EpisodeDetailActivity extends AppCompatActivity {
         if (videoStreams != null && !videoStreams.isEmpty()) {
             StreamListResponse.VideoStream video = videoStreams.get(0);
             videoInfo.setText(FormatUtils.formatVideoInfo(video));
+            
+            // 更新分辨率标签
+            updateVideoTags(video, data.getAudioStreams());
         } else {
             videoInfo.setText("-");
         }
@@ -226,8 +258,12 @@ public class EpisodeDetailActivity extends AppCompatActivity {
                 audioText.append(FormatUtils.formatAudioInfo(audioStreams.get(i)));
             }
             audioInfo.setText(audioText.toString());
+            
+            // 更新音轨简要信息
+            audioBrief.setText(audioStreams.size() > 1 ? audioStreams.size() + "条音轨" : "1条音轨");
         } else {
             audioInfo.setText("-");
+            audioBrief.setText("未知音轨");
         }
         
         // 字幕信息
@@ -239,13 +275,82 @@ public class EpisodeDetailActivity extends AppCompatActivity {
                 subText.append(FormatUtils.formatSubtitleInfo(subtitleStreams.get(i)));
             }
             subtitleInfo.setText(subText.toString());
+            
+            // 更新字幕简要信息
+            subtitleBrief.setText("字幕 " + subtitleStreams.size() + "条");
         } else {
             subtitleInfo.setText("无字幕");
+            subtitleBrief.setText("无字幕");
         }
     }
     
+    /**
+     * 更新视频标签（分辨率、HDR、音频格式）
+     */
+    private void updateVideoTags(StreamListResponse.VideoStream video, List<StreamListResponse.AudioStream> audioStreams) {
+        tagsContainer.removeAllViews();
+        
+        // 分辨率标签
+        int height = video.getHeight();
+        String resolutionTag = null;
+        if (height >= 2160) {
+            resolutionTag = "4K";
+        } else if (height >= 1080) {
+            resolutionTag = "1080p";
+        } else if (height >= 720) {
+            resolutionTag = "720";
+        } else if (height > 0) {
+            resolutionTag = height + "p";
+        }
+        if (resolutionTag != null) {
+            addTag(resolutionTag);
+        }
+        
+        // HDR标签
+        String colorRangeType = video.getColorRangeType();
+        if (colorRangeType != null && colorRangeType.toUpperCase().contains("HDR")) {
+            addTag("HDR");
+        } else {
+            addTag("SDR");
+        }
+        
+        // 音频格式标签
+        if (audioStreams != null && !audioStreams.isEmpty()) {
+            StreamListResponse.AudioStream audio = audioStreams.get(0);
+            int channels = audio.getChannels();
+            if (channels >= 6) {
+                addTag("5.1");
+            } else if (channels == 2) {
+                addTag("立体声");
+            } else if (channels == 1) {
+                addTag("单声道");
+            }
+        }
+    }
+    
+    /**
+     * 添加标签到容器
+     */
+    private void addTag(String text) {
+        TextView tag = new TextView(this);
+        tag.setText(text);
+        tag.setTextSize(11);
+        tag.setTextColor(getColor(R.color.tv_text_secondary));
+        tag.setBackgroundResource(R.drawable.tag_background);
+        tag.setPadding(12, 4, 12, 4);
+        
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(0, 0, 8, 0);
+        tag.setLayoutParams(params);
+        
+        tagsContainer.addView(tag);
+    }
+    
     private void playEpisode() {
-        Toast.makeText(this, "正在加载...", Toast.LENGTH_SHORT).show();
+        ToastUtils.show(this, "正在加载...");
         
         mediaManager.startPlayWithInfo(episodeGuid, new MediaManager.MediaCallback<PlayStartInfo>() {
             @Override
@@ -276,7 +381,7 @@ public class EpisodeDetailActivity extends AppCompatActivity {
             @Override
             public void onError(String error) {
                 runOnUiThread(() -> {
-                    Toast.makeText(EpisodeDetailActivity.this, "播放失败: " + error, Toast.LENGTH_LONG).show();
+                    ToastUtils.show(EpisodeDetailActivity.this, "播放失败: " + error);
                 });
             }
         });

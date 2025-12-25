@@ -1,5 +1,7 @@
 package com.mynas.nastv.ui;
 
+import com.mynas.nastv.utils.ToastUtils;
+
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -209,7 +211,7 @@ public class CategoryActivity extends AppCompatActivity {
                         if (currentPage == 1) {
                             showEmpty();
                         }
-                        Toast.makeText(CategoryActivity.this, "加载失败: " + error, Toast.LENGTH_SHORT).show();
+                        ToastUtils.show(CategoryActivity.this, "加载失败: " + error);
                     });
                 }
             });

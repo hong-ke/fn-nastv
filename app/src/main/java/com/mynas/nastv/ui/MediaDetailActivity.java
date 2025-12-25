@@ -1,15 +1,15 @@
 package com.mynas.nastv.ui;
 
+import com.mynas.nastv.utils.ToastUtils;
+import com.mynas.nastv.utils.FormatUtils;
+
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -20,15 +20,16 @@ import com.mynas.nastv.model.MediaDetailResponse;
 import com.mynas.nastv.model.PlayInfoResponse;
 import com.mynas.nastv.model.EpisodeListResponse;
 import com.mynas.nastv.model.SeasonListResponse;
+import com.mynas.nastv.model.StreamListResponse;
+import com.mynas.nastv.model.PersonInfo;
 import com.mynas.nastv.utils.SharedPreferencesManager;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * 🎬 Media Detail Activity
  * 显示媒体详情（电影/电视剧第一层）
- * 电视剧会显示季列表，点击季进入 SeasonDetailActivity
- * Web端URL格式: /v/tv/{tv_guid} 或 /v/movie/{movie_guid}
  */
 public class MediaDetailActivity extends AppCompatActivity {
     private static final String TAG = "MediaDetailActivity";
@@ -42,11 +43,53 @@ public class MediaDetailActivity extends AppCompatActivity {
     private TextView titleTextView;
     private TextView subtitleTextView;
     private TextView ratingTextView;
-    private TextView yearTextView;
     private TextView durationTextView;
-    private TextView summaryTextView;
     private TextView playButtonTextView;
+    private TextView summaryTextView;
+    private LinearLayout personContainer;
     private LinearLayout seasonContainer;
+    
+    // 新增元信息UI
+    private TextView yearText;
+    private TextView genreText;
+    private TextView regionText;
+    private TextView runtimeText;
+    private TextView mediaTypeTag;
+    private TextView subtitleBrief;
+    private TextView audioBrief;
+    private LinearLayout tagsContainer;
+    
+    // 文件信息UI
+    private View dividerFile;
+    private LinearLayout fileInfoSection;
+    private TextView filePath;
+    private TextView fileSize;
+    private TextView fileCreated;
+    private TextView fileAdded;
+    
+    // 视频信息UI
+    private View dividerVideo;
+    private LinearLayout videoInfoSection;
+    private TextView videoCodec;
+    private TextView videoResolution;
+    private TextView videoFramerate;
+    private TextView videoBitrate;
+    private TextView videoHdr;
+    
+    // 音频信息UI
+    private View dividerAudio;
+    private LinearLayout audioInfoSection;
+    private TextView audioCodec;
+    private TextView audioChannels;
+    private TextView audioSampleRate;
+    
+    // 字幕信息UI
+    private View dividerSubtitle;
+    private LinearLayout subtitleInfoSection;
+    private TextView subtitleList;
+    
+    // 流信息缓存
+    private StreamListResponse cachedStreamResponse;
     
     // Data
     private String mediaGuid;
@@ -59,6 +102,7 @@ public class MediaDetailActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_media_detail);
         
         Intent intent = getIntent();
         mediaGuid = intent.getStringExtra(EXTRA_MEDIA_GUID);
@@ -66,169 +110,72 @@ public class MediaDetailActivity extends AppCompatActivity {
         mediaType = intent.getStringExtra(EXTRA_MEDIA_TYPE);
         
         if (mediaGuid == null || mediaGuid.isEmpty()) {
-            Toast.makeText(this, "Invalid Media GUID", Toast.LENGTH_SHORT).show();
+            ToastUtils.show(this, "Invalid Media GUID");
             finish();
             return;
         }
         
-        // 🚀 优化：先显示简单布局，再异步加载数据
-        createLayout();
+        initViews();
         mediaManager = new MediaManager(this);
-        
-        // 延迟加载数据，让UI先渲染
-        getWindow().getDecorView().post(this::loadMediaDetail);
+        loadMediaDetail();
     }
     
-    private void createLayout() {
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
-        ));
-        scrollView.setBackgroundColor(getColor(R.color.tv_background));
-        scrollView.setFillViewport(true);
+    private void initViews() {
+        posterImageView = findViewById(R.id.poster_image);
+        titleTextView = findViewById(R.id.title_text);
+        subtitleTextView = findViewById(R.id.subtitle_text);
+        ratingTextView = findViewById(R.id.rating_text);
+        durationTextView = findViewById(R.id.duration_text);
+        playButtonTextView = findViewById(R.id.play_button);
+        summaryTextView = findViewById(R.id.summary_text);
+        personContainer = findViewById(R.id.person_container);
+        seasonContainer = findViewById(R.id.season_container);
         
-        LinearLayout mainLayout = new LinearLayout(this);
-        mainLayout.setOrientation(LinearLayout.HORIZONTAL);
-        mainLayout.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
-        mainLayout.setPadding(
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_large),
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_large),
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_large),
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_large)
-        );
+        // 新增元信息
+        yearText = findViewById(R.id.year_text);
+        genreText = findViewById(R.id.genre_text);
+        regionText = findViewById(R.id.region_text);
+        runtimeText = findViewById(R.id.runtime_text);
+        mediaTypeTag = findViewById(R.id.media_type_tag);
+        subtitleBrief = findViewById(R.id.subtitle_brief);
+        audioBrief = findViewById(R.id.audio_brief);
+        tagsContainer = findViewById(R.id.tags_container);
         
-        // Poster
-        posterImageView = new ImageView(this);
-        LinearLayout.LayoutParams posterParams = new LinearLayout.LayoutParams(
-                getResources().getDimensionPixelSize(R.dimen.tv_poster_width),
-                getResources().getDimensionPixelSize(R.dimen.tv_poster_height)
-        );
-        posterParams.rightMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_large);
-        posterImageView.setLayoutParams(posterParams);
-        posterImageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        posterImageView.setBackground(getDrawable(R.drawable.bg_card));
-        mainLayout.addView(posterImageView);
+        // 文件信息
+        dividerFile = findViewById(R.id.divider_file);
+        fileInfoSection = findViewById(R.id.file_info_section);
+        filePath = findViewById(R.id.file_path);
+        fileSize = findViewById(R.id.file_size);
+        fileCreated = findViewById(R.id.file_created);
+        fileAdded = findViewById(R.id.file_added);
         
-        // Content
-        LinearLayout contentLayout = new LinearLayout(this);
-        contentLayout.setOrientation(LinearLayout.VERTICAL);
-        contentLayout.setLayoutParams(new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f
-        ));
+        // 视频信息
+        dividerVideo = findViewById(R.id.divider_video);
+        videoInfoSection = findViewById(R.id.video_info_section);
+        videoCodec = findViewById(R.id.video_codec);
+        videoResolution = findViewById(R.id.video_resolution);
+        videoFramerate = findViewById(R.id.video_framerate);
+        videoBitrate = findViewById(R.id.video_bitrate);
+        videoHdr = findViewById(R.id.video_hdr);
         
-        titleTextView = new TextView(this);
-        titleTextView.setTextSize(getResources().getDimension(R.dimen.tv_text_size_title));
-        titleTextView.setTextColor(getColor(R.color.tv_text_primary));
+        // 音频信息
+        dividerAudio = findViewById(R.id.divider_audio);
+        audioInfoSection = findViewById(R.id.audio_info_section);
+        audioCodec = findViewById(R.id.audio_codec);
+        audioChannels = findViewById(R.id.audio_channels);
+        audioSampleRate = findViewById(R.id.audio_sample_rate);
+        
+        // 字幕信息
+        dividerSubtitle = findViewById(R.id.divider_subtitle);
+        subtitleInfoSection = findViewById(R.id.subtitle_info_section);
+        subtitleList = findViewById(R.id.subtitle_list);
+        
+        // 设置初始标题
         titleTextView.setText(mediaTitle != null ? mediaTitle : "Loading...");
-        contentLayout.addView(titleTextView);
         
-        subtitleTextView = new TextView(this);
-        subtitleTextView.setTextSize(getResources().getDimension(R.dimen.tv_text_size_medium));
-        subtitleTextView.setTextColor(getColor(R.color.tv_text_secondary));
-        LinearLayout.LayoutParams subtitleParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        subtitleParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_small);
-        subtitleTextView.setLayoutParams(subtitleParams);
-        contentLayout.addView(subtitleTextView);
-        
-        // Meta row
-        LinearLayout metaLayout = new LinearLayout(this);
-        metaLayout.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams metaLayoutParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        metaLayoutParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_medium);
-        metaLayout.setLayoutParams(metaLayoutParams);
-        
-        ratingTextView = new TextView(this);
-        ratingTextView.setTextSize(getResources().getDimension(R.dimen.tv_text_size_small));
-        ratingTextView.setTextColor(getColor(R.color.tv_accent));
-        metaLayout.addView(ratingTextView);
-        
-        yearTextView = new TextView(this);
-        yearTextView.setTextSize(getResources().getDimension(R.dimen.tv_text_size_small));
-        yearTextView.setTextColor(getColor(R.color.tv_text_secondary));
-        LinearLayout.LayoutParams yearParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        yearParams.leftMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_medium);
-        yearTextView.setLayoutParams(yearParams);
-        metaLayout.addView(yearTextView);
-        
-        durationTextView = new TextView(this);
-        durationTextView.setTextSize(getResources().getDimension(R.dimen.tv_text_size_small));
-        durationTextView.setTextColor(getColor(R.color.tv_text_secondary));
-        LinearLayout.LayoutParams durationParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        durationParams.leftMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_medium);
-        durationTextView.setLayoutParams(durationParams);
-        metaLayout.addView(durationTextView);
-        
-        contentLayout.addView(metaLayout);
-        
-        // Play Button
-        playButtonTextView = new TextView(this);
-        playButtonTextView.setText("▶ 播放");
-        playButtonTextView.setTextSize(getResources().getDimension(R.dimen.tv_text_size_large));
-        playButtonTextView.setTextColor(getColor(R.color.tv_text_on_accent));
-        playButtonTextView.setPadding(
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_large),
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_medium),
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_large),
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_medium)
-        );
-        playButtonTextView.setClickable(true);
-        playButtonTextView.setFocusable(true);
-        playButtonTextView.setBackground(getDrawable(R.drawable.bg_button_primary));
-        
-        LinearLayout.LayoutParams playButtonParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        playButtonParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_large);
-        playButtonTextView.setLayoutParams(playButtonParams);
-        
+        // 播放按钮点击
         playButtonTextView.setOnClickListener(v -> onPlayButtonClick());
-        
-        contentLayout.addView(playButtonTextView);
-        
-        summaryTextView = new TextView(this);
-        summaryTextView.setTextSize(getResources().getDimension(R.dimen.tv_text_size_medium));
-        summaryTextView.setTextColor(getColor(R.color.tv_text_primary));
-        summaryTextView.setMaxLines(6);
-        summaryTextView.setText("Loading details...");
-        summaryTextView.setLineSpacing(4, 1.2f);
-        LinearLayout.LayoutParams summaryParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        summaryParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_large);
-        summaryTextView.setLayoutParams(summaryParams);
-        contentLayout.addView(summaryTextView);
-        
-        seasonContainer = new LinearLayout(this);
-        seasonContainer.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams seasonParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        seasonParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_large);
-        seasonContainer.setLayoutParams(seasonParams);
-        contentLayout.addView(seasonContainer);
-        
-        mainLayout.addView(contentLayout);
-        scrollView.addView(mainLayout);
-        setContentView(scrollView);
+        playButtonTextView.requestFocus();
     }
     
     private void loadMediaDetail() {
@@ -241,8 +188,9 @@ public class MediaDetailActivity extends AppCompatActivity {
                     if (isTVShow()) {
                         loadSeasonList();
                     } else {
-                        // 电影模式：加载演职人员
+                        // 电影：加载演职人员和流信息
                         loadPersonListForMovie();
+                        loadStreamInfo();
                     }
                 });
             }
@@ -250,20 +198,281 @@ public class MediaDetailActivity extends AppCompatActivity {
             @Override
             public void onError(String error) {
                 runOnUiThread(() -> {
-                    Toast.makeText(MediaDetailActivity.this, "加载详情失败: " + error, Toast.LENGTH_LONG).show();
+                    ToastUtils.show(MediaDetailActivity.this, "加载详情失败: " + error);
                     summaryTextView.setText("加载详情失败");
                 });
             }
         });
     }
     
+    private void updateUI(MediaDetailResponse detail) {
+        titleTextView.setText(detail.getTitle());
+        mediaTitle = detail.getTitle();
+        
+        // 时长（顶部小字）
+        if (detail.getRuntime() > 0) {
+            durationTextView.setText("时长 " + FormatUtils.formatDuration(detail.getRuntime() * 60));
+            durationTextView.setVisibility(View.VISIBLE);
+        } else {
+            durationTextView.setVisibility(View.GONE);
+        }
+        
+        // 评分（蓝色高亮）
+        if (detail.getVoteAverage() > 0) {
+            ratingTextView.setText(String.format("%.1f分", detail.getVoteAverage()));
+            ratingTextView.setVisibility(View.VISIBLE);
+        } else {
+            ratingTextView.setVisibility(View.GONE);
+        }
+        
+        // 年份
+        String year = "";
+        if (detail.getReleaseDate() != null && detail.getReleaseDate().length() >= 4) {
+            year = detail.getReleaseDate().substring(0, 4);
+        } else if (detail.getAirDate() != null && detail.getAirDate().length() >= 4) {
+            year = detail.getAirDate().substring(0, 4);
+        } else if (detail.getFirstAirDate() != null && detail.getFirstAirDate().length() >= 4) {
+            year = detail.getFirstAirDate().substring(0, 4);
+        }
+        if (!year.isEmpty()) {
+            yearText.setText(year);
+            yearText.setVisibility(View.VISIBLE);
+        } else {
+            yearText.setVisibility(View.GONE);
+        }
+        
+        // 类型
+        String genres = detail.getGenres();
+        if (genres != null && !genres.isEmpty()) {
+            genreText.setText(genres);
+            genreText.setVisibility(View.VISIBLE);
+        } else {
+            genreText.setVisibility(View.GONE);
+        }
+        
+        // 地区
+        String originCountry = detail.getOriginCountry();
+        if (originCountry != null && !originCountry.isEmpty()) {
+            regionText.setText(originCountry);
+            regionText.setVisibility(View.VISIBLE);
+        } else {
+            regionText.setVisibility(View.GONE);
+        }
+        
+        // 时长（元信息行）
+        if (detail.getRuntime() > 0) {
+            runtimeText.setText(FormatUtils.formatDuration(detail.getRuntime() * 60));
+            runtimeText.setVisibility(View.VISIBLE);
+        } else {
+            runtimeText.setVisibility(View.GONE);
+        }
+        
+        // 媒体类型标签
+        String type = detail.getType();
+        if (type != null && !type.isEmpty()) {
+            mediaTypeTag.setText(type.toLowerCase());
+            mediaTypeTag.setVisibility(View.VISIBLE);
+        } else {
+            mediaTypeTag.setVisibility(View.GONE);
+        }
+        
+        // 副标题（原标题）- 隐藏，已在元信息行显示
+        subtitleTextView.setVisibility(View.GONE);
+
+        // 简介
+        String overview = detail.getOverview();
+        if (overview != null && !overview.trim().isEmpty()) {
+            summaryTextView.setText(overview);
+        } else {
+            summaryTextView.setText("暂无简介");
+        }
+        
+        // 海报
+        if (detail.getPoster() != null && !detail.getPoster().isEmpty()) {
+            String posterUrl = detail.getPoster();
+            if (!posterUrl.startsWith("http")) {
+                posterUrl = SharedPreferencesManager.getImageServiceUrl() + posterUrl + "?w=400";
+            }
+            Glide.with(this).load(posterUrl).placeholder(R.drawable.bg_card).into(posterImageView);
+        }
+    }
+    
     /**
-     * 🎬 为电影加载演职人员列表
+     * 加载流信息（电影专用）
+     */
+    private void loadStreamInfo() {
+        mediaManager.getStreamList(mediaGuid, new MediaManager.MediaCallback<StreamListResponse>() {
+            @Override
+            public void onSuccess(StreamListResponse streamResponse) {
+                runOnUiThread(() -> updateStreamInfo(streamResponse));
+            }
+            
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "Failed to load stream info: " + error);
+            }
+        });
+    }
+    
+    private void updateStreamInfo(StreamListResponse streamResponse) {
+        if (streamResponse == null || streamResponse.getData() == null) {
+            return;
+        }
+        
+        cachedStreamResponse = streamResponse;
+        
+        // 显示文件信息区域
+        dividerFile.setVisibility(View.VISIBLE);
+        fileInfoSection.setVisibility(View.VISIBLE);
+        
+        StreamListResponse.StreamData data = streamResponse.getData();
+        
+        // 文件信息
+        List<StreamListResponse.FileStream> files = data.getFiles();
+        if (files != null && !files.isEmpty()) {
+            StreamListResponse.FileStream file = files.get(0);
+            filePath.setText(file.getPath() != null ? file.getPath() : "-");
+            fileSize.setText(file.getSize() > 0 ? FormatUtils.formatFileSize(file.getSize()) : "-");
+            fileCreated.setText(file.getFileBirthTime() > 0 ? FormatUtils.formatDate(file.getFileBirthTime()) : "-");
+            fileAdded.setText(file.getCreateTime() > 0 ? FormatUtils.formatDate(file.getCreateTime()) : "-");
+        }
+        
+        // 视频信息
+        List<StreamListResponse.VideoStream> videoStreams = data.getVideoStreams();
+        if (videoStreams != null && !videoStreams.isEmpty()) {
+            dividerVideo.setVisibility(View.VISIBLE);
+            videoInfoSection.setVisibility(View.VISIBLE);
+            
+            StreamListResponse.VideoStream video = videoStreams.get(0);
+            videoCodec.setText(video.getCodecName() != null ? video.getCodecName().toUpperCase() : "-");
+            videoResolution.setText(video.getWidth() > 0 && video.getHeight() > 0 ? 
+                    video.getWidth() + " x " + video.getHeight() : "-");
+            videoFramerate.setText(video.getFrameRate() > 0 ? 
+                    String.format("%.2f fps", video.getFrameRate()) : "-");
+            videoBitrate.setText(video.getBitRate() > 0 ? 
+                    FormatUtils.formatBitrate(video.getBitRate()) : "-");
+            String colorRange = video.getColorRangeType();
+            videoHdr.setText(colorRange != null && colorRange.toUpperCase().contains("HDR") ? "HDR" : "SDR");
+            
+            // 更新分辨率标签
+            updateVideoTags(video, data.getAudioStreams());
+        }
+        
+        // 音频信息
+        List<StreamListResponse.AudioStream> audioStreams = data.getAudioStreams();
+        if (audioStreams != null && !audioStreams.isEmpty()) {
+            dividerAudio.setVisibility(View.VISIBLE);
+            audioInfoSection.setVisibility(View.VISIBLE);
+            
+            StreamListResponse.AudioStream audio = audioStreams.get(0);
+            audioCodec.setText(audio.getCodecName() != null ? audio.getCodecName().toUpperCase() : "-");
+            audioChannels.setText(FormatUtils.formatChannels(audio.getChannels()));
+            String sampleRate = audio.getSampleRate();
+            audioSampleRate.setText(sampleRate != null && !sampleRate.isEmpty() ? 
+                    sampleRate + " Hz" : "-");
+            
+            // 更新音轨简要信息
+            audioBrief.setText(audioStreams.size() > 1 ? audioStreams.size() + "条音轨" : "1条音轨");
+            audioBrief.setVisibility(View.VISIBLE);
+        } else {
+            audioBrief.setText("未知音轨");
+            audioBrief.setVisibility(View.VISIBLE);
+        }
+        
+        // 字幕信息
+        List<StreamListResponse.SubtitleStream> subtitleStreams = data.getSubtitleStreams();
+        if (subtitleStreams != null && !subtitleStreams.isEmpty()) {
+            dividerSubtitle.setVisibility(View.VISIBLE);
+            subtitleInfoSection.setVisibility(View.VISIBLE);
+            
+            StringBuilder subText = new StringBuilder();
+            for (int i = 0; i < subtitleStreams.size(); i++) {
+                if (i > 0) subText.append("\n");
+                subText.append(FormatUtils.formatSubtitleInfo(subtitleStreams.get(i)));
+            }
+            subtitleList.setText(subText.toString());
+            
+            // 更新字幕简要信息
+            subtitleBrief.setText("字幕 " + subtitleStreams.size() + "条");
+            subtitleBrief.setVisibility(View.VISIBLE);
+        } else {
+            subtitleBrief.setText("无字幕");
+            subtitleBrief.setVisibility(View.VISIBLE);
+        }
+    }
+    
+    /**
+     * 更新视频标签（分辨率、HDR、音频格式）
+     */
+    private void updateVideoTags(StreamListResponse.VideoStream video, List<StreamListResponse.AudioStream> audioStreams) {
+        tagsContainer.removeAllViews();
+        
+        // 分辨率标签
+        int height = video.getHeight();
+        String resolutionTag = null;
+        if (height >= 2160) {
+            resolutionTag = "4K";
+        } else if (height >= 1080) {
+            resolutionTag = "1080p";
+        } else if (height >= 720) {
+            resolutionTag = "720";
+        } else if (height > 0) {
+            resolutionTag = height + "p";
+        }
+        if (resolutionTag != null) {
+            addTag(resolutionTag);
+        }
+        
+        // HDR标签
+        String colorRangeType = video.getColorRangeType();
+        if (colorRangeType != null && colorRangeType.toUpperCase().contains("HDR")) {
+            addTag("HDR");
+        } else {
+            addTag("SDR");
+        }
+        
+        // 音频格式标签
+        if (audioStreams != null && !audioStreams.isEmpty()) {
+            StreamListResponse.AudioStream audio = audioStreams.get(0);
+            int channels = audio.getChannels();
+            if (channels >= 6) {
+                addTag("5.1");
+            } else if (channels == 2) {
+                addTag("立体声");
+            } else if (channels == 1) {
+                addTag("单声道");
+            }
+        }
+    }
+    
+    /**
+     * 添加标签到容器
+     */
+    private void addTag(String text) {
+        TextView tag = new TextView(this);
+        tag.setText(text);
+        tag.setTextSize(11);
+        tag.setTextColor(getColor(R.color.tv_text_secondary));
+        tag.setBackgroundResource(R.drawable.tag_background);
+        tag.setPadding(12, 4, 12, 4);
+        
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(0, 0, 8, 0);
+        tag.setLayoutParams(params);
+        
+        tagsContainer.addView(tag);
+    }
+    
+    /**
+     * 为电影加载演职人员列表
      */
     private void loadPersonListForMovie() {
-        mediaManager.getPersonList(mediaGuid, new MediaManager.MediaCallback<java.util.List<com.mynas.nastv.model.PersonInfo>>() {
+        mediaManager.getPersonList(mediaGuid, new MediaManager.MediaCallback<List<PersonInfo>>() {
             @Override
-            public void onSuccess(java.util.List<com.mynas.nastv.model.PersonInfo> personList) {
+            public void onSuccess(List<PersonInfo> personList) {
                 runOnUiThread(() -> {
                     if (personList != null && !personList.isEmpty()) {
                         createPersonSection(personList);
@@ -279,15 +488,14 @@ public class MediaDetailActivity extends AppCompatActivity {
     }
     
     /**
-     * 🎬 创建演职人员区域
+     * 创建演职人员区域
      */
-    private void createPersonSection(java.util.List<com.mynas.nastv.model.PersonInfo> personList) {
-        // 按类型分组
-        java.util.List<com.mynas.nastv.model.PersonInfo> directors = new java.util.ArrayList<>();
-        java.util.List<com.mynas.nastv.model.PersonInfo> actors = new java.util.ArrayList<>();
-        java.util.List<com.mynas.nastv.model.PersonInfo> writers = new java.util.ArrayList<>();
+    private void createPersonSection(List<PersonInfo> personList) {
+        List<PersonInfo> directors = new ArrayList<>();
+        List<PersonInfo> actors = new ArrayList<>();
+        List<PersonInfo> writers = new ArrayList<>();
         
-        for (com.mynas.nastv.model.PersonInfo person : personList) {
+        for (PersonInfo person : personList) {
             if (person.isDirector()) {
                 directors.add(person);
             } else if (person.isActor()) {
@@ -297,59 +505,41 @@ public class MediaDetailActivity extends AppCompatActivity {
             }
         }
         
-        // 创建演职人员容器
-        LinearLayout personContainer = new LinearLayout(this);
-        personContainer.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams containerParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        containerParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_large);
-        personContainer.setLayoutParams(containerParams);
+        personContainer.setVisibility(View.VISIBLE);
+        personContainer.removeAllViews();
         
-        // 导演
         if (!directors.isEmpty()) {
             addPersonRow(personContainer, "导演", directors);
         }
-        
-        // 演员
         if (!actors.isEmpty()) {
             addPersonRow(personContainer, "演员", actors);
         }
-        
-        // 编剧
         if (!writers.isEmpty()) {
             addPersonRow(personContainer, "编剧", writers);
         }
-        
-        seasonContainer.addView(personContainer);
     }
     
-    /**
-     * 🎬 添加演职人员行
-     */
-    private void addPersonRow(LinearLayout container, String title, java.util.List<com.mynas.nastv.model.PersonInfo> persons) {
-        // 标题
+    private void addPersonRow(LinearLayout container, String title, List<PersonInfo> persons) {
         TextView titleView = new TextView(this);
         titleView.setText(title);
-        titleView.setTextSize(getResources().getDimension(R.dimen.tv_text_size_medium));
+        titleView.setTextSize(16);
         titleView.setTextColor(getColor(R.color.tv_text_secondary));
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        titleParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_medium);
+        titleParams.topMargin = 16;
         titleView.setLayoutParams(titleParams);
         container.addView(titleView);
         
-        // 人员列表（水平滚动）
         android.widget.HorizontalScrollView scrollView = new android.widget.HorizontalScrollView(this);
         scrollView.setHorizontalScrollBarEnabled(false);
         
         LinearLayout rowLayout = new LinearLayout(this);
         rowLayout.setOrientation(LinearLayout.HORIZONTAL);
+        rowLayout.setPadding(0, 8, 0, 0);
         
-        for (com.mynas.nastv.model.PersonInfo person : persons) {
+        for (PersonInfo person : persons) {
             LinearLayout personItem = createPersonItem(person);
             rowLayout.addView(personItem);
         }
@@ -358,22 +548,21 @@ public class MediaDetailActivity extends AppCompatActivity {
         container.addView(scrollView);
     }
     
-    /**
-     * 🎬 创建单个演职人员项
-     */
-    private LinearLayout createPersonItem(com.mynas.nastv.model.PersonInfo person) {
+    private LinearLayout createPersonItem(PersonInfo person) {
         LinearLayout itemLayout = new LinearLayout(this);
         itemLayout.setOrientation(LinearLayout.VERTICAL);
         itemLayout.setGravity(android.view.Gravity.CENTER);
         
-        int itemWidth = getResources().getDimensionPixelSize(R.dimen.tv_person_item_width);
-        LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(itemWidth, LinearLayout.LayoutParams.WRAP_CONTENT);
-        itemParams.rightMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_small);
+        int itemWidth = 80;
+        LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(
+                (int)(itemWidth * getResources().getDisplayMetrics().density),
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        itemParams.rightMargin = 8;
         itemLayout.setLayoutParams(itemParams);
         
-        // 头像
         ImageView avatarView = new ImageView(this);
-        int avatarSize = getResources().getDimensionPixelSize(R.dimen.tv_person_avatar_size);
+        int avatarSize = (int)(60 * getResources().getDisplayMetrics().density);
         LinearLayout.LayoutParams avatarParams = new LinearLayout.LayoutParams(avatarSize, avatarSize);
         avatarView.setLayoutParams(avatarParams);
         avatarView.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -389,7 +578,6 @@ public class MediaDetailActivity extends AppCompatActivity {
         }
         itemLayout.addView(avatarView);
         
-        // 姓名
         TextView nameView = new TextView(this);
         nameView.setText(person.getName());
         nameView.setTextSize(12);
@@ -401,11 +589,10 @@ public class MediaDetailActivity extends AppCompatActivity {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        nameParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_small);
+        nameParams.topMargin = 4;
         nameView.setLayoutParams(nameParams);
         itemLayout.addView(nameView);
         
-        // 角色/职位
         String role = person.getRole();
         if (role != null && !role.isEmpty()) {
             TextView roleView = new TextView(this);
@@ -449,15 +636,16 @@ public class MediaDetailActivity extends AppCompatActivity {
     }
     
     private void createSeasonList() {
-        seasonContainer.removeAllViews();
-        
         if (seasons == null || seasons.isEmpty()) {
             return;
         }
         
+        seasonContainer.setVisibility(View.VISIBLE);
+        seasonContainer.removeAllViews();
+        
         TextView seasonTitle = new TextView(this);
         seasonTitle.setText("季列表");
-        seasonTitle.setTextSize(getResources().getDimension(R.dimen.tv_text_size_large));
+        seasonTitle.setTextSize(18);
         seasonTitle.setTextColor(getColor(R.color.tv_text_primary));
         seasonContainer.addView(seasonTitle);
         
@@ -467,7 +655,7 @@ public class MediaDetailActivity extends AppCompatActivity {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        rowParams.topMargin = getResources().getDimensionPixelSize(R.dimen.tv_margin_medium);
+        rowParams.topMargin = 16;
         seasonRow.setLayoutParams(rowParams);
         
         for (SeasonListResponse.Season season : seasons) {
@@ -485,25 +673,19 @@ public class MediaDetailActivity extends AppCompatActivity {
             text += "\n" + season.getEpisodeCount() + "集";
         }
         button.setText(text);
-        button.setTextSize(getResources().getDimension(R.dimen.tv_text_size_medium));
+        button.setTextSize(14);
         button.setTextColor(getColor(R.color.tv_text_primary));
         button.setBackgroundColor(getColor(R.color.tv_card_background));
         button.setGravity(android.view.Gravity.CENTER);
         button.setClickable(true);
         button.setFocusable(true);
-        button.setPadding(
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_medium),
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_medium),
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_medium),
-                getResources().getDimensionPixelSize(R.dimen.tv_margin_medium)
-        );
+        button.setPadding(24, 16, 24, 16);
         
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        int margin = getResources().getDimensionPixelSize(R.dimen.tv_margin_small);
-        params.setMargins(0, 0, margin, 0);
+        params.setMargins(0, 0, 8, 0);
         button.setLayoutParams(params);
         
         button.setOnClickListener(v -> navigateToSeasonDetail(season));
@@ -527,7 +709,6 @@ public class MediaDetailActivity extends AppCompatActivity {
         intent.putExtra(SeasonDetailActivity.EXTRA_TV_TITLE, mediaTitle);
         intent.putExtra(SeasonDetailActivity.EXTRA_TV_GUID, mediaGuid);
         intent.putExtra(SeasonDetailActivity.EXTRA_SEASON_NUMBER, season.getSeasonNumber());
-        // 传递豆瓣ID用于弹幕
         if (mediaDetail != null && mediaDetail.getDoubanId() > 0) {
             intent.putExtra("douban_id", mediaDetail.getDoubanId());
         }
@@ -547,11 +728,12 @@ public class MediaDetailActivity extends AppCompatActivity {
     }
     
     private void createEpisodeGrid(int episodeCount) {
+        seasonContainer.setVisibility(View.VISIBLE);
         seasonContainer.removeAllViews();
         
         TextView episodeTitle = new TextView(this);
         episodeTitle.setText("剧集");
-        episodeTitle.setTextSize(getResources().getDimension(R.dimen.tv_text_size_large));
+        episodeTitle.setTextSize(18);
         episodeTitle.setTextColor(getColor(R.color.tv_text_primary));
         seasonContainer.addView(episodeTitle);
         
@@ -583,17 +765,19 @@ public class MediaDetailActivity extends AppCompatActivity {
     private TextView createEpisodeButton(int episodeNumber) {
         TextView button = new TextView(this);
         button.setText(String.valueOf(episodeNumber));
-        button.setTextSize(getResources().getDimension(R.dimen.tv_text_size_medium));
+        button.setTextSize(14);
         button.setTextColor(getColor(R.color.tv_text_primary));
         button.setBackgroundColor(getColor(R.color.tv_card_background));
         button.setGravity(android.view.Gravity.CENTER);
         button.setClickable(true);
         button.setFocusable(true);
         
-        int buttonSize = getResources().getDimensionPixelSize(R.dimen.tv_episode_button_size);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(buttonSize, buttonSize);
-        int margin = getResources().getDimensionPixelSize(R.dimen.tv_margin_small);
-        params.setMargins(0, 0, margin, margin);
+        int buttonSize = 48;
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                (int)(buttonSize * getResources().getDisplayMetrics().density),
+                (int)(buttonSize * getResources().getDisplayMetrics().density)
+        );
+        params.setMargins(0, 0, 8, 8);
         button.setLayoutParams(params);
         
         button.setOnClickListener(v -> startPlayEpisode(episodeNumber));
@@ -611,88 +795,6 @@ public class MediaDetailActivity extends AppCompatActivity {
         return button;
     }
     
-    private void updateUI(MediaDetailResponse detail) {
-        titleTextView.setText(detail.getTitle());
-        mediaTitle = detail.getTitle();
-        
-        // 构建副标题：类型 + 年份 + 地区
-        StringBuilder subtitleBuilder = new StringBuilder();
-        
-        // 类型
-        String type = detail.getType();
-        if (type != null && !type.isEmpty()) {
-            subtitleBuilder.append(type);
-        }
-        
-        // 年份
-        String year = "";
-        if (detail.getReleaseDate() != null && detail.getReleaseDate().length() >= 4) {
-            year = detail.getReleaseDate().substring(0, 4);
-        } else if (detail.getAirDate() != null && detail.getAirDate().length() >= 4) {
-            year = detail.getAirDate().substring(0, 4);
-        }
-        if (!year.isEmpty()) {
-            if (subtitleBuilder.length() > 0) subtitleBuilder.append(" · ");
-            subtitleBuilder.append(year);
-        }
-        
-        // 类型标签 (genres)
-        String genres = detail.getGenres();
-        if (genres != null && !genres.isEmpty()) {
-            if (subtitleBuilder.length() > 0) subtitleBuilder.append(" · ");
-            subtitleBuilder.append(genres);
-        }
-        
-        // 地区 (origin_country)
-        String originCountry = detail.getOriginCountry();
-        if (originCountry != null && !originCountry.isEmpty()) {
-            if (subtitleBuilder.length() > 0) subtitleBuilder.append(" · ");
-            subtitleBuilder.append(originCountry);
-        }
-        
-        // 内容分级 (content_rating)
-        String contentRating = detail.getContentRating();
-        if (contentRating != null && !contentRating.isEmpty()) {
-            if (subtitleBuilder.length() > 0) subtitleBuilder.append(" · ");
-            subtitleBuilder.append(contentRating);
-        }
-        
-        subtitleTextView.setText(subtitleBuilder.toString());
-        
-        // 评分显示
-        if (detail.getVoteAverage() > 0) {
-            ratingTextView.setText("⭐ " + String.format("%.1f", detail.getVoteAverage()));
-            ratingTextView.setVisibility(View.VISIBLE);
-        } else {
-            ratingTextView.setVisibility(View.GONE);
-        }
-        
-        // 时长
-        if (detail.getRuntime() > 0) {
-            durationTextView.setText(detail.getRuntime() + " min");
-            durationTextView.setVisibility(View.VISIBLE);
-        } else {
-            durationTextView.setVisibility(View.GONE);
-        }
-
-        // 简介
-        String overview = detail.getOverview();
-        if (overview != null && !overview.trim().isEmpty()) {
-            summaryTextView.setText(overview);
-        } else {
-            summaryTextView.setText("暂无简介");
-        }
-        
-        // 海报
-        if (detail.getPoster() != null && !detail.getPoster().isEmpty()) {
-            String posterUrl = detail.getPoster();
-            if (!posterUrl.startsWith("http")) {
-                posterUrl = SharedPreferencesManager.getImageServiceUrl() + posterUrl + "?w=400";
-            }
-            Glide.with(this).load(posterUrl).placeholder(R.drawable.bg_card).into(posterImageView);
-        }
-    }
-    
     private void onPlayButtonClick() {
         if (isTVShow()) {
             if (seasons != null && !seasons.isEmpty()) {
@@ -706,12 +808,12 @@ public class MediaDetailActivity extends AppCompatActivity {
     }
     
     private void startPlayMovie() {
-        Toast.makeText(this, "正在加载...", Toast.LENGTH_SHORT).show();
+        ToastUtils.show(this, "正在加载...");
         startPlayItem(mediaGuid, mediaTitle, 0);
     }
     
     private void startPlayEpisode(int episodeNumber) {
-        Toast.makeText(this, "正在加载第" + episodeNumber + "集...", Toast.LENGTH_SHORT).show();
+        ToastUtils.show(this, "正在加载第" + episodeNumber + "集...");
         
         mediaManager.getEpisodeList(mediaGuid, new MediaManager.MediaCallback<List<EpisodeListResponse.Episode>>() {
             @Override
@@ -730,13 +832,13 @@ public class MediaDetailActivity extends AppCompatActivity {
                     String epTitle = target.getTitle() != null ? target.getTitle() : ("第" + episodeNumber + "集");
                     startPlayItem(target.getGuid(), epTitle, episodeNumber);
                 } else {
-                    runOnUiThread(() -> Toast.makeText(MediaDetailActivity.this, "未找到该集", Toast.LENGTH_SHORT).show());
+                    runOnUiThread(() -> ToastUtils.show(MediaDetailActivity.this, "未找到该集"));
                 }
             }
 
             @Override
             public void onError(String error) {
-                 runOnUiThread(() -> Toast.makeText(MediaDetailActivity.this, "加载剧集失败", Toast.LENGTH_SHORT).show());
+                 runOnUiThread(() -> ToastUtils.show(MediaDetailActivity.this, "加载剧集失败"));
             }
         });
     }
@@ -749,7 +851,7 @@ public class MediaDetailActivity extends AppCompatActivity {
             }
             @Override
             public void onError(String error) {
-                runOnUiThread(() -> Toast.makeText(MediaDetailActivity.this, "播放失败: " + error, Toast.LENGTH_LONG).show());
+                runOnUiThread(() -> ToastUtils.show(MediaDetailActivity.this, "播放失败: " + error));
             }
         });
     }
@@ -760,8 +862,6 @@ public class MediaDetailActivity extends AppCompatActivity {
         intent.putExtra("video_title", title);
         intent.putExtra("media_title", mediaTitle);
         intent.putExtra("episode_guid", itemGuid);
-        
-        // 🎬 传递恢复播放位置
         intent.putExtra("resume_position", playInfo.getResumePositionSeconds());
         intent.putExtra("video_guid", playInfo.getVideoGuid());
         intent.putExtra("audio_guid", playInfo.getAudioGuid());

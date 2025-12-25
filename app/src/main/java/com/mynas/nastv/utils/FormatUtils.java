@@ -413,4 +413,27 @@ public class FormatUtils {
                 return languageCode;
         }
     }
+
+    /**
+     * 格式化声道数
+     * @param channels 声道数
+     * @return 人类可读格式，如 "立体声", "5.1声道", "7.1声道"
+     */
+    public static String formatChannels(int channels) {
+        switch (channels) {
+            case 1:
+                return "单声道";
+            case 2:
+                return "立体声";
+            case 6:
+                return "5.1声道";
+            case 8:
+                return "7.1声道";
+            default:
+                if (channels > 0) {
+                    return channels + "声道";
+                }
+                return "-";
+        }
+    }
 }

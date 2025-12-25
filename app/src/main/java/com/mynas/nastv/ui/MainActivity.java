@@ -1,5 +1,7 @@
 package com.mynas.nastv.ui;
 
+import com.mynas.nastv.utils.ToastUtils;
+
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -37,14 +39,9 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     
     // UI组件
-    private TextView userNameText;
-    private TextView logoutButton;
     
     // 导航组件
     private TextView navHome;
-    private TextView navProfile;
-    private TextView navFavorite;
-    private TextView navCategory;
     
     // 媒体库列表
     private RecyclerView mediaLibraryList;
@@ -116,17 +113,15 @@ public class MainActivity extends AppCompatActivity {
         
         // 🔗 绑定UI组件
         Log.d(TAG, "📱 [调试] 绑定UI组件");
-        userNameText = findViewById(R.id.user_name_text);
-        logoutButton = findViewById(R.id.logout_button);
         navHome = findViewById(R.id.nav_home);
-        navProfile = findViewById(R.id.nav_profile);
-        navFavorite = findViewById(R.id.nav_favorite);
-        navCategory = findViewById(R.id.nav_category);
         mediaLibraryList = findViewById(R.id.media_library_list);
         continueWatchingTitle = findViewById(R.id.continue_watching_title);
         continueWatchingList = findViewById(R.id.continue_watching_list);
         mediaContentContainer = findViewById(R.id.media_content_container);
-        mainScrollView = findViewById(R.id.main_scroll_view);  // 🚨 [新增] 绑定ScrollView
+        mainScrollView = findViewById(R.id.main_scroll_view);
+        
+        // 新布局中的收藏容器
+        View navFavoriteContainer = findViewById(R.id.nav_favorite_container);
         
         // 🎬 初始化数据管理器
         Log.d(TAG, "📱 [调试] 初始化数据管理器");
@@ -139,10 +134,6 @@ public class MainActivity extends AppCompatActivity {
         // 🔄 设置继续观看列表
         Log.d(TAG, "📱 [调试] 设置继续观看列表");
         setupContinueWatchingList();
-        
-        // 👤 设置用户信息
-        Log.d(TAG, "📱 [调试] 设置用户信息");
-        setupUserInfo();
         
         // 🔧 设置事件监听器
         Log.d(TAG, "📱 [调试] 设置事件监听器");
@@ -185,14 +176,11 @@ public class MainActivity extends AppCompatActivity {
     }
     
     /**
-     * 👤 设置用户信息显示
+     * 👤 设置用户信息显示 - 新布局中已移除
      */
     private void setupUserInfo() {
-        // 显示简单的用户标识
-        String userName = "Android TV 用户";
-        userNameText.setText(userName);
-        
-        Log.d(TAG, "👤 用户信息设置完成: " + userName);
+        // 新布局中没有用户信息显示区域
+        Log.d(TAG, "👤 新布局中已移除用户信息显示");
     }
     
     /**
@@ -205,56 +193,22 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 Log.d(TAG, "🏠 用户点击主页导航");
                 if (isShowingLibraryContent) {
-                    // 如果正在显示媒体库内容，返回主页
                     showHomeContent();
                 } else {
-                    // 如果已经在主页，不做任何操作
                     Log.d(TAG, "🏠 已经在主页，无需操作");
                 }
             }
         });
         
         // ⭐ 收藏导航点击事件
-        if (navFavorite != null) {
-            navFavorite.setOnClickListener(v -> {
+        View navFavoriteContainer = findViewById(R.id.nav_favorite_container);
+        if (navFavoriteContainer != null) {
+            navFavoriteContainer.setOnClickListener(v -> {
                 Log.d(TAG, "⭐ 用户点击收藏导航");
                 Intent intent = new Intent(MainActivity.this, FavoriteActivity.class);
                 startActivity(intent);
             });
         }
-        
-        // 📂 分类导航点击事件
-        if (navCategory != null) {
-            navCategory.setOnClickListener(v -> {
-                Log.d(TAG, "📂 用户点击分类导航");
-                Intent intent = new Intent(MainActivity.this, CategoryActivity.class);
-                intent.putExtra(CategoryActivity.EXTRA_TYPE, "all");
-                intent.putExtra(CategoryActivity.EXTRA_TITLE, "分类");
-                startActivity(intent);
-            });
-        }
-        
-        // 退出按钮点击事件
-        logoutButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Log.d(TAG, "🚪 用户点击退出按钮");
-                performLogout();
-            }
-        });
-        
-        // Android TV焦点处理
-        logoutButton.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    Log.d(TAG, "🎯 退出按钮获得焦点");
-                }
-            }
-        });
-        
-        // 📺 分类卡片点击事件（新布局中已移除旧的卡片）
-        // setupCategoryCardListeners(); // 旧布局的代码，新布局中不需要
     }
     
     /**
@@ -361,7 +315,7 @@ public class MainActivity extends AppCompatActivity {
             public void onError(String error) {
                 Log.e(TAG, "❌ 媒体库列表加载失败: " + error);
                 runOnUiThread(() -> {
-                    Toast.makeText(MainActivity.this, "媒体库加载失败: " + error, Toast.LENGTH_LONG).show();
+                    ToastUtils.show(MainActivity.this, "媒体库加载失败: " + error);
                 });
             }
         });
@@ -414,7 +368,7 @@ public class MainActivity extends AppCompatActivity {
                     // 即使统计失败，也要创建预览内容
                     loadMediaLibrariesPreview(libraries);
                     
-                    Toast.makeText(MainActivity.this, "获取媒体库统计失败: " + error, Toast.LENGTH_SHORT).show();
+                    ToastUtils.show(MainActivity.this, "获取媒体库统计失败: " + error);
                 });
             }
         });
@@ -537,7 +491,7 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "✅ 成功导航到 " + categoryName + " 分类");
         } catch (Exception e) {
             Log.e(TAG, "❌ 导航失败: " + e.getMessage());
-            Toast.makeText(this, "打开 " + categoryName + " 分类失败，请重试", Toast.LENGTH_SHORT).show();
+            ToastUtils.show(this, "打开 " + categoryName + " 分类失败，请重试");
         }
     }
     
@@ -547,7 +501,7 @@ public class MainActivity extends AppCompatActivity {
     private void updateStatus(String status) {
         // 新UI设计中没有statusText组件
         Log.d(TAG, "📊 状态更新: " + status);
-        // Toast.makeText(this, status, Toast.LENGTH_SHORT).show(); // 可选：用Toast显示状态
+        // ToastUtils.show(this, status); // 可选：用Toast显示状态
     }
     
     /**
@@ -560,7 +514,7 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferencesManager.clearAuthInfo();
         
         // 显示退出消息
-        Toast.makeText(this, "已退出登录", Toast.LENGTH_SHORT).show();
+        ToastUtils.show(this, "已退出登录");
         
         // 跳转到登录页
         navigateToLogin();
@@ -834,7 +788,7 @@ public class MainActivity extends AppCompatActivity {
             public void onError(String error) {
                 Log.e(TAG, "❌ 媒体库 " + library.getName() + " 完整内容加载失败: " + error);
                 runOnUiThread(() -> {
-                    Toast.makeText(MainActivity.this, "加载失败: " + error, Toast.LENGTH_LONG).show();
+                    ToastUtils.show(MainActivity.this, "加载失败: " + error);
                     adapter.updateItems(new ArrayList<>());
                 });
             }
@@ -906,7 +860,7 @@ public class MainActivity extends AppCompatActivity {
      * 直接使用 Web 端的 URL 格式，不依赖 stream API
      */
     private void playEpisodeDirectly(MediaItem mediaItem) {
-        Toast.makeText(this, "正在加载 " + mediaItem.getTitle() + "...", Toast.LENGTH_SHORT).show();
+        ToastUtils.show(this, "正在加载 " + mediaItem.getTitle() + "...");
         
         // 如果已有mediaGuid，直接构建播放URL（与Web端一致）
         String mediaGuid = mediaItem.getMediaGuid();
@@ -931,7 +885,7 @@ public class MainActivity extends AppCompatActivity {
                 public void onError(String error) {
                     runOnUiThread(() -> {
                         Log.e(TAG, "❌ 播放失败: " + error);
-                        Toast.makeText(MainActivity.this, "播放失败: " + error, Toast.LENGTH_LONG).show();
+                        ToastUtils.show(MainActivity.this, "播放失败: " + error);
                     });
                 }
             });
@@ -1077,7 +1031,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             case KeyEvent.KEYCODE_MENU:
                 // 菜单键 - 显示设置或选项
-                Toast.makeText(this, "菜单功能待实现", Toast.LENGTH_SHORT).show();
+                ToastUtils.show(this, "菜单功能待实现");
                 return true;
             default:
                 return super.onKeyDown(keyCode, event);

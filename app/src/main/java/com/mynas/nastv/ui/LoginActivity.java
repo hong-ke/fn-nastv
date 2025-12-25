@@ -1,5 +1,7 @@
 package com.mynas.nastv.ui;
 
+import com.mynas.nastv.utils.ToastUtils;
+
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
@@ -253,7 +255,7 @@ public class LoginActivity extends AppCompatActivity {
         
         runOnUiThread(() -> {
             updateStatus("登录失败: " + errorMessage);
-            Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show();
+            ToastUtils.show(this, errorMessage);
         });
     }
     

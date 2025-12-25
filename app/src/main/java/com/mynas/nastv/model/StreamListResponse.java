@@ -132,6 +132,9 @@ public class StreamListResponse {
         @SerializedName("title")
         private String title;
         
+        @SerializedName("frame_rate")
+        private double frameRate;
+        
         // Getters and setters
         public String getGuid() {
             return guid;
@@ -150,6 +153,10 @@ public class StreamListResponse {
         }
         
         public String getCodec() {
+            return codec;
+        }
+        
+        public String getCodecName() {
             return codec;
         }
         
@@ -174,6 +181,10 @@ public class StreamListResponse {
         }
         
         public long getBitrate() {
+            return bitrate;
+        }
+        
+        public long getBitRate() {
             return bitrate;
         }
         
@@ -227,6 +238,14 @@ public class StreamListResponse {
         
         public void setTitle(String title) {
             this.title = title;
+        }
+        
+        public double getFrameRate() {
+            return frameRate;
+        }
+        
+        public void setFrameRate(double frameRate) {
+            this.frameRate = frameRate;
         }
     }
     
@@ -282,6 +301,10 @@ public class StreamListResponse {
         }
         
         public String getCodec() {
+            return codec;
+        }
+        
+        public String getCodecName() {
             return codec;
         }
         

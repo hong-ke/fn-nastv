@@ -1,5 +1,7 @@
 package com.mynas.nastv.ui;
 
+import com.mynas.nastv.utils.ToastUtils;
+
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -174,7 +176,7 @@ public class FavoriteActivity extends AppCompatActivity {
                     if (currentPage == 1) {
                         showEmpty();
                     }
-                    Toast.makeText(FavoriteActivity.this, "加载失败: " + error, Toast.LENGTH_SHORT).show();
+                    ToastUtils.show(FavoriteActivity.this, "加载失败: " + error);
                 });
             }
         });

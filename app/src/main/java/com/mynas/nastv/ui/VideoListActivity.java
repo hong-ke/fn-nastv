@@ -1,5 +1,7 @@
 package com.mynas.nastv.ui;
 
+import com.mynas.nastv.utils.ToastUtils;
+
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -111,7 +113,7 @@ public class VideoListActivity extends AppCompatActivity implements SimpleMediaA
                     loadRealMediaData();
                 } else {
                     runOnUiThread(() -> {
-                        Toast.makeText(VideoListActivity.this, "No matching library found", Toast.LENGTH_LONG).show();
+                        ToastUtils.show(VideoListActivity.this, "No matching library found");
                     });
                 }
             }
@@ -119,7 +121,7 @@ public class VideoListActivity extends AppCompatActivity implements SimpleMediaA
             @Override
             public void onError(String error) {
                 runOnUiThread(() -> {
-                    Toast.makeText(VideoListActivity.this, "Error loading library: " + error, Toast.LENGTH_LONG).show();
+                    ToastUtils.show(VideoListActivity.this, "Error loading library: " + error);
                 });
             }
         });
@@ -140,7 +142,7 @@ public class VideoListActivity extends AppCompatActivity implements SimpleMediaA
             @Override
             public void onError(String error) {
                 runOnUiThread(() -> {
-                    Toast.makeText(VideoListActivity.this, "Error loading items: " + error, Toast.LENGTH_LONG).show();
+                    ToastUtils.show(VideoListActivity.this, "Error loading items: " + error);
                 });
             }
         });

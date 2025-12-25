@@ -19,11 +19,17 @@ public class MediaDetailResponse {
     @SerializedName("overview")
     private String overview;
     
-    @SerializedName("posters")  // 🚨 [修复] 实际字段名是posters不是poster
-    private String poster;
+    @SerializedName("posters")  // 电影/电视剧列表API返回posters
+    private String postersField;
+    
+    @SerializedName("poster")   // 剧集详情API返回poster
+    private String posterField;
     
     @SerializedName("backdrops")  // 🚨 [修复] 实际字段名是backdrops不是backdrop
     private String backdrop;
+    
+    @SerializedName("stills")  // 剧集剧照
+    private String still;
     
     @SerializedName("vote_average")
     private String voteAverageStr;  // 🚨 [修复] vote_average是字符串，需要手动转换
@@ -114,8 +120,15 @@ public class MediaDetailResponse {
     public String getTitle() { return title; }
     public String getOriginalTitle() { return originalTitle; }
     public String getOverview() { return overview; }
-    public String getPoster() { return poster; }
+    public String getPoster() { 
+        // 优先使用poster字段（剧集详情API），如果为空则使用posters字段（列表API）
+        if (posterField != null && !posterField.isEmpty()) {
+            return posterField;
+        }
+        return postersField;
+    }
     public String getBackdrop() { return backdrop; }
+    public String getStill() { return still; }
     public double getVoteAverage() { 
         try {
             return voteAverageStr != null ? Double.parseDouble(voteAverageStr) : 0.0;
@@ -169,7 +182,10 @@ public class MediaDetailResponse {
     public void setTitle(String title) { this.title = title; }
     public void setOriginalTitle(String originalTitle) { this.originalTitle = originalTitle; }
     public void setOverview(String overview) { this.overview = overview; }
-    public void setPoster(String poster) { this.poster = poster; }
+    public void setPoster(String poster) { 
+        this.posterField = poster;
+        this.postersField = poster;
+    }
     public void setBackdrop(String backdrop) { this.backdrop = backdrop; }
     public void setVoteAverageStr(String voteAverageStr) { this.voteAverageStr = voteAverageStr; }
     public void setVoteCount(int voteCount) { this.voteCount = voteCount; }

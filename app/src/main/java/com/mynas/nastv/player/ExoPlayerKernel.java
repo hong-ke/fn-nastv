@@ -316,12 +316,31 @@ public class ExoPlayerKernel implements Player.Listener {
         
         if (exoPlayer != null) {
             exoPlayer.removeListener(this);
+            exoPlayer.stop();
+            exoPlayer.clearMediaItems();
             exoPlayer.release();
             exoPlayer = null;
         }
         isPrepared = false;
         useProxyCache = false;
         originalUrl = null;
+        videoWidth = 0;
+        videoHeight = 0;
+    }
+    
+    /**
+     * 🔑 重置播放器（用于切换视频）
+     */
+    public void reset() {
+        Log.i(TAG, "📝 重置 ExoPlayer");
+        
+        if (exoPlayer != null) {
+            exoPlayer.stop();
+            exoPlayer.clearMediaItems();
+        }
+        isPrepared = false;
+        videoWidth = 0;
+        videoHeight = 0;
     }
     
     // ==================== Player.Listener 回调 ====================
@@ -360,6 +379,27 @@ public class ExoPlayerKernel implements Player.Listener {
     @Override
     public void onPlayerError(PlaybackException error) {
         Log.e(TAG, "📝 播放错误: " + error.getMessage(), error);
+        
+        // 🔑 检查是否是可恢复的错误
+        if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW ||
+            error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+            error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT) {
+            // 网络相关错误，尝试重试
+            Log.i(TAG, "📝 网络错误，尝试重试...");
+            if (exoPlayer != null) {
+                exoPlayer.prepare();
+            }
+            return;
+        }
+        
+        // 🔑 MediaCodec 错误通常是解码器问题，可以尝试继续播放
+        if (error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+            error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED) {
+            Log.w(TAG, "📝 解码器错误，尝试继续播放...");
+            // 不回调错误，让播放器尝试恢复
+            return;
+        }
+        
         if (playerCallback != null) {
             playerCallback.onError(error.getMessage());
         }

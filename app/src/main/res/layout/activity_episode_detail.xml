@@ -1,27 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#1a1a1a">
+    android:background="@color/tv_background"
+    android:fillViewport="true">
 
-    <!-- 背景海报（模糊） -->
-    <ImageView
-        android:id="@+id/background_poster"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scaleType="centerCrop"
-        android:alpha="0.3" />
-
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:fillViewport="true">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="32dp">
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="32dp">
 
             <!-- 顶部信息区域 -->
             <LinearLayout
@@ -32,8 +20,8 @@
                 <!-- 左侧：剧集缩略图 -->
                 <ImageView
                     android:id="@+id/episode_thumbnail"
-                    android:layout_width="320dp"
-                    android:layout_height="180dp"
+                    android:layout_width="280dp"
+                    android:layout_height="160dp"
                     android:scaleType="centerCrop"
                     android:background="@drawable/bg_card" />
 
@@ -50,8 +38,8 @@
                         android:id="@+id/episode_header"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="#888888"
-                        android:textSize="16sp" />
+                        android:textColor="@color/tv_text_secondary"
+                        android:textSize="14sp" />
 
                     <!-- 剧集标题 -->
                     <TextView
@@ -59,22 +47,22 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:textColor="#ffffff"
-                        android:textSize="28sp"
+                        android:textColor="@color/tv_text_primary"
+                        android:textSize="24sp"
                         android:textStyle="bold" />
 
                     <!-- 播放按钮 -->
                     <TextView
                         android:id="@+id/play_button"
                         android:layout_width="wrap_content"
-                        android:layout_height="48dp"
+                        android:layout_height="44dp"
                         android:layout_marginTop="16dp"
-                        android:background="@drawable/rating_badge_background"
+                        android:background="@drawable/bg_button_primary"
                         android:gravity="center"
-                        android:paddingHorizontal="32dp"
+                        android:paddingHorizontal="28dp"
                         android:text="▶ 播放"
-                        android:textColor="#ffffff"
-                        android:textSize="18sp"
+                        android:textColor="@color/tv_text_on_accent"
+                        android:textSize="16sp"
                         android:focusable="true"
                         android:focusableInTouchMode="true" />
 
@@ -84,8 +72,39 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        android:textColor="#aaaaaa"
+                        android:textColor="@color/tv_text_tertiary"
                         android:textSize="14sp" />
+
+                    <!-- 简要信息行：字幕/音轨/标签 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:id="@+id/subtitle_brief"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/tv_text_tertiary"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/audio_brief"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="16dp"
+                            android:textColor="@color/tv_text_tertiary"
+                            android:textSize="13sp" />
+
+                        <LinearLayout
+                            android:id="@+id/tags_container"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="16dp"
+                            android:orientation="horizontal" />
+                    </LinearLayout>
 
                 </LinearLayout>
             </LinearLayout>
@@ -97,7 +116,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"
                 android:lineSpacingExtra="4dp"
-                android:textColor="#cccccc"
+                android:textColor="@color/tv_text_primary"
                 android:textSize="15sp" />
 
             <!-- 分隔线 -->
@@ -113,7 +132,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"
                 android:text="文件信息"
-                android:textColor="#ffffff"
+                android:textColor="@color/tv_text_primary"
                 android:textSize="18sp"
                 android:textStyle="bold" />
 
@@ -134,14 +153,14 @@
                         android:layout_width="100dp"
                         android:layout_height="wrap_content"
                         android:text="文件位置"
-                        android:textColor="#888888"
+                        android:textColor="@color/tv_text_tertiary"
                         android:textSize="14sp" />
                     <TextView
                         android:id="@+id/file_path"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:textColor="#cccccc"
+                        android:textColor="@color/tv_text_secondary"
                         android:textSize="14sp"
                         android:ellipsize="middle"
                         android:singleLine="true" />
@@ -157,13 +176,13 @@
                         android:layout_width="100dp"
                         android:layout_height="wrap_content"
                         android:text="文件大小"
-                        android:textColor="#888888"
+                        android:textColor="@color/tv_text_tertiary"
                         android:textSize="14sp" />
                     <TextView
                         android:id="@+id/file_size"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="#cccccc"
+                        android:textColor="@color/tv_text_secondary"
                         android:textSize="14sp" />
                 </LinearLayout>
 
@@ -177,13 +196,13 @@
                         android:layout_width="100dp"
                         android:layout_height="wrap_content"
                         android:text="创建日期"
-                        android:textColor="#888888"
+                        android:textColor="@color/tv_text_tertiary"
                         android:textSize="14sp" />
                     <TextView
                         android:id="@+id/file_created"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="#cccccc"
+                        android:textColor="@color/tv_text_secondary"
                         android:textSize="14sp" />
                 </LinearLayout>
 
@@ -196,13 +215,13 @@
                         android:layout_width="100dp"
                         android:layout_height="wrap_content"
                         android:text="添加日期"
-                        android:textColor="#888888"
+                        android:textColor="@color/tv_text_tertiary"
                         android:textSize="14sp" />
                     <TextView
                         android:id="@+id/file_added"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="#cccccc"
+                        android:textColor="@color/tv_text_secondary"
                         android:textSize="14sp" />
                 </LinearLayout>
             </LinearLayout>
@@ -220,7 +239,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"
                 android:text="视频信息"
-                android:textColor="#ffffff"
+                android:textColor="@color/tv_text_primary"
                 android:textSize="18sp"
                 android:textStyle="bold" />
 
@@ -241,14 +260,14 @@
                         android:layout_width="100dp"
                         android:layout_height="wrap_content"
                         android:text="视频"
-                        android:textColor="#888888"
+                        android:textColor="@color/tv_text_tertiary"
                         android:textSize="14sp" />
                     <TextView
                         android:id="@+id/video_info"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:textColor="#cccccc"
+                        android:textColor="@color/tv_text_secondary"
                         android:textSize="14sp" />
                 </LinearLayout>
 
@@ -262,14 +281,14 @@
                         android:layout_width="100dp"
                         android:layout_height="wrap_content"
                         android:text="音频"
-                        android:textColor="#888888"
+                        android:textColor="@color/tv_text_tertiary"
                         android:textSize="14sp" />
                     <TextView
                         android:id="@+id/audio_info"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:textColor="#cccccc"
+                        android:textColor="@color/tv_text_secondary"
                         android:textSize="14sp" />
                 </LinearLayout>
 
@@ -282,14 +301,14 @@
                         android:layout_width="100dp"
                         android:layout_height="wrap_content"
                         android:text="字幕"
-                        android:textColor="#888888"
+                        android:textColor="@color/tv_text_tertiary"
                         android:textSize="14sp" />
                     <TextView
                         android:id="@+id/subtitle_info"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:textColor="#cccccc"
+                        android:textColor="@color/tv_text_secondary"
                         android:textSize="14sp" />
                 </LinearLayout>
             </LinearLayout>
@@ -300,5 +319,4 @@
                 android:layout_height="48dp" />
 
         </LinearLayout>
-    </ScrollView>
-</FrameLayout>
+</ScrollView>

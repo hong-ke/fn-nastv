@@ -11,7 +11,6 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -27,6 +26,7 @@ import com.mynas.nastv.feature.danmaku.logic.DanmuControllerImpl;
 import com.mynas.nastv.manager.MediaManager;
 import com.mynas.nastv.player.ProgressRecorder;
 import com.mynas.nastv.utils.SharedPreferencesManager;
+import com.mynas.nastv.utils.ToastUtils;
 
 import java.io.File;
 import java.util.HashMap;
@@ -527,7 +527,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             forceUseSoftwareDecoder = true;
                             Log.w(TAG, "🎬 硬解失败，自动切换到软解重试 (retry=" + decoderRetryCount + ")");
                             runOnUiThread(() -> {
-                                Toast.makeText(VideoPlayerActivity.this, "硬解失败，自动切换软解", Toast.LENGTH_SHORT).show();
+                                ToastUtils.show(VideoPlayerActivity.this, "硬解失败，自动切换软解");
                                 // 重新配置解码器并播放
                                 configureDecoder();
                                 if (currentVideoUrl != null) {
@@ -684,7 +684,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 }
             } else {
                 // 如果没有专门的缓冲指示器，使用 Toast
-                Toast.makeText(this, "缓冲中...", Toast.LENGTH_SHORT).show();
+                ToastUtils.show(this, "缓冲中...");
             }
         });
     }
@@ -1056,12 +1056,12 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         Log.i(TAG, "📝 内嵌字幕下载失败，尝试通过 IJKPlayer 轨道选择");
                         runOnUiThread(() -> selectIjkSubtitleTrack(subtitleIndex));
                     } else {
-                        runOnUiThread(() -> Toast.makeText(this, "字幕下载失败: " + response.code(), Toast.LENGTH_SHORT).show());
+                        runOnUiThread(() -> ToastUtils.show(this, "字幕下载失败: " + response.code()));
                     }
                 }
             } catch (Exception e) {
                 Log.e(TAG, "📝 Error downloading subtitle", e);
-                runOnUiThread(() -> Toast.makeText(this, "字幕下载错误: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> ToastUtils.show(this, "字幕下载错误: " + e.getMessage()));
             }
         }).start();
     }
@@ -1137,14 +1137,14 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 Log.e(TAG, "📝 解析到 " + currentSubtitles.size() + " 条字幕");
                 currentSubtitleIndex = subtitleIndex;
                 startSubtitleSync();
-                Toast.makeText(this, "字幕已加载: " + subtitle.getTitle(), Toast.LENGTH_SHORT).show();
+                ToastUtils.show(this, "字幕已加载: " + subtitle.getTitle());
             } else {
                 Log.e(TAG, "📝 字幕解析失败或为空");
-                Toast.makeText(this, "字幕解析失败", Toast.LENGTH_SHORT).show();
+                ToastUtils.show(this, "字幕解析失败");
             }
         } catch (Exception e) {
             Log.e(TAG, "📝 字幕加载失败", e);
-            Toast.makeText(this, "字幕加载失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            ToastUtils.show(this, "字幕加载失败: " + e.getMessage());
         }
     }
     
@@ -1427,7 +1427,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                                 
                                 String title = subtitleStreams != null && subtitleIndex < subtitleStreams.size() 
                                     ? subtitleStreams.get(subtitleIndex).getTitle() : "字幕";
-                                Toast.makeText(this, "字幕已启用: " + title, Toast.LENGTH_SHORT).show();
+                                ToastUtils.show(this, "字幕已启用: " + title);
                                 return;
                             }
                             textTrackCount++;
@@ -1445,7 +1445,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             Log.e(TAG, "📝 选择 IJKPlayer 字幕轨道失败", e);
         }
         
-        Toast.makeText(this, "内嵌字幕暂不支持", Toast.LENGTH_SHORT).show();
+        ToastUtils.show(this, "内嵌字幕暂不支持");
     }
     
     /**
@@ -1597,7 +1597,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         startPositionUpdateForExo();
                     }
                     
-                    Toast.makeText(VideoPlayerActivity.this, "已切换到 ExoPlayer（支持内嵌字幕）", Toast.LENGTH_SHORT).show();
+                    ToastUtils.show(VideoPlayerActivity.this, "已切换到 ExoPlayer（支持内嵌字幕）");
                 });
             }
             
@@ -1793,7 +1793,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 hasShownSoftwareDecoderToast = true;
                 forceUseSoftwareDecoder = true;
                 runOnUiThread(() -> {
-                    Toast.makeText(VideoPlayerActivity.this, "硬解不支持，已自动切换软解", Toast.LENGTH_SHORT).show();
+                    ToastUtils.show(VideoPlayerActivity.this, "硬解不支持，已自动切换软解");
                 });
                 Log.i(TAG, "🎬 设备无 HEVC 硬件解码器，已自动切换到软解");
             } else {
@@ -2595,7 +2595,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     playerView.setSpeed(currentSpeed);
                 }
                 updateSpeedLabel();
-                Toast.makeText(this, "播放速度: " + SPEED_LABELS[which], Toast.LENGTH_SHORT).show();
+                ToastUtils.show(this, "播放速度: " + SPEED_LABELS[which]);
                 dialog.dismiss();
             })
             .show();
@@ -2603,7 +2603,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     private void showEpisodeMenu() {
         if (episodeList == null || episodeList.isEmpty()) {
-            Toast.makeText(this, "暂无剧集列表", Toast.LENGTH_SHORT).show();
+            ToastUtils.show(this, "暂无剧集列表");
             return;
         }
         
@@ -2645,19 +2645,23 @@ public class VideoPlayerActivity extends AppCompatActivity {
      * 📺 播放指定剧集
      * 
      * 🔧 重新初始化策略：
-     * - 释放播放器资源
+     * - 释放播放器资源（包括 ExoPlayer）
      * - 清空弹幕缓存
      * - 重新初始化播放器
      */
     private void playEpisode(com.mynas.nastv.model.EpisodeListResponse.Episode episode) {
         Log.e(TAG, "🚀🚀🚀 playEpisode called for episode " + episode.getEpisodeNumber());
-        Toast.makeText(this, "正在加载第" + episode.getEpisodeNumber() + "集...", Toast.LENGTH_SHORT).show();
+        ToastUtils.show(this, "正在加载第" + episode.getEpisodeNumber() + "集...");
+        
+        // 🔧 记录当前是否使用 ExoPlayer，用于切换后恢复
+        final boolean wasUsingExoPlayer = useExoPlayerForSubtitle;
         
         mediaManager.startPlayWithInfo(episode.getGuid(), new MediaManager.MediaCallback<com.mynas.nastv.model.PlayStartInfo>() {
             @Override
             public void onSuccess(com.mynas.nastv.model.PlayStartInfo playInfo) {
                 runOnUiThread(() -> {
                     Log.e(TAG, "🔄 Starting FULL REINITIALIZATION for episode switch");
+                    Log.e(TAG, "🔄 Was using ExoPlayer: " + wasUsingExoPlayer);
                     
                     // 更新当前剧集信息
                     episodeNumber = episode.getEpisodeNumber();
@@ -2674,8 +2678,18 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     // 重置恢复位置
                     resumePositionSeconds = playInfo.getResumePositionSeconds();
                     
-                    // 🔧 步骤1：停止 GSYVideoPlayer
-                    Log.e(TAG, "🔄 Step 1: Stopping GSYVideoPlayer");
+                    // 🔧 步骤1：释放 ExoPlayer（如果正在使用）
+                    if (wasUsingExoPlayer) {
+                        Log.e(TAG, "🔄 Step 1a: Releasing ExoPlayer");
+                        releaseExoPlayerKernel();
+                        useExoPlayerForSubtitle = false;
+                        if (exoTextureView != null) {
+                            exoTextureView.setVisibility(View.GONE);
+                        }
+                    }
+                    
+                    // 🔧 步骤1b：停止 GSYVideoPlayer
+                    Log.e(TAG, "🔄 Step 1b: Stopping GSYVideoPlayer");
                     if (playerView != null) {
                         playerView.release();
                         isPlayerReady = false;
@@ -2693,8 +2707,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     currentSubtitleIndex = -1;
                     subtitleStreams = null;
                     
-                    // 🔧 步骤4：重新初始化播放器
-                    Log.e(TAG, "🔄 Step 4: Reinitializing player");
+                    // 🔧 步骤4：重新初始化 GSYVideoPlayer
+                    Log.e(TAG, "🔄 Step 4: Reinitializing GSYVideoPlayer");
+                    if (playerView != null) {
+                        playerView.setVisibility(View.VISIBLE);
+                    }
                     initializePlayer();
                     
                     // 🔧 步骤5：显示加载界面并播放新视频
@@ -2712,7 +2729,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             @Override
             public void onError(String error) {
                 runOnUiThread(() -> {
-                    Toast.makeText(VideoPlayerActivity.this, "加载失败: " + error, Toast.LENGTH_LONG).show();
+                    ToastUtils.show(VideoPlayerActivity.this, "加载失败: " + error);
                 });
             }
         });
@@ -2723,7 +2740,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
      */
     private void playNextEpisode() {
         if (episodeList == null || episodeList.isEmpty()) {
-            Toast.makeText(this, "暂无下一集", Toast.LENGTH_SHORT).show();
+            ToastUtils.show(this, "暂无下一集");
             return;
         }
         
@@ -2733,13 +2750,13 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 if (i + 1 < episodeList.size()) {
                     playEpisode(episodeList.get(i + 1));
                 } else {
-                    Toast.makeText(this, "已经是最后一集", Toast.LENGTH_SHORT).show();
+                    ToastUtils.show(this, "已经是最后一集");
                 }
                 return;
             }
         }
         
-        Toast.makeText(this, "暂无下一集", Toast.LENGTH_SHORT).show();
+        ToastUtils.show(this, "暂无下一集");
     }
     
     /**
@@ -2755,10 +2772,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
         for (int i = 0; i < episodeList.size(); i++) {
             if (episodeList.get(i).getEpisodeNumber() == episodeNumber) {
                 if (i + 1 < episodeList.size()) {
-                    Toast.makeText(this, "自动播放下一集...", Toast.LENGTH_SHORT).show();
+                    ToastUtils.show(this, "自动播放下一集...");
                     playEpisode(episodeList.get(i + 1));
                 } else {
-                    Toast.makeText(this, "已播放完最后一集", Toast.LENGTH_SHORT).show();
+                    ToastUtils.show(this, "已播放完最后一集");
                     finish();
                 }
                 return;
@@ -2774,7 +2791,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         new android.app.AlertDialog.Builder(this)
             .setTitle("画质选择")
             .setItems(qualityLabels, (dialog, which) -> {
-                Toast.makeText(this, "已选择: " + qualityLabels[which], Toast.LENGTH_SHORT).show();
+                ToastUtils.show(this, "已选择: " + qualityLabels[which]);
             })
             .show();
     }
@@ -2813,7 +2830,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 if (which == 0) {
                     // 关闭字幕
                     disableSubtitle();
-                    Toast.makeText(this, "字幕已关闭", Toast.LENGTH_SHORT).show();
+                    ToastUtils.show(this, "字幕已关闭");
                 } else {
                     int subtitleIndex = which - 1;
                     com.mynas.nastv.model.StreamListResponse.SubtitleStream sub = subtitleStreams.get(subtitleIndex);
@@ -2824,7 +2841,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     } else {
                         // 内嵌字幕：直连模式下不支持
                         if (isDirectLinkMode) {
-                            Toast.makeText(this, "直连模式不支持内嵌字幕，请使用转码模式", Toast.LENGTH_LONG).show();
+                            ToastUtils.show(this, "直连模式不支持内嵌字幕，请使用转码模式");
                         } else {
                             // 非直连模式可以尝试轨道选择
                             enableInternalSubtitle(subtitleIndex);
@@ -2861,7 +2878,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             danmuContainer.setVisibility(isDanmakuEnabled ? View.VISIBLE : View.GONE);
         }
         updateDanmakuLabel();
-        Toast.makeText(this, isDanmakuEnabled ? "弹幕已开启" : "弹幕已关闭", Toast.LENGTH_SHORT).show();
+        ToastUtils.show(this, isDanmakuEnabled ? "弹幕已开启" : "弹幕已关闭");
     }
     
     /**
@@ -2913,7 +2930,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private void toggleAutoPlayNext() {
         boolean current = SharedPreferencesManager.isAutoPlayNext();
         SharedPreferencesManager.setAutoPlayNext(!current);
-        Toast.makeText(this, "自动连播: " + (!current ? "开" : "关"), Toast.LENGTH_SHORT).show();
+        ToastUtils.show(this, "自动连播: " + (!current ? "开" : "关"));
     }
     
     /**
@@ -2965,7 +2982,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     } else {
                         SharedPreferencesManager.setSkipOutro(timeValues[which]);
                     }
-                    Toast.makeText(this, (isIntro ? "跳过片头: " : "跳过片尾: ") + timeOptions[which], Toast.LENGTH_SHORT).show();
+                    ToastUtils.show(this, (isIntro ? "跳过片头: " : "跳过片尾: ") + timeOptions[which]);
                 }
                 dialog.dismiss();
             })
@@ -2996,9 +3013,9 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     } else {
                         SharedPreferencesManager.setSkipOutro(seconds);
                     }
-                    Toast.makeText(this, "已设置为 " + seconds + " 秒", Toast.LENGTH_SHORT).show();
+                    ToastUtils.show(this, "已设置为 " + seconds + " 秒");
                 } catch (NumberFormatException e) {
-                    Toast.makeText(this, "请输入有效数字", Toast.LENGTH_SHORT).show();
+                    ToastUtils.show(this, "请输入有效数字");
                 }
             })
             .setNegativeButton("取消", null)
@@ -3022,7 +3039,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             .setSingleChoiceItems(ratioOptions, currentRatio, (dialog, which) -> {
                 SharedPreferencesManager.setAspectRatio(which);
                 applyAspectRatio(which);
-                Toast.makeText(this, "画面比例: " + ratioOptions[which], Toast.LENGTH_SHORT).show();
+                ToastUtils.show(this, "画面比例: " + ratioOptions[which]);
                 dialog.dismiss();
             })
             .show();
@@ -3049,7 +3066,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             .setSingleChoiceItems(decoderOptions, currentDecoder, (dialog, which) -> {
                 SharedPreferencesManager.setDecoderType(which);
                 String msg = which == 0 ? "已切换到硬解，重新播放生效" : "已切换到软解，重新播放生效";
-                Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+                ToastUtils.show(this, msg);
                 dialog.dismiss();
                 
                 // 提示用户重新播放
@@ -3092,7 +3109,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             // 重新播放
             playMedia(currentVideoUrl);
             
-            Toast.makeText(this, "正在重新加载...", Toast.LENGTH_SHORT).show();
+            ToastUtils.show(this, "正在重新加载...");
         }
     }
     
@@ -3150,7 +3167,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
      * 注意：GSYVideoPlayer + IJKPlayer 不支持音频轨道选择
      */
     private void showAudioTrackDialog() {
-        Toast.makeText(this, "当前播放器不支持音频轨道选择", Toast.LENGTH_SHORT).show();
+        ToastUtils.show(this, "当前播放器不支持音频轨道选择");
     }
     
     /**

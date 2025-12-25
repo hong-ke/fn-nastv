@@ -42,6 +42,7 @@ public class MediaItem implements Parcelable {
     private String parentGuid;      // 父级GUID (Episode -> Season)
     private String ancestorGuid;    // 祖先GUID (Episode -> TV)
     private String mediaGuid;       // 媒体文件GUID (用于直接播放)
+    private String videoGuid;       // 视频流GUID (用于进度上报)
     
     // 🎬 弹幕相关
     private long doubanId;          // 豆瓣ID (用于获取弹幕)
@@ -107,6 +108,7 @@ public class MediaItem implements Parcelable {
         parentGuid = in.readString();
         ancestorGuid = in.readString();
         mediaGuid = in.readString();
+        videoGuid = in.readString();
         doubanId = in.readLong();
         seasonNumber = in.readInt();
         episodeNumber = in.readInt();
@@ -163,6 +165,7 @@ public class MediaItem implements Parcelable {
         dest.writeString(parentGuid);
         dest.writeString(ancestorGuid);
         dest.writeString(mediaGuid);
+        dest.writeString(videoGuid);
         dest.writeLong(doubanId);
         dest.writeInt(seasonNumber);
         dest.writeInt(episodeNumber);
@@ -271,6 +274,15 @@ public class MediaItem implements Parcelable {
     
     public String getMediaGuid() { return mediaGuid; }
     public void setMediaGuid(String mediaGuid) { this.mediaGuid = mediaGuid; }
+    
+    public String getVideoGuid() { return videoGuid; }
+    public void setVideoGuid(String videoGuid) { this.videoGuid = videoGuid; }
+    
+    /**
+     * 获取恢复播放位置（秒）
+     * 使用 watchedTs 作为恢复位置
+     */
+    public long getTs() { return watchedTs; }
     
     public long getDoubanId() { return doubanId; }
     public void setDoubanId(long doubanId) { this.doubanId = doubanId; }

@@ -916,14 +916,15 @@ public class MainActivity extends AppCompatActivity {
             String baseUrl = SharedPreferencesManager.getServerBaseUrl();
             String playUrl = baseUrl + "/v/api/v1/media/range/" + mediaGuid + "?direct_link_quality_index=0";
             Log.d(TAG, "🎬 使用媒体URL: " + playUrl);
-            navigateToVideoPlayer(playUrl, mediaItem);
+            navigateToVideoPlayer(playUrl, mediaItem, mediaGuid, mediaItem.getVideoGuid(), mediaItem.getTs());
         } else {
             // 否则调用API获取播放信息
             Log.d(TAG, "🎬 调用API获取播放信息");
-            mediaManager.startPlay(mediaItem.getGuid(), new MediaManager.MediaCallback<String>() {
+            mediaManager.startPlayWithInfo(mediaItem.getGuid(), new MediaManager.MediaCallback<com.mynas.nastv.model.PlayStartInfo>() {
                 @Override
-                public void onSuccess(String playUrl) {
-                    runOnUiThread(() -> navigateToVideoPlayer(playUrl, mediaItem));
+                public void onSuccess(com.mynas.nastv.model.PlayStartInfo playInfo) {
+                    runOnUiThread(() -> navigateToVideoPlayer(playInfo.getPlayUrl(), mediaItem, 
+                        playInfo.getMediaGuid(), playInfo.getVideoGuid(), playInfo.getResumePositionSeconds()));
                 }
                 
                 @Override
@@ -940,11 +941,16 @@ public class MainActivity extends AppCompatActivity {
     /**
      * 🎬 跳转到视频播放器
      */
-    private void navigateToVideoPlayer(String playUrl, MediaItem mediaItem) {
+    private void navigateToVideoPlayer(String playUrl, MediaItem mediaItem, String mediaGuid, String videoGuid, long resumePosition) {
         Intent intent = new Intent(this, VideoPlayerActivity.class);
         intent.putExtra("video_url", playUrl);
         intent.putExtra("video_title", mediaItem.getTitle());
         intent.putExtra("episode_guid", mediaItem.getGuid());
+        
+        // 传递播放进度上报所需的信息
+        intent.putExtra("media_guid", mediaGuid);
+        intent.putExtra("video_guid", videoGuid);
+        intent.putExtra("resume_position", resumePosition);
         
         // 传递关联信息
         if (mediaItem.getParentGuid() != null) {

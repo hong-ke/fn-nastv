@@ -43,6 +43,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private PlayerView playerView;
     private androidx.media3.ui.SubtitleView subtitleView;
     private ImageView posterImageView;
+    private LinearLayout topInfoContainer;
     private TextView titleText;
     private TextView infoText;
     private View loadingLayout;
@@ -190,6 +191,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         playerView = findViewById(R.id.player_view);
         subtitleView = findViewById(R.id.subtitle_view);
         posterImageView = findViewById(R.id.poster_image);
+        topInfoContainer = findViewById(R.id.top_info_container);
         titleText = findViewById(R.id.title_text);
         infoText = findViewById(R.id.info_text);
         loadingLayout = findViewById(R.id.loading_layout);
@@ -197,8 +199,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
         errorText = findViewById(R.id.error_text);
         danmuContainer = findViewById(R.id.danmu_container);
         
-        titleText.setText(mediaTitle);
-        infoText.setText(episodeNumber > 0 ? ("S" + seasonNumber + " E" + episodeNumber) : "");
+        // 更新标题显示
+        updateTitleDisplay();
         
         // 添加点击屏幕呼出/隐藏菜单
         playerView.setOnClickListener(v -> {
@@ -455,9 +457,28 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     
                     // 🎬 更新 ProgressRecorder 的视频信息
                     if (progressRecorder != null && videoSize.height > 0) {
-                        String resolution = String.valueOf(videoSize.height); // 如 "720", "1080"
-                        // 获取码率（从 ExoPlayer 的 Format 中获取）
-                        // Video info tracking removed
+                        // 根据高度判断分辨率名称
+                        String resolutionName;
+                        if (videoSize.height >= 2160) {
+                            resolutionName = "4K";
+                        } else if (videoSize.height >= 1080) {
+                            resolutionName = "超清";
+                        } else if (videoSize.height >= 720) {
+                            resolutionName = "高清";
+                        } else {
+                            resolutionName = "标清";
+                        }
+                        
+                        // 获取码率
+                        long bitrate = 0;
+                        if (exoPlayer != null) {
+                            androidx.media3.common.Format format = exoPlayer.getVideoFormat();
+                            if (format != null && format.bitrate > 0) {
+                                bitrate = format.bitrate;
+                            }
+                        }
+                        
+                        progressRecorder.setVideoInfo(resolutionName, bitrate);
                     }
                 }
                 
@@ -1699,6 +1720,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
         // 更新进度条
         updateProgressBar();
         
+        // 显示顶部信息
+        if (topInfoContainer != null) {
+            topInfoContainer.setVisibility(View.VISIBLE);
+        }
+        
         bottomMenuContainer.setVisibility(View.VISIBLE);
         menuSpeed.requestFocus();
         isMenuVisible = true;
@@ -1933,6 +1959,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
         if (bottomMenuContainer != null) {
             bottomMenuContainer.setVisibility(View.GONE);
         }
+        // 隐藏顶部信息
+        if (topInfoContainer != null) {
+            topInfoContainer.setVisibility(View.GONE);
+        }
         // 停止进度更新
         stopProgressUpdate();
         isMenuVisible = false;
@@ -1954,6 +1984,41 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private void updateDanmakuLabel() {
         if (menuDanmaku != null) {
             menuDanmaku.setText(isDanmakuEnabled ? "弹幕 开" : "弹幕 关");
+        }
+    }
+    
+    /**
+     * 更新左上角标题显示
+     * 电影：显示电影标题
+     * 电视剧：显示《电视剧名》 第x季 第y集 + 集标题
+     */
+    private void updateTitleDisplay() {
+        Log.d(TAG, "updateTitleDisplay called: titleText=" + (titleText != null) + ", infoText=" + (infoText != null));
+        Log.d(TAG, "updateTitleDisplay data: tvTitle=" + tvTitle + ", seasonNumber=" + seasonNumber + ", episodeNumber=" + episodeNumber + ", mediaTitle=" + mediaTitle + ", seasonGuid=" + seasonGuid);
+        
+        if (titleText == null || infoText == null) return;
+        
+        // 判断是否为电视剧（有季/集信息）
+        boolean isTvShow = seasonGuid != null && !seasonGuid.isEmpty() && episodeNumber > 0;
+        Log.d(TAG, "updateTitleDisplay isTvShow=" + isTvShow);
+        
+        if (isTvShow && tvTitle != null && !tvTitle.isEmpty()) {
+            // 电视剧：显示《电视剧名》 第x季 第y集
+            String mainTitle = "《" + tvTitle + "》 第" + seasonNumber + "季 第" + episodeNumber + "集";
+            titleText.setText(mainTitle);
+            Log.d(TAG, "updateTitleDisplay TV: " + mainTitle);
+            // 集标题
+            if (mediaTitle != null && !mediaTitle.isEmpty() && !mediaTitle.equals(tvTitle)) {
+                infoText.setText(mediaTitle);
+                infoText.setVisibility(View.VISIBLE);
+            } else {
+                infoText.setVisibility(View.GONE);
+            }
+        } else {
+            // 电影：只显示电影标题
+            titleText.setText(mediaTitle != null ? mediaTitle : "未知标题");
+            Log.d(TAG, "updateTitleDisplay Movie: " + mediaTitle);
+            infoText.setVisibility(View.GONE);
         }
     }
     
@@ -2049,8 +2114,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     // 更新标题
                     String newTitle = episode.getTitle() != null ? episode.getTitle() : "第" + episode.getEpisodeNumber() + "集";
                     mediaTitle = newTitle;
-                    titleText.setText(tvTitle != null ? tvTitle : newTitle);
-                    infoText.setText("S" + seasonNumber + " E" + episodeNumber);
+                    updateTitleDisplay();
                     
                     // 重置恢复位置
                     resumePositionSeconds = playInfo.getResumePositionSeconds();

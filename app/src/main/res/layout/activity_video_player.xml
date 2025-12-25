@@ -29,45 +29,7 @@
         app:use_artwork="false"
         app:show_subtitle_button="true" />
 
-    <!-- 📊 媒体信息覆盖层 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
-        android:orientation="vertical"
-        android:padding="@dimen/tv_margin_medium"
-        android:background="@drawable/gradient_bottom_overlay">
-
-        <TextView
-            android:id="@+id/title_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="媒体标题"
-            android:textColor="@color/white"
-            android:textSize="@dimen/tv_text_size_large"
-            android:fontFamily="@font/tv_font_bold"
-            android:shadowColor="@color/black"
-            android:shadowDx="2"
-            android:shadowDy="2"
-            android:shadowRadius="4" />
-
-        <TextView
-            android:id="@+id/info_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/tv_margin_small"
-            android:text="年份 · 类型"
-            android:textColor="@color/tv_text_secondary"
-            android:textSize="@dimen/tv_text_size_medium"
-            android:fontFamily="@font/tv_font_regular"
-            android:shadowColor="@color/black"
-            android:shadowDx="1"
-            android:shadowDy="1"
-            android:shadowRadius="2" />
-
-    </LinearLayout>
-
-    <!-- 🔄 加载状态 -->
+    <!-- �  加载状态 -->
     <LinearLayout
         android:id="@+id/loading_layout"
         android:layout_width="wrap_content"
@@ -459,6 +421,46 @@
                 android:background="@drawable/menu_item_selector" />
 
         </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 📊 媒体信息覆盖层 - 与底部菜单同步显示/隐藏，放在最上层 -->
+    <LinearLayout
+        android:id="@+id/top_info_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:orientation="vertical"
+        android:padding="@dimen/tv_margin_medium"
+        android:background="@drawable/gradient_top_overlay"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/title_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="媒体标题"
+            android:textColor="@color/white"
+            android:textSize="@dimen/tv_text_size_large"
+            android:fontFamily="@font/tv_font_bold"
+            android:shadowColor="@color/black"
+            android:shadowDx="2"
+            android:shadowDy="2"
+            android:shadowRadius="4" />
+
+        <TextView
+            android:id="@+id/info_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/tv_margin_small"
+            android:text="年份 · 类型"
+            android:textColor="@color/tv_text_secondary"
+            android:textSize="@dimen/tv_text_size_medium"
+            android:fontFamily="@font/tv_font_regular"
+            android:shadowColor="@color/black"
+            android:shadowDx="1"
+            android:shadowDy="1"
+            android:shadowRadius="2" />
 
     </LinearLayout>
 

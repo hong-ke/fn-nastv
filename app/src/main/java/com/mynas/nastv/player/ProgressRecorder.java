@@ -42,6 +42,8 @@ public class ProgressRecorder {
     private String videoGuid;
     private String audioGuid;
     private String subtitleGuid;
+    private String resolution;    // 分辨率
+    private long bitrate;         // 码率
     private long currentPosition; // 当前位置（秒）
     private long duration;        // 总时长（秒）
     
@@ -84,6 +86,14 @@ public class ProgressRecorder {
         this.videoGuid = videoGuid;
         this.audioGuid = audioGuid;
         this.subtitleGuid = subtitleGuid;
+    }
+    
+    /**
+     * 设置视频信息（分辨率和码率）
+     */
+    public void setVideoInfo(String resolution, long bitrate) {
+        this.resolution = resolution;
+        this.bitrate = bitrate;
     }
     
     /**
@@ -153,6 +163,8 @@ public class ProgressRecorder {
             request.setVideoGuid(videoGuid);
             request.setAudioGuid(audioGuid);
             request.setSubtitleGuid(subtitleGuid);
+            request.setResolution(resolution != null ? resolution : "");
+            request.setBitrate(bitrate);
             request.setTs(currentPosition);
             request.setDuration(duration);
             

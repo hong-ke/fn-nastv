@@ -58,6 +58,18 @@ public class PlayRecordRequest {
     private long duration;
     
     /**
+     * 分辨率 (如 "超清", "高清", "标清")
+     */
+    @SerializedName("resolution")
+    private String resolution;
+    
+    /**
+     * 码率 (bps)
+     */
+    @SerializedName("bitrate")
+    private long bitrate;
+    
+    /**
      * 随机数，用于防重放攻击
      */
     @SerializedName("nonce")
@@ -142,6 +154,12 @@ public class PlayRecordRequest {
     
     public long getDuration() { return duration; }
     public void setDuration(long duration) { this.duration = duration; }
+    
+    public String getResolution() { return resolution; }
+    public void setResolution(String resolution) { this.resolution = resolution; }
+    
+    public long getBitrate() { return bitrate; }
+    public void setBitrate(long bitrate) { this.bitrate = bitrate; }
     
     public String getNonce() { return nonce; }
     public void setNonce(String nonce) { this.nonce = nonce; }

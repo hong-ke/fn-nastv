@@ -28,6 +28,7 @@ import com.mynas.nastv.manager.MediaManager;
 import com.mynas.nastv.player.ProgressRecorder;
 import com.mynas.nastv.utils.SharedPreferencesManager;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -98,6 +99,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private int decoderRetryCount = 0;
     private static final int MAX_DECODER_RETRY = 1; // 最多重试1次（切换到软解）
     private tv.danmaku.ijk.media.player.IjkMediaPlayer currentIjkPlayer = null;
+    
+    // 📝 ExoPlayer 内核（用于内嵌字幕）
+    private com.mynas.nastv.player.ExoPlayerKernel exoPlayerKernel;
+    private boolean useExoPlayerForSubtitle = false; // 是否使用 ExoPlayer 播放内嵌字幕
+    private android.view.TextureView exoTextureView; // ExoPlayer 的 TextureView
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -563,6 +569,19 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             progressRecorder.updateProgress(currentPosition / 1000, totalDuration / 1000);
                         }
                     }
+                })
+                // 🔑 状态监听 - 用于显示缓冲提示
+                .setGSYStateUiListener(state -> {
+                    // CURRENT_STATE_PLAYING_BUFFERING_START = 3
+                    if (state == 3) {
+                        // 缓冲开始
+                        Log.d(TAG, "🎬 IJKPlayer 缓冲开始");
+                        showBufferingIndicator();
+                    } else if (state == 2) {
+                        // CURRENT_STATE_PLAYING = 2，缓冲结束，恢复播放
+                        Log.d(TAG, "🎬 IJKPlayer 缓冲结束");
+                        hideBufferingIndicator();
+                    }
                 });
             
             // 应用配置到播放器
@@ -919,9 +938,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             firstSubtitleIndex = firstExternalIndex;
                             Log.e(TAG, "📝 Will use external subtitle at index " + firstSubtitleIndex);
                         } else if (firstInternalIndex >= 0) {
-                            // 只有内嵌字幕时，尝试使用（可能不会显示）
+                            // 📝 只有内嵌字幕时，切换到 ExoPlayer 内核
                             firstSubtitleIndex = firstInternalIndex;
-                            Log.e(TAG, "📝 Only internal subtitle available at index " + firstSubtitleIndex + " (may not display)");
+                            Log.e(TAG, "📝 Only internal subtitle available, switching to ExoPlayer kernel");
+                            runOnUiThread(() -> switchToExoPlayerForInternalSubtitle());
+                            return; // ExoPlayer 会自动处理内嵌字幕
                         }
                         
                         if (firstSubtitleIndex >= 0) {
@@ -929,9 +950,9 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             final boolean isInternal = !subtitleStreams.get(index).isExternal();
                             
                             if (isInternal) {
-                                // 内嵌字幕：GSYVideoPlayer + IJKPlayer 不支持
-                                Log.e(TAG, "📝 Internal subtitle not supported by IJKPlayer");
-                                runOnUiThread(() -> enableInternalSubtitle(index));
+                                // 内嵌字幕：切换到 ExoPlayer
+                                Log.e(TAG, "📝 Internal subtitle, switching to ExoPlayer");
+                                runOnUiThread(() -> switchToExoPlayerForInternalSubtitle());
                             } else {
                                 // 外挂字幕：下载并加载
                                 Log.e(TAG, "📝 Auto-loading external subtitle at index " + index);
@@ -1475,6 +1496,236 @@ public class VideoPlayerActivity extends AppCompatActivity {
     }
     
     /**
+     * 📝 切换到 ExoPlayer 内核播放内嵌字幕
+     * 当检测到只有内嵌字幕时调用此方法
+     */
+    private void switchToExoPlayerForInternalSubtitle() {
+        Log.i(TAG, "📝 切换到 ExoPlayer 内核以支持内嵌字幕");
+        
+        if (currentVideoUrl == null || currentVideoUrl.isEmpty()) {
+            Log.e(TAG, "📝 无法切换：视频 URL 为空");
+            return;
+        }
+        
+        // 🔑 保存当前播放位置（优先使用 GSYVideoPlayer 的位置，否则使用历史恢复位置）
+        long currentPosition = 0;
+        if (playerView != null) {
+            currentPosition = playerView.getCurrentPositionWhenPlaying();
+        }
+        // 如果 GSYVideoPlayer 还没开始播放，使用历史恢复位置
+        if (currentPosition <= 0 && resumePositionSeconds > 0) {
+            currentPosition = resumePositionSeconds * 1000;
+            Log.i(TAG, "📝 使用历史恢复位置: " + resumePositionSeconds + "s");
+        }
+        final long savedPosition = currentPosition;
+        
+        // 停止 GSYVideoPlayer
+        if (playerView != null) {
+            playerView.release();
+            playerView.setVisibility(View.GONE);
+        }
+        
+        // 标记使用 ExoPlayer
+        useExoPlayerForSubtitle = true;
+        
+        // 创建 ExoPlayer 的 TextureView
+        if (exoTextureView == null) {
+            exoTextureView = new android.view.TextureView(this);
+            // 添加到根布局（在 playerView 的位置）
+            android.view.ViewGroup rootView = (android.view.ViewGroup) findViewById(android.R.id.content);
+            if (rootView != null && rootView.getChildCount() > 0) {
+                android.view.ViewGroup mainLayout = (android.view.ViewGroup) rootView.getChildAt(0);
+                // 在 playerView 之后添加（索引 1，因为 posterImageView 是索引 0）
+                android.widget.RelativeLayout.LayoutParams params = new android.widget.RelativeLayout.LayoutParams(
+                    android.widget.RelativeLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.RelativeLayout.LayoutParams.MATCH_PARENT
+                );
+                mainLayout.addView(exoTextureView, 1, params);
+                Log.i(TAG, "📝 ExoPlayer TextureView 已添加到主布局");
+            }
+        }
+        exoTextureView.setVisibility(View.VISIBLE);
+        
+        // 初始化 ExoPlayer 内核
+        exoPlayerKernel = new com.mynas.nastv.player.ExoPlayerKernel(this);
+        
+        // 设置字幕回调
+        exoPlayerKernel.setSubtitleCallback(cues -> {
+            runOnUiThread(() -> {
+                if (subtitleTextView != null) {
+                    if (cues != null && !cues.isEmpty()) {
+                        StringBuilder sb = new StringBuilder();
+                        for (androidx.media3.common.text.Cue cue : cues) {
+                            if (cue.text != null) {
+                                if (sb.length() > 0) sb.append("\n");
+                                sb.append(cue.text);
+                            }
+                        }
+                        String text = sb.toString();
+                        if (!text.isEmpty()) {
+                            subtitleTextView.setText(text);
+                            subtitleTextView.setVisibility(View.VISIBLE);
+                        } else {
+                            subtitleTextView.setVisibility(View.GONE);
+                        }
+                    } else {
+                        subtitleTextView.setVisibility(View.GONE);
+                    }
+                }
+            });
+        });
+        
+        // 设置播放器回调
+        exoPlayerKernel.setPlayerCallback(new com.mynas.nastv.player.ExoPlayerKernel.PlayerCallback() {
+            @Override
+            public void onPrepared() {
+                Log.i(TAG, "📝 ExoPlayer 准备完成");
+                runOnUiThread(() -> {
+                    isPlayerReady = true;
+                    showPlayer();
+                    hideBufferingIndicator();
+                    
+                    // 恢复播放位置
+                    if (savedPosition > 0) {
+                        exoPlayerKernel.seekTo(savedPosition);
+                        Log.i(TAG, "📝 恢复播放位置: " + (savedPosition / 1000) + "s");
+                    }
+                    
+                    // 启动弹幕
+                    if (danmuController != null) {
+                        danmuController.startPlayback();
+                        startPositionUpdateForExo();
+                    }
+                    
+                    Toast.makeText(VideoPlayerActivity.this, "已切换到 ExoPlayer（支持内嵌字幕）", Toast.LENGTH_SHORT).show();
+                });
+            }
+            
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "📝 ExoPlayer 错误: " + error);
+                runOnUiThread(() -> showError("播放错误: " + error));
+            }
+            
+            @Override
+            public void onCompletion() {
+                Log.i(TAG, "📝 ExoPlayer 播放完成");
+                runOnUiThread(() -> {
+                    if (SharedPreferencesManager.isAutoPlayNext() && episodeList != null && !episodeList.isEmpty()) {
+                        playNextEpisodeAuto();
+                    } else {
+                        finish();
+                    }
+                });
+            }
+            
+            @Override
+            public void onBuffering(boolean isBuffering) {
+                runOnUiThread(() -> {
+                    if (isBuffering && isPlayerReady) {
+                        showBufferingIndicator();
+                    } else {
+                        hideBufferingIndicator();
+                    }
+                });
+            }
+            
+            @Override
+            public void onVideoSizeChanged(int width, int height) {
+                Log.i(TAG, "📝 ExoPlayer 视频尺寸: " + width + "x" + height);
+            }
+        });
+        
+        // 创建请求头
+        Map<String, String> headers = createHeadersForUrl(currentVideoUrl);
+        
+        // 🔑 获取缓存目录
+        File cacheDir = new File(getCacheDir(), "okhttp_video_cache");
+        if (!cacheDir.exists()) {
+            cacheDir.mkdirs();
+        }
+        
+        // 初始化并播放
+        exoPlayerKernel.init(headers);
+        
+        // 设置 TextureView 的 SurfaceTextureListener
+        exoTextureView.setSurfaceTextureListener(new android.view.TextureView.SurfaceTextureListener() {
+            @Override
+            public void onSurfaceTextureAvailable(android.graphics.SurfaceTexture surface, int width, int height) {
+                Log.i(TAG, "📝 ExoPlayer Surface 可用");
+                android.view.Surface videoSurface = new android.view.Surface(surface);
+                exoPlayerKernel.setSurface(videoSurface);
+                // 🔑 使用代理缓存播放（与 IJKPlayer 相同的缓存机制）
+                exoPlayerKernel.playWithProxyCache(currentVideoUrl, headers, cacheDir);
+            }
+            
+            @Override
+            public void onSurfaceTextureSizeChanged(android.graphics.SurfaceTexture surface, int width, int height) {
+            }
+            
+            @Override
+            public boolean onSurfaceTextureDestroyed(android.graphics.SurfaceTexture surface) {
+                return true;
+            }
+            
+            @Override
+            public void onSurfaceTextureUpdated(android.graphics.SurfaceTexture surface) {
+            }
+        });
+        
+        // 如果 Surface 已经可用，直接播放
+        if (exoTextureView.isAvailable()) {
+            android.view.Surface videoSurface = new android.view.Surface(exoTextureView.getSurfaceTexture());
+            exoPlayerKernel.setSurface(videoSurface);
+            // 🔑 使用代理缓存播放（与 IJKPlayer 相同的缓存机制）
+            exoPlayerKernel.playWithProxyCache(currentVideoUrl, headers, cacheDir);
+        }
+        
+        Log.i(TAG, "📝 ExoPlayer 内核切换完成");
+    }
+    
+    /**
+     * 📝 ExoPlayer 的位置更新（用于弹幕同步）
+     */
+    private void startPositionUpdateForExo() {
+        positionHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (exoPlayerKernel != null && useExoPlayerForSubtitle) {
+                    long currentPosition = exoPlayerKernel.getCurrentPosition();
+                    long duration = exoPlayerKernel.getDuration();
+                    
+                    // 更新弹幕位置
+                    if (danmuController != null) {
+                        danmuController.updatePlaybackPosition(currentPosition);
+                    }
+                    
+                    // 更新播放进度记录器
+                    if (progressRecorder != null && duration > 0) {
+                        progressRecorder.updateProgress(currentPosition / 1000, duration / 1000);
+                    }
+                    
+                    positionHandler.postDelayed(this, 100);
+                }
+            }
+        });
+    }
+    
+    /**
+     * 📝 释放 ExoPlayer 内核
+     */
+    private void releaseExoPlayerKernel() {
+        if (exoPlayerKernel != null) {
+            exoPlayerKernel.release();
+            exoPlayerKernel = null;
+        }
+        if (exoTextureView != null) {
+            exoTextureView.setVisibility(View.GONE);
+        }
+        useExoPlayerForSubtitle = false;
+    }
+    
+    /**
      * 🔧 配置解码器：根据用户设置和自动降级逻辑
      */
     private void configureDecoder() {
@@ -1619,7 +1870,15 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private void showPlayer() {
         runOnUiThread(() -> {
             loadingLayout.setVisibility(View.GONE);
-            playerView.setVisibility(View.VISIBLE);
+            // 📝 根据使用的播放器显示对应的视图
+            if (useExoPlayerForSubtitle && exoTextureView != null) {
+                exoTextureView.setVisibility(View.VISIBLE);
+                if (playerView != null) {
+                    playerView.setVisibility(View.GONE);
+                }
+            } else {
+                playerView.setVisibility(View.VISIBLE);
+            }
             // 隐藏海报，显示视频
             if (posterImageView != null) {
                 posterImageView.setVisibility(View.GONE);
@@ -1705,9 +1964,20 @@ public class VideoPlayerActivity extends AppCompatActivity {
             iconHandler.removeCallbacks(hideIconRunnable);
         }
         
+        // 📝 释放 ExoPlayer 内核（会清除 exoPlayerUsingProxy 标志）
+        releaseExoPlayerKernel();
+        
         // 立即释放播放器
         if (playerView != null) {
             playerView.release();
+        }
+        
+        // 🔑 强制释放缓存管理器（清理缓存状态）
+        try {
+            com.mynas.nastv.cache.OkHttpProxyCacheManager.instance().forceRelease();
+            Log.d(TAG, "🔑 OkHttpProxyCacheManager 已强制释放");
+        } catch (Exception e) {
+            Log.w(TAG, "🔑 释放缓存管理器失败", e);
         }
         
         // 销毁弹幕
@@ -1738,10 +2008,21 @@ public class VideoPlayerActivity extends AppCompatActivity {
             iconHandler.removeCallbacks(hideIconRunnable);
         }
         
+        // 📝 释放 ExoPlayer 内核（会清除 exoPlayerUsingProxy 标志）
+        releaseExoPlayerKernel();
+        
         if (playerView != null) {
             playerView.release();
             playerView = null;
         }
+        
+        // 🔑 强制释放缓存管理器（清理缓存状态）
+        try {
+            com.mynas.nastv.cache.OkHttpProxyCacheManager.instance().forceRelease();
+        } catch (Exception e) {
+            Log.w(TAG, "🔑 释放缓存管理器失败", e);
+        }
+        
         if (danmuController != null) {
             danmuController.destroy();
             danmuController = null;
@@ -1900,10 +2181,18 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 progressSeekbar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
                     @Override
                     public void onProgressChanged(android.widget.SeekBar seekBar, int progress, boolean fromUser) {
-                        if (fromUser && playerView != null) {
-                            long duration = playerView.getDuration();
-                            long newPosition = (duration * progress) / 100;
-                            progressCurrentTime.setText(formatTime(newPosition));
+                        if (fromUser) {
+                            // 🔑 根据当前播放器获取时长
+                            long duration = 0;
+                            if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
+                                duration = exoPlayerKernel.getDuration();
+                            } else if (playerView != null) {
+                                duration = playerView.getDuration();
+                            }
+                            if (duration > 0) {
+                                long newPosition = (duration * progress) / 100;
+                                progressCurrentTime.setText(formatTime(newPosition));
+                            }
                         }
                     }
                     
@@ -1915,10 +2204,21 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     @Override
                     public void onStopTrackingTouch(android.widget.SeekBar seekBar) {
                         isSeekbarTracking = false;
-                        if (playerView != null) {
-                            long duration = playerView.getDuration();
-                            long newPosition = (duration * seekBar.getProgress()) / 100;
-                            playerView.seekTo(newPosition);
+                        // 🔑 根据当前播放器进行 seek
+                        long duration = 0;
+                        if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
+                            duration = exoPlayerKernel.getDuration();
+                            if (duration > 0) {
+                                long newPosition = (duration * seekBar.getProgress()) / 100;
+                                exoPlayerKernel.seekTo(newPosition);
+                                Log.i(TAG, "📝 ExoPlayer seekTo: " + (newPosition / 1000) + "s");
+                            }
+                        } else if (playerView != null) {
+                            duration = playerView.getDuration();
+                            if (duration > 0) {
+                                long newPosition = (duration * seekBar.getProgress()) / 100;
+                                playerView.seekTo(newPosition);
+                            }
                         }
                     }
                 });
@@ -1984,51 +2284,58 @@ public class VideoPlayerActivity extends AppCompatActivity {
     }
     
     private void updateProgressBar() {
-        if (playerView != null && progressSeekbar != null) {
+        // 🔑 根据当前播放器获取进度
+        long currentPosition = 0;
+        long duration = 0;
+        
+        if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
+            currentPosition = exoPlayerKernel.getCurrentPosition();
+            duration = exoPlayerKernel.getDuration();
+        } else if (playerView != null) {
+            currentPosition = playerView.getCurrentPositionWhenPlaying();
+            duration = playerView.getDuration();
+        }
+        
+        if (progressSeekbar != null && duration > 0) {
             try {
-                long currentPosition = playerView.getCurrentPositionWhenPlaying();
-                long duration = playerView.getDuration();
+                // 播放进度
+                int progress = (int) ((currentPosition * 100) / duration);
+                progressSeekbar.setProgress(progress);
+                progressCurrentTime.setText(formatTime(currentPosition));
+                progressTotalTime.setText(formatTime(duration));
                 
-                if (duration > 0) {
-                    // 播放进度
-                    int progress = (int) ((currentPosition * 100) / duration);
-                    progressSeekbar.setProgress(progress);
-                    progressCurrentTime.setText(formatTime(currentPosition));
-                    progressTotalTime.setText(formatTime(duration));
-                    
-                    // 🔑 从 OkHttpProxyCacheManager 获取真实缓存进度
-                    int bufferProgress = progress; // 默认等于播放进度
-                    int cachedChunks = 0;
-                    int currentChunk = 0;
-                    
-                    try {
-                        com.mynas.nastv.cache.OkHttpProxyCacheManager cacheManager = 
-                            com.mynas.nastv.cache.OkHttpProxyCacheManager.instance();
-                        if (cacheManager != null) {
-                            bufferProgress = cacheManager.getDownloadProgress();
-                            cachedChunks = cacheManager.getCachedChunksCount();
-                            currentChunk = cacheManager.getCurrentPlaybackChunk();
-                        }
-                    } catch (Exception e) {
-                        // 忽略缓存管理器错误
+                // 🔑 从 OkHttpProxyCacheManager 获取真实缓存进度
+                int bufferProgress = progress; // 默认等于播放进度
+                int cachedChunks = 0;
+                int currentChunk = 0;
+                
+                try {
+                    com.mynas.nastv.cache.OkHttpProxyCacheManager cacheManager = 
+                        com.mynas.nastv.cache.OkHttpProxyCacheManager.instance();
+                    if (cacheManager != null) {
+                        bufferProgress = cacheManager.getDownloadProgress();
+                        cachedChunks = cacheManager.getCachedChunksCount();
+                        currentChunk = cacheManager.getCurrentPlaybackChunk();
                     }
-                    
-                    // 更新缓存进度条
-                    if (bufferProgressbar != null) {
-                        bufferProgressbar.setProgress(bufferProgress);
-                    }
-                    
-                    // 缓存信息文本
-                    if (bufferInfoText != null) {
-                        if (cachedChunks > 0) {
-                            // 显示缓存块数和进度
-                            int cachedMB = cachedChunks * 2; // 每块 2MB
-                            bufferInfoText.setText("已缓存 " + cachedMB + "MB (" + bufferProgress + "%)");
-                        } else if (bufferProgress >= 99) {
-                            bufferInfoText.setText("缓存完成");
-                        } else {
-                            bufferInfoText.setText("");
-                        }
+                } catch (Exception e) {
+                    // 忽略缓存管理器错误
+                }
+                
+                // 更新缓存进度条
+                if (bufferProgressbar != null) {
+                    bufferProgressbar.setProgress(bufferProgress);
+                }
+                
+                // 缓存信息文本
+                if (bufferInfoText != null) {
+                    if (cachedChunks > 0) {
+                        // 显示缓存块数和进度
+                        int cachedMB = cachedChunks * 2; // 每块 2MB
+                        bufferInfoText.setText("已缓存 " + cachedMB + "MB (" + bufferProgress + "%)");
+                    } else if (bufferProgress >= 99) {
+                        bufferInfoText.setText("缓存完成");
+                    } else {
+                        bufferInfoText.setText("");
                     }
                 }
             } catch (Exception e) {

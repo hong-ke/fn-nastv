@@ -116,13 +116,12 @@
         android:layout_marginHorizontal="40dp"
         android:gravity="center"
         android:textColor="#FFFFFF"
-        android:textSize="20sp"
+        android:textSize="22sp"
         android:shadowColor="#000000"
-        android:shadowDx="2"
-        android:shadowDy="2"
-        android:shadowRadius="3"
-        android:background="#80000000"
-        android:padding="8dp"
+        android:shadowDx="1"
+        android:shadowDy="1"
+        android:shadowRadius="2"
+        android:lineSpacingExtra="4dp"
         android:visibility="gone" />
 
     <!-- ▶️ 中央播放/暂停图标 -->
@@ -138,7 +137,7 @@
         android:visibility="gone"
         android:background="@drawable/center_play_background" />
 
-    <!-- 🔄 缓冲指示器 - 播放中卡顿时显示 -->
+    <!-- 🔄 缓冲指示器 - 播放中卡顿时显示（无背景） -->
     <LinearLayout
         android:id="@+id/buffering_indicator"
         android:layout_width="wrap_content"
@@ -147,7 +146,6 @@
         android:orientation="vertical"
         android:gravity="center"
         android:padding="20dp"
-        android:background="#99000000"
         android:elevation="15dp"
         android:visibility="gone">
 
@@ -163,7 +161,11 @@
             android:layout_marginTop="8dp"
             android:text="缓冲中..."
             android:textColor="@color/white"
-            android:textSize="14sp" />
+            android:textSize="14sp"
+            android:shadowColor="#000000"
+            android:shadowDx="1"
+            android:shadowDy="1"
+            android:shadowRadius="2" />
 
     </LinearLayout>
 

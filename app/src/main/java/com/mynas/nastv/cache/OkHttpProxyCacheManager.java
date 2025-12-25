@@ -80,47 +80,77 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     private static volatile Map<String, String> sCurrentHeaders = new HashMap<>();
     private static final Object sHeaderLock = new Object();
     
-    // 本地代理服务器
-    private ServerSocket proxyServer;
-    private int proxyPort = -1;
-    private AtomicBoolean isProxyRunning = new AtomicBoolean(false);
-    private ExecutorService proxyExecutor;
+    // 🔑 本地代理服务器（静态，所有实例共享）
+    private static ServerSocket proxyServer;
+    private static int proxyPort = -1;
+    private static AtomicBoolean isProxyRunning = new AtomicBoolean(false);
+    private static ExecutorService proxyExecutor;
     
-    // 当前播放的 URL 和缓存文件
-    private String currentOriginUrl;
-    private File currentCacheFile;
-    private long currentContentLength = -1;
-    private Context appContext;
+    // 🔑 当前播放的 URL 和缓存文件（静态，所有实例共享）
+    private static String currentOriginUrl;
+    private static File currentCacheFile;
+    private static long currentContentLength = -1;
+    private static Context appContext;
     
-    // 🔑 分块缓存状态（记录每个块是否已缓存）
-    private ConcurrentHashMap<Integer, Boolean> cachedChunks = new ConcurrentHashMap<>();
-    private final Object cacheLock = new Object();
+    // 🔑 分块缓存状态（静态，所有实例共享）
+    private static ConcurrentHashMap<Integer, Boolean> cachedChunks = new ConcurrentHashMap<>();
+    private static final Object cacheLock = new Object();
     
-    // 🔑 播放位置跟踪
-    private AtomicLong currentPlaybackPosition = new AtomicLong(0); // 播放器当前请求位置
-    private AtomicInteger currentPlaybackChunk = new AtomicInteger(0); // 当前播放块
-    private AtomicInteger prefetchTargetChunk = new AtomicInteger(0); // 预缓存目标块
-    private AtomicBoolean isPrefetching = new AtomicBoolean(false); // 是否正在预缓存
+    // 🔑 播放位置跟踪（静态，所有实例共享）
+    private static AtomicLong currentPlaybackPosition = new AtomicLong(0);
+    private static AtomicInteger currentPlaybackChunk = new AtomicInteger(0);
+    private static AtomicInteger prefetchTargetChunk = new AtomicInteger(0);
+    private static AtomicBoolean isPrefetching = new AtomicBoolean(false);
     
     // 🔑 缓存开始使用时间
-    private long cacheStartTime = 0;
+    private static long cacheStartTime = 0;
+    
+    // 🔑 ExoPlayer 是否正在使用代理（防止 release 时停止代理）
+    private static boolean exoPlayerUsingProxy = false;
     
     // 🔑 定时清理任务
     private static ScheduledExecutorService cleanupScheduler;
     private static ScheduledFuture<?> cleanupTask;
-    private ScheduledFuture<?> expireTask;
+    private static ScheduledFuture<?> expireTask;
     
     /**
      * 单例
      */
     public static synchronized OkHttpProxyCacheManager instance() {
         if (instance == null) {
-            instance = new OkHttpProxyCacheManager();
+            instance = new OkHttpProxyCacheManager(true);
         }
         return instance;
     }
     
+    /**
+     * 🔑 默认构造函数 - 被 CacheFactory.newInstance() 调用
+     * 返回单例实例的引用，确保 GSYVideoPlayer 和我们的代码使用同一个实例
+     */
     public OkHttpProxyCacheManager() {
+        // 🔑 关键：确保使用单例
+        if (instance != null) {
+            // 复用单例的 httpClient
+            this.httpClient = instance.httpClient;
+            // 注意：其他字段会在 doCacheLogic 中被重新初始化
+            Log.d(TAG, "🔑 OkHttpProxyCacheManager: 复用单例 httpClient");
+        } else {
+            // 第一次创建
+            this.httpClient = new OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .retryOnConnectionFailure(true)
+                .build();
+            instance = this;
+            Log.d(TAG, "🔑 OkHttpProxyCacheManager: 创建新实例并设为单例");
+        }
+    }
+    
+    /**
+     * 🔑 私有构造函数 - 用于创建真正的单例
+     */
+    private OkHttpProxyCacheManager(boolean isSingleton) {
         httpClient = new OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
@@ -715,7 +745,14 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     
     @Override
     public void release() {
-        Log.d(TAG, "🔑 release() called");
+        Log.d(TAG, "🔑 release() called, exoPlayerUsingProxy=" + exoPlayerUsingProxy);
+        
+        // 🔑 如果 ExoPlayer 正在使用代理，不要停止代理服务器
+        if (exoPlayerUsingProxy) {
+            Log.d(TAG, "🔑 ExoPlayer 正在使用代理，跳过释放");
+            return;
+        }
+        
         stopProxyServer();
         
         if (expireTask != null) {
@@ -735,6 +772,23 @@ public class OkHttpProxyCacheManager implements ICacheManager {
         currentContentLength = -1;
         cachedChunks.clear();
         cacheStartTime = 0;
+    }
+    
+    /**
+     * 🔑 强制释放（忽略 exoPlayerUsingProxy 标志）
+     */
+    public void forceRelease() {
+        Log.d(TAG, "🔑 forceRelease() called");
+        exoPlayerUsingProxy = false;
+        release();
+    }
+    
+    /**
+     * 🔑 设置 ExoPlayer 是否正在使用代理
+     */
+    public static void setExoPlayerUsingProxy(boolean using) {
+        exoPlayerUsingProxy = using;
+        Log.d(TAG, "🔑 setExoPlayerUsingProxy: " + using);
     }
     
     @Override
@@ -757,4 +811,62 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     public int getCachedChunksCount() { return cachedChunks.size(); }
     
     public int getCurrentPlaybackChunk() { return currentPlaybackChunk.get(); }
+    
+    /**
+     * 🔑 获取代理 URL（供 ExoPlayer 使用）
+     * 与 doCacheLogic 类似，但不设置 MediaPlayer 数据源，只返回代理 URL
+     * @param context 上下文
+     * @param originUrl 原始视频 URL
+     * @param headers 请求头
+     * @param cachePath 缓存目录
+     * @return 代理 URL，如果不支持缓存则返回原始 URL
+     */
+    public String getProxyUrl(Context context, String originUrl, Map<String, String> headers, File cachePath) {
+        appContext = context.getApplicationContext();
+        setCurrentHeaders(headers);
+        
+        boolean isDirectLink = originUrl.contains("direct_link_quality_index") ||
+            (originUrl.startsWith("https://") && !originUrl.contains("192.168.") && !originUrl.contains("localhost"));
+        
+        if (isDirectLink && originUrl.startsWith("http") && !originUrl.contains(".m3u8")) {
+            // 重置状态
+            cachedChunks.clear();
+            currentContentLength = -1;
+            cacheStartTime = System.currentTimeMillis();
+            currentPlaybackPosition.set(0);
+            currentPlaybackChunk.set(0);
+            prefetchTargetChunk.set(0);
+            isPrefetching.set(false);
+            
+            if (expireTask != null) {
+                expireTask.cancel(false);
+                expireTask = null;
+            }
+            
+            currentOriginUrl = originUrl;
+            currentCacheFile = getCacheFile(context, originUrl);
+            
+            startProxyServer();
+            
+            if (proxyPort > 0) {
+                String proxyUrl = "http://127.0.0.1:" + proxyPort + "/video";
+                mCacheFile = true;
+                Log.d(TAG, "🔑 ExoPlayer proxy URL: " + proxyUrl);
+                Log.d(TAG, "🔑 Cache file: " + currentCacheFile.getAbsolutePath());
+                
+                // 启动预缓存（头部 + 尾部）
+                startInitialPrefetch();
+                scheduleExpireTask();
+                
+                return proxyUrl;
+            } else {
+                Log.e(TAG, "🔑 Proxy failed for ExoPlayer, using original URL");
+                mCacheFile = false;
+                return originUrl;
+            }
+        }
+        
+        // 不支持缓存的情况，返回原始 URL
+        return originUrl;
+    }
 }

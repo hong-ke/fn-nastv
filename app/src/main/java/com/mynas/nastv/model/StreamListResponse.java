@@ -347,11 +347,14 @@ public class StreamListResponse {
     }
     
     /**
-     * 📝 字幕流
+     * 📝 字幕流（添加 index 字段）
      */
     public static class SubtitleStream {
         @SerializedName("guid")
         private String guid;
+        
+        @SerializedName("media_guid")
+        private String mediaGuid;
         
         @SerializedName("language")
         private String language;
@@ -368,6 +371,9 @@ public class StreamListResponse {
         @SerializedName("codec_name")
         private String codecName;
         
+        @SerializedName("index")
+        private int index;
+        
         // Getters and setters
         public String getGuid() {
             return guid;
@@ -375,6 +381,14 @@ public class StreamListResponse {
         
         public void setGuid(String guid) {
             this.guid = guid;
+        }
+        
+        public String getMediaGuid() {
+            return mediaGuid;
+        }
+        
+        public void setMediaGuid(String mediaGuid) {
+            this.mediaGuid = mediaGuid;
         }
         
         public String getLanguage() {
@@ -415,6 +429,14 @@ public class StreamListResponse {
         
         public void setCodecName(String codecName) {
             this.codecName = codecName;
+        }
+        
+        public int getIndex() {
+            return index;
+        }
+        
+        public void setIndex(int index) {
+            this.index = index;
         }
     }
     

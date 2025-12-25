@@ -78,7 +78,12 @@ dependencies {
         exclude group: 'com.github.CarGuo.GSYVideoPlayer', module: 'gsyvideoplayer-ex_so'
     }
     
-    // 📝 使用 GSYVideoPlayer + IJKPlayer 内核，不需要 ExoPlayer 或 Media3
+    // 📝 Media3 ExoPlayer（用于内嵌字幕支持）
+    implementation 'androidx.media3:media3-exoplayer:1.2.1'
+    implementation 'androidx.media3:media3-exoplayer-dash:1.2.1'
+    implementation 'androidx.media3:media3-exoplayer-hls:1.2.1'
+    implementation 'androidx.media3:media3-datasource-okhttp:1.2.1'
+    implementation 'androidx.media3:media3-common:1.2.1'
     
     // 🔗 网络请求
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'

@@ -34,5 +34,12 @@ public interface IDanmuController {
     void startPlayback();
     void pausePlayback();
     void updateConfig(DanmuConfig config);
+    
+    /**
+     * 清空弹幕缓存数据
+     * 用于切换剧集时清除旧弹幕
+     */
+    void clearDanmaku();
+    
     void destroy();
 }

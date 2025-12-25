@@ -27,8 +27,8 @@ public class VideoPrefetchService {
     private static final int MAX_THREAD_COUNT = 4;
     private static final int MIN_THREAD_COUNT = 2;
     private static final int CHUNK_SIZE = 2 * 1024 * 1024;
-    private static final int PREFETCH_CHUNKS = 6;
-    private static final int LOW_CACHE_THRESHOLD = 6;
+    private static final int PREFETCH_CHUNKS = 15;  // 增加预缓存范围，确保有足够的下载任务
+    private static final int LOW_CACHE_THRESHOLD = 10;  // 提高阈值，保持更多并发下载
     private static final long MIN_FREE_MEMORY_MB = 50;
     private static final long SAFE_DISTANCE_BYTES = 3 * 1024 * 1024;
     private static final long STARTUP_DELAY_MS = 500;
@@ -120,7 +120,24 @@ public class VideoPrefetchService {
     }
     
     public void updatePlaybackPosition(long positionBytes) {
+        // 只有当新位置大于当前位置时才更新（避免 VideoPlayerActivity 的定时更新覆盖 ExoPlayer 的跳转）
+        // 或者当新位置比当前位置小很多时（说明是新视频或 seek 回退）
+        long current = currentPlaybackPosition.get();
+        if (positionBytes > current || positionBytes < current - 10 * CHUNK_SIZE) {
+            currentPlaybackPosition.set(positionBytes);
+        }
+    }
+    
+    /**
+     * 强制更新播放位置（用于 ExoPlayer 跳转检测）
+     */
+    public void forceUpdatePlaybackPosition(long positionBytes) {
         currentPlaybackPosition.set(positionBytes);
+        Log.e(TAG, "[PREFETCH] Force position update to " + (positionBytes/1024/1024) + "MB");
+    }
+    
+    public long getCurrentPlaybackPosition() {
+        return currentPlaybackPosition.get();
     }
     
     public void notifyBufferingStart() {
@@ -237,13 +254,25 @@ public class VideoPrefetchService {
                     printDiagnostics(startChunk, cachedAhead);
                 }
                 int maxConcurrent = cachedAhead < LOW_CACHE_THRESHOLD ? MAX_THREAD_COUNT : MIN_THREAD_COUNT;
+                
+                // 调度下载任务：从当前播放位置开始，向前预缓存
+                // 关键：即使前面的 chunks 已缓存，也要继续检查后面的 chunks
+                int scheduledCount = 0;
                 for (int i = startChunk; i < startChunk + PREFETCH_CHUNKS && i < totalChunks; i++) {
                     if (activeDownloads.get() >= maxConcurrent) break;
                     if (downloadTasks.containsKey(i)) continue;
                     if (isChunkCachedQuiet(i)) continue;
                     if (scheduleChunkDownload(i)) {
                         Log.e(TAG, "[PREFETCH-LOOP] Scheduled chunk " + i);
+                        scheduledCount++;
                     }
+                }
+                
+                // 如果没有调度任何任务，且缓存不足，打印诊断信息
+                if (scheduledCount == 0 && cachedAhead < LOW_CACHE_THRESHOLD && activeDownloads.get() == 0) {
+                    Log.e(TAG, "[PREFETCH-LOOP] WARNING: No tasks scheduled! startChunk=" + startChunk + 
+                          " cachedAhead=" + cachedAhead + " checking chunks " + startChunk + "-" + 
+                          Math.min(startChunk + PREFETCH_CHUNKS - 1, totalChunks - 1));
                 }
                 int sleepTime = cachedAhead < LOW_CACHE_THRESHOLD ? 200 : 500;
                 Thread.sleep(sleepTime);
@@ -500,7 +529,17 @@ public class VideoPrefetchService {
     }
     
     public int getCachedAheadChunks() {
-        return cachedAheadChunks.get();
+        // 实时计算缓存的 chunks 数量
+        if (totalChunks <= 0 || contentLength <= 0) return 0;
+        return calculateCachedAheadChunks();
+    }
+    
+    /**
+     * 检查关键缓存是否准备好（chunk 0 和 tail chunk）
+     */
+    public boolean isCriticalCacheReady() {
+        if (totalChunks <= 0) return false;
+        return isChunkCachedQuiet(0) && isChunkCachedQuiet(totalChunks - 1);
     }
     
     public int getCurrentThreadCount() {

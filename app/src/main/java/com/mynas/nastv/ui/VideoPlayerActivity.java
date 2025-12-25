@@ -1262,15 +1262,29 @@ public class VideoPlayerActivity extends AppCompatActivity {
             prefetchService = cachedDataSourceFactory.startPrefetch(url);
             Log.e(TAG, "Prefetch service started: " + (prefetchService != null ? "SUCCESS" : "FAILED"));
             
-            // 等待初始缓存：等待至少2个chunk被缓存后再开始播放
+            // 等待初始缓存：等待关键缓存准备好后再开始播放
             // 这样可以避免ExoPlayer启动时立即卡顿
             if (prefetchService != null) {
                 new Thread(() -> {
                     try {
                         Log.e(TAG, "Waiting for initial cache...");
                         int waitCount = 0;
-                        while (waitCount < 30 && prefetchService.getCachedAheadChunks() < 2) {
-                            Thread.sleep(200); // 每200ms检查一次
+                        int maxWait = 100; // 最多等待 20 秒
+                        // 等待条件：至少 4 个 head chunks 缓存好，或者 critical cache 准备好
+                        while (waitCount < maxWait) {
+                            int cached = prefetchService.getCachedAheadChunks();
+                            boolean criticalReady = prefetchService.isCriticalCacheReady();
+                            
+                            if (waitCount % 10 == 0) {
+                                Log.e(TAG, "Wait #" + waitCount + " cached=" + cached + " critical=" + criticalReady);
+                            }
+                            
+                            // 至少 4 个 chunks 缓存好，且 critical cache 准备好
+                            if (cached >= 4 && criticalReady) {
+                                break;
+                            }
+                            
+                            Thread.sleep(200);
                             waitCount++;
                         }
                         int cached = prefetchService.getCachedAheadChunks();
@@ -2055,18 +2069,18 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         isPlayerReady = false;
                     }
                     
-                    // 🔧 步骤3：释放共享缓存（清空所有缓存数据）
-                    Log.e(TAG, "🔄 Step 3: Releasing shared cache");
+                    // 🔧 步骤3：释放共享缓存并清除缓存数据
+                    Log.e(TAG, "🔄 Step 3: Releasing and clearing shared cache");
                     if (cachedDataSourceFactory != null) {
                         cachedDataSourceFactory.stopPrefetch();
                         cachedDataSourceFactory = null;
                     }
-                    com.mynas.nastv.player.CachedDataSourceFactory.releaseSharedCache();
+                    com.mynas.nastv.player.CachedDataSourceFactory.releaseAndClearCache(VideoPlayerActivity.this);
                     
-                    // 🔧 步骤4：停止弹幕
-                    Log.e(TAG, "🔄 Step 4: Stopping danmaku");
+                    // 🔧 步骤4：清空弹幕缓存
+                    Log.e(TAG, "🔄 Step 4: Clearing danmaku cache");
                     if (danmuController != null) {
-                        danmuController.pausePlayback();
+                        danmuController.clearDanmaku();
                     }
                     
                     // 🔧 步骤5：重置播放器状态
@@ -2079,8 +2093,9 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     Log.e(TAG, "🔄 Step 6: Reinitializing ExoPlayer");
                     initializePlayer();
                     
-                    // 🔧 步骤7：播放新视频
+                    // 🔧 步骤7：显示加载界面并播放新视频
                     Log.e(TAG, "🔄 Step 7: Playing new video");
+                    showLoading("加载中...");  // 显示 loading，等缓存好了会自动隐藏
                     videoUrl = playInfo.getPlayUrl();
                     playMedia(videoUrl);
                     

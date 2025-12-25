@@ -92,16 +92,47 @@ public class CachedDataSourceFactory implements DataSource.Factory {
     /**
      * 释放共享缓存
      */
+    /**
+     * 释放共享缓存并清除缓存数据
+     */
     public static void releaseSharedCache() {
         synchronized (cacheLock) {
             if (sharedCache != null) {
                 try {
+                    // 先获取缓存目录
                     sharedCache.release();
+                    Log.e(TAG, "Shared cache released");
                 } catch (Exception e) {
                     Log.e(TAG, "Error releasing cache", e);
                 }
                 sharedCache = null;
             }
+            cacheInitFailed = false;
+        }
+    }
+    
+    /**
+     * 释放共享缓存并清除所有缓存文件（切换视频时使用）
+     */
+    public static void releaseAndClearCache(Context context) {
+        synchronized (cacheLock) {
+            if (sharedCache != null) {
+                try {
+                    sharedCache.release();
+                    Log.e(TAG, "Shared cache released");
+                } catch (Exception e) {
+                    Log.e(TAG, "Error releasing cache", e);
+                }
+                sharedCache = null;
+            }
+            
+            // 清除缓存目录
+            File cacheDir = new File(context.getCacheDir(), CACHE_DIR);
+            if (cacheDir.exists()) {
+                deleteDirectory(cacheDir);
+                Log.e(TAG, "Cache directory cleared: " + cacheDir.getAbsolutePath());
+            }
+            
             cacheInitFailed = false;
         }
     }
@@ -160,6 +191,7 @@ public class CachedDataSourceFactory implements DataSource.Factory {
         // 创建统一的CacheKeyFactory
         final String key = cacheKey;
         final Cache finalCache = cache;
+        final CachedDataSourceFactory factory = this;
         androidx.media3.datasource.cache.CacheKeyFactory cacheKeyFactory = 
             new androidx.media3.datasource.cache.CacheKeyFactory() {
                 @Override
@@ -168,6 +200,21 @@ public class CachedDataSourceFactory implements DataSource.Factory {
                     long pos = dataSpec.position;
                     long len = dataSpec.length > 0 ? dataSpec.length : 2 * 1024 * 1024;
                     long cached = finalCache.getCachedBytes(key, pos, len);
+                    
+                    // 通知预缓存服务 ExoPlayer 的实际读取位置
+                    // 只有当读取位置在文件前 90% 时才更新（排除文件尾部 MKV cues 的读取）
+                    if (prefetchService != null && pos > 0) {
+                        long contentLength = prefetchService.getContentLength();
+                        long currentPrefetchPos = prefetchService.getCurrentPlaybackPosition();
+                        
+                        // 只有当读取位置在文件前 90% 且超过当前预缓存位置时才更新
+                        boolean isNotTailRead = contentLength <= 0 || pos < contentLength * 0.9;
+                        if (isNotTailRead && pos > currentPrefetchPos) {
+                            // 使用强制更新，确保不会被 VideoPlayerActivity 的定时更新覆盖
+                            prefetchService.forceUpdatePlaybackPosition(pos);
+                            Log.e(TAG, "[EXOPLAYER-JUMP] ExoPlayer jumped to " + (pos/1024/1024) + "MB, force updating prefetch position");
+                        }
+                    }
                     
                     // 详细日志：检查缓存 spans
                     try {

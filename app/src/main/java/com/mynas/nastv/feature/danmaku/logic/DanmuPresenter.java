@@ -268,6 +268,19 @@ public class DanmuPresenter {
     }
     
     /**
+     * 清空弹幕缓存数据
+     * 用于切换剧集时清除旧弹幕
+     */
+    public void clearDanmaku() {
+        Log.d(TAG, "清空弹幕缓存数据");
+        pausePlayback();
+        this.danmakuData = null;
+        this.currentPositionMs = 0;
+        renderer.clear();
+        overlayView.clearDanmaku();
+    }
+    
+    /**
      * 销毁资源
      */
     public void destroy() {

@@ -145,6 +145,13 @@ public class DanmuControllerImpl implements IDanmuController {
     }
 
     @Override
+    public void clearDanmaku() {
+        checkInitialized();
+        Log.d(TAG, "清空弹幕缓存");
+        presenter.clearDanmaku();
+    }
+
+    @Override
     public void destroy() {
         if (!isInitialized) return;
         if (presenter != null) presenter.destroy();

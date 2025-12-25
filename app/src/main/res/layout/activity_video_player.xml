@@ -16,8 +16,8 @@
         android:alpha="0.3"
         android:src="@drawable/ic_default_backdrop" />
 
-    <!-- 🎬 GSYVideoPlayer 播放器 (在海报之上) -->
-    <com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer
+    <!-- 🎬 GSYVideoPlayer 播放器 (在海报之上) - 使用自定义无 loading 版本 -->
+    <com.mynas.nastv.player.NoLoadingGSYVideoPlayer
         android:id="@+id/player_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -106,7 +106,24 @@
         
     </FrameLayout>
     
-    <!-- 📝 字幕由 GSYVideoPlayer 内置处理，不需要单独的 SubtitleView -->
+    <!-- 📝 字幕显示 TextView -->
+    <TextView
+        android:id="@+id/subtitle_text_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="80dp"
+        android:layout_marginHorizontal="40dp"
+        android:gravity="center"
+        android:textColor="#FFFFFF"
+        android:textSize="20sp"
+        android:shadowColor="#000000"
+        android:shadowDx="2"
+        android:shadowDy="2"
+        android:shadowRadius="3"
+        android:background="#80000000"
+        android:padding="8dp"
+        android:visibility="gone" />
 
     <!-- ▶️ 中央播放/暂停图标 -->
     <ImageView

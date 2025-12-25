@@ -39,7 +39,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private static final String TAG = "VideoPlayerActivity";
     
     // UI
-    private StandardGSYVideoPlayer playerView;
+    private com.mynas.nastv.player.NoLoadingGSYVideoPlayer playerView;
     private ImageView posterImageView;
     private LinearLayout topInfoContainer;
     private TextView titleText;
@@ -48,6 +48,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private View errorLayout;
     private TextView errorText;
     private FrameLayout danmuContainer;
+    private TextView subtitleTextView; // 📝 字幕显示
     
     private IDanmuController danmuController;
     
@@ -193,6 +194,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         errorLayout = findViewById(R.id.error_layout);
         errorText = findViewById(R.id.error_text);
         danmuContainer = findViewById(R.id.danmu_container);
+        subtitleTextView = findViewById(R.id.subtitle_text_view); // 📝 字幕显示
         
         // 🔧 关键修复：立即隐藏海报背景，避免显示灰色山景默认图
         if (posterImageView != null) {
@@ -252,15 +254,43 @@ public class VideoPlayerActivity extends AppCompatActivity {
             // 🔧 配置解码器：根据用户设置和自动降级逻辑
             configureDecoder();
             
-            // 🔧 设置播放器初始化成功监听器，用于检测实际使用的解码器
+            // 🔧 设置播放器初始化成功监听器，用于检测实际使用的解码器和设置字幕监听
             com.shuyu.gsyvideoplayer.GSYVideoManager.instance().setPlayerInitSuccessListener((player, model) -> {
                 Log.i(TAG, "🎬 播放器初始化成功，类型: " + player.getClass().getSimpleName());
                 
                 // 保存播放器引用，用于后续检测
                 if (player instanceof tv.danmaku.ijk.media.player.IjkMediaPlayer) {
                     currentIjkPlayer = (tv.danmaku.ijk.media.player.IjkMediaPlayer) player;
+                    
+                    // 📝 设置字幕监听器 - 在播放器初始化成功后立即设置
+                    Log.i(TAG, "📝 设置 IJKPlayer OnTimedTextListener");
+                    currentIjkPlayer.setOnTimedTextListener((mp, text) -> {
+                        runOnUiThread(() -> {
+                            if (text != null && text.getText() != null) {
+                                String subtitleText = text.getText().toString();
+                                if (!subtitleText.isEmpty()) {
+                                    Log.d(TAG, "📝 IJKPlayer 字幕: " + subtitleText);
+                                    if (subtitleTextView != null) {
+                                        subtitleTextView.setText(subtitleText);
+                                        subtitleTextView.setVisibility(View.VISIBLE);
+                                    }
+                                }
+                            } else {
+                                if (subtitleTextView != null) {
+                                    subtitleTextView.setVisibility(View.GONE);
+                                }
+                            }
+                        });
+                    });
                 }
             });
+            
+            // 🔧 关键：隐藏 GSYVideoPlayer 内置的 loading 视图
+            // 通过 ID 查找并隐藏
+            View loadingView = playerView.findViewById(com.shuyu.gsyvideoplayer.R.id.loading);
+            if (loadingView != null) {
+                loadingView.setVisibility(View.GONE);
+            }
             
             // 配置播放器选项
             GSYVideoOptionBuilder gsyVideoOptionBuilder = new GSYVideoOptionBuilder();
@@ -279,11 +309,13 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     @Override
                     public void onStartPrepared(String url, Object... objects) {
                         Log.d(TAG, "🎬 GSYVideoPlayer onStartPrepared");
-                        // 🔧 隐藏内置控制栏
+                        // 🔧 隐藏内置控制栏和 loading
                         if (playerView != null) {
                             playerView.getBackButton().setVisibility(View.GONE);
                             playerView.getFullscreenButton().setVisibility(View.GONE);
                             playerView.getStartButton().setVisibility(View.GONE);
+                            // 🔧 隐藏 GSYVideoPlayer 内置的 loading
+                            hideGSYBuiltInLoading();
                         }
                     }
                     
@@ -299,10 +331,12 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             playerView.setVisibility(View.VISIBLE);
                             // 🔧 不再调用 bringToFront()，避免遮挡弹幕
                             // playerView.bringToFront();
-                            // 🔧 再次隐藏内置控制栏（确保）
+                            // 🔧 再次隐藏内置控制栏和 loading（确保）
                             playerView.getBackButton().setVisibility(View.GONE);
                             playerView.getFullscreenButton().setVisibility(View.GONE);
                             playerView.getStartButton().setVisibility(View.GONE);
+                            // 🔧 隐藏 GSYVideoPlayer 内置的 loading
+                            hideGSYBuiltInLoading();
                         }
                         
                         // 🔧 弹幕容器不需要 bringToFront，它在布局中已经在播放器之后
@@ -534,9 +568,83 @@ public class VideoPlayerActivity extends AppCompatActivity {
             // 应用配置到播放器
             gsyVideoOptionBuilder.build(playerView);
             
+            // 🔧 初始化后立即隐藏 GSYVideoPlayer 内置的 loading
+            // 使用自定义的 loading_layout 替代
+            hideGSYBuiltInLoading();
+            
         } catch (Exception e) {
             Log.e(TAG, "GSYVideoPlayer Init Failed", e);
             showError("Player Init Failed");
+        }
+    }
+    
+    /**
+     * 🔧 隐藏 GSYVideoPlayer 内置的 loading 视图
+     * 遍历所有可能的 loading 相关视图并隐藏
+     */
+    private void hideGSYBuiltInLoading() {
+        if (playerView == null) return;
+        
+        try {
+            // 尝试通过 ID 隐藏
+            int[] loadingIds = {
+                com.shuyu.gsyvideoplayer.R.id.loading,
+                com.shuyu.gsyvideoplayer.R.id.thumb,
+                com.shuyu.gsyvideoplayer.R.id.start
+            };
+            
+            for (int id : loadingIds) {
+                try {
+                    View view = playerView.findViewById(id);
+                    if (view != null) {
+                        view.setVisibility(View.GONE);
+                        Log.d(TAG, "🔧 隐藏 GSYVideoPlayer 视图 ID: " + id);
+                    }
+                } catch (Exception e) {
+                    // 忽略
+                }
+            }
+            
+            // 🔧 遍历子视图，隐藏所有 ProgressBar 和可能的 loading ImageView
+            hideLoadingViewsRecursively(playerView);
+            
+        } catch (Exception e) {
+            Log.w(TAG, "🔧 隐藏 GSYVideoPlayer loading 失败", e);
+        }
+    }
+    
+    /**
+     * 🔧 递归隐藏所有 loading 相关视图（ProgressBar 和 ImageView）
+     */
+    private void hideLoadingViewsRecursively(android.view.ViewGroup parent) {
+        for (int i = 0; i < parent.getChildCount(); i++) {
+            View child = parent.getChildAt(i);
+            
+            // 隐藏 ProgressBar
+            if (child instanceof android.widget.ProgressBar) {
+                // 排除我们自定义的进度条
+                if (child.getId() != R.id.buffering_indicator && 
+                    child.getId() != R.id.seek_progress_bar &&
+                    child.getId() != R.id.buffer_progressbar &&
+                    child.getId() != R.id.progress_seekbar) {
+                    child.setVisibility(View.GONE);
+                    Log.d(TAG, "🔧 隐藏 ProgressBar: " + child);
+                }
+            }
+            // 🔧 隐藏 GSYVideoPlayer 的 loading ImageView（通常在播放器中心）
+            else if (child instanceof ImageView) {
+                // 排除我们自定义的 ImageView
+                if (child.getId() != R.id.poster_image && 
+                    child.getId() != R.id.center_play_icon) {
+                    // 检查是否在播放器中心区域（可能是 loading 图标）
+                    child.setVisibility(View.GONE);
+                    Log.d(TAG, "🔧 隐藏 ImageView: " + child + " id=" + child.getId());
+                }
+            }
+            // 递归处理子 ViewGroup
+            else if (child instanceof android.view.ViewGroup) {
+                hideLoadingViewsRecursively((android.view.ViewGroup) child);
+            }
         }
     }
     
@@ -791,7 +899,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             Log.e(TAG, "📝 Subtitle " + i + ": " + sub.getTitle() + " (" + sub.getLanguage() + ") external=" + sub.isExternal() + " guid=" + sub.getGuid());
                         }
                         
-                        // 🚀 查找字幕
+                        // 🚀 查找字幕 - 优先使用外挂字幕（IJKPlayer 不支持内嵌字幕）
                         int firstSubtitleIndex = -1;
                         int firstExternalIndex = -1;
                         int firstInternalIndex = -1;
@@ -806,13 +914,14 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             }
                         }
                         
-                        // 优先使用内嵌字幕
-                        if (firstInternalIndex >= 0) {
-                            firstSubtitleIndex = firstInternalIndex;
-                            Log.e(TAG, "📝 Will use internal subtitle at index " + firstSubtitleIndex);
-                        } else if (firstExternalIndex >= 0) {
+                        // 📝 优先使用外挂字幕（IJKPlayer 不支持内嵌字幕的回调）
+                        if (firstExternalIndex >= 0) {
                             firstSubtitleIndex = firstExternalIndex;
                             Log.e(TAG, "📝 Will use external subtitle at index " + firstSubtitleIndex);
+                        } else if (firstInternalIndex >= 0) {
+                            // 只有内嵌字幕时，尝试使用（可能不会显示）
+                            firstSubtitleIndex = firstInternalIndex;
+                            Log.e(TAG, "📝 Only internal subtitle available at index " + firstSubtitleIndex + " (may not display)");
                         }
                         
                         if (firstSubtitleIndex >= 0) {
@@ -919,7 +1028,15 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     if (response.errorBody() != null) {
                         Log.e(TAG, "📝 Error body: " + response.errorBody().string());
                     }
-                    runOnUiThread(() -> Toast.makeText(this, "字幕下载失败: " + response.code(), Toast.LENGTH_SHORT).show());
+                    
+                    // 📝 如果是内嵌字幕且下载失败（404），尝试通过 IJKPlayer 轨道选择
+                    final int subtitleIndex = index;
+                    if (response.code() == 404 && !subtitle.isExternal()) {
+                        Log.i(TAG, "📝 内嵌字幕下载失败，尝试通过 IJKPlayer 轨道选择");
+                        runOnUiThread(() -> selectIjkSubtitleTrack(subtitleIndex));
+                    } else {
+                        runOnUiThread(() -> Toast.makeText(this, "字幕下载失败: " + response.code(), Toast.LENGTH_SHORT).show());
+                    }
                 }
             } catch (Exception e) {
                 Log.e(TAG, "📝 Error downloading subtitle", e);
@@ -950,25 +1067,411 @@ public class VideoPlayerActivity extends AppCompatActivity {
         }
     }
     
+    // 📝 字幕相关变量
+    private java.util.List<SubtitleEntry> currentSubtitles;
+    private Handler subtitleHandler = new Handler(Looper.getMainLooper());
+    private Runnable subtitleRunnable;
+    
+    /**
+     * 📝 字幕条目
+     */
+    private static class SubtitleEntry {
+        long startTime; // 毫秒
+        long endTime;   // 毫秒
+        String text;
+        
+        SubtitleEntry(long start, long end, String text) {
+            this.startTime = start;
+            this.endTime = end;
+            this.text = text;
+        }
+    }
+    
     /**
      * 📝 添加字幕到播放器
-     * 注意：GSYVideoPlayer + IJKPlayer 不支持外挂字幕，此方法仅显示提示
      */
     private void addSubtitleToPlayer(java.io.File subtitleFile, 
             com.mynas.nastv.model.StreamListResponse.SubtitleStream subtitle,
             String format, int subtitleIndex) {
         
-        Log.e(TAG, "📝 GSYVideoPlayer + IJKPlayer 不支持外挂字幕");
-        Toast.makeText(this, "当前播放器不支持外挂字幕", Toast.LENGTH_SHORT).show();
+        Log.e(TAG, "📝 解析字幕文件: " + subtitleFile.getAbsolutePath() + " 格式: " + format);
+        
+        try {
+            // 读取字幕文件
+            String content = readFileContent(subtitleFile);
+            
+            // 解析字幕
+            if ("srt".equals(format)) {
+                currentSubtitles = parseSrtSubtitle(content);
+            } else if ("ass".equals(format) || "ssa".equals(format)) {
+                currentSubtitles = parseAssSubtitle(content);
+            } else if ("vtt".equals(format)) {
+                currentSubtitles = parseVttSubtitle(content);
+            } else {
+                // 尝试作为 SRT 解析
+                currentSubtitles = parseSrtSubtitle(content);
+            }
+            
+            if (currentSubtitles != null && !currentSubtitles.isEmpty()) {
+                Log.e(TAG, "📝 解析到 " + currentSubtitles.size() + " 条字幕");
+                currentSubtitleIndex = subtitleIndex;
+                startSubtitleSync();
+                Toast.makeText(this, "字幕已加载: " + subtitle.getTitle(), Toast.LENGTH_SHORT).show();
+            } else {
+                Log.e(TAG, "📝 字幕解析失败或为空");
+                Toast.makeText(this, "字幕解析失败", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "📝 字幕加载失败", e);
+            Toast.makeText(this, "字幕加载失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
     
     /**
-     * 📝 启用内嵌字幕（通过轨道选择）
-     * 注意：GSYVideoPlayer + IJKPlayer 不支持内嵌字幕选择，此方法仅显示提示
+     * 📝 读取文件内容
+     */
+    private String readFileContent(java.io.File file) throws Exception {
+        java.io.FileInputStream fis = new java.io.FileInputStream(file);
+        byte[] data = new byte[(int) file.length()];
+        fis.read(data);
+        fis.close();
+        return new String(data, "UTF-8");
+    }
+    
+    /**
+     * 📝 解析 SRT 字幕
+     */
+    private java.util.List<SubtitleEntry> parseSrtSubtitle(String content) {
+        java.util.List<SubtitleEntry> entries = new java.util.ArrayList<>();
+        
+        // SRT 格式:
+        // 1
+        // 00:00:01,000 --> 00:00:04,000
+        // 字幕文本
+        
+        String[] blocks = content.split("\n\n|\r\n\r\n");
+        for (String block : blocks) {
+            String[] lines = block.trim().split("\n|\r\n");
+            if (lines.length >= 3) {
+                // 第二行是时间
+                String timeLine = lines[1];
+                if (timeLine.contains("-->")) {
+                    String[] times = timeLine.split("-->");
+                    if (times.length == 2) {
+                        long startTime = parseSrtTime(times[0].trim());
+                        long endTime = parseSrtTime(times[1].trim());
+                        
+                        // 第三行及之后是字幕文本
+                        StringBuilder text = new StringBuilder();
+                        for (int i = 2; i < lines.length; i++) {
+                            if (text.length() > 0) text.append("\n");
+                            text.append(lines[i].trim());
+                        }
+                        
+                        if (startTime >= 0 && endTime > startTime && text.length() > 0) {
+                            entries.add(new SubtitleEntry(startTime, endTime, text.toString()));
+                        }
+                    }
+                }
+            }
+        }
+        
+        return entries;
+    }
+    
+    /**
+     * 📝 解析 SRT 时间格式 (00:00:01,000)
+     */
+    private long parseSrtTime(String time) {
+        try {
+            // 格式: HH:MM:SS,mmm 或 HH:MM:SS.mmm
+            time = time.replace(",", ".");
+            String[] parts = time.split(":");
+            if (parts.length == 3) {
+                int hours = Integer.parseInt(parts[0]);
+                int minutes = Integer.parseInt(parts[1]);
+                String[] secParts = parts[2].split("\\.");
+                int seconds = Integer.parseInt(secParts[0]);
+                int millis = secParts.length > 1 ? Integer.parseInt(secParts[1]) : 0;
+                
+                return hours * 3600000L + minutes * 60000L + seconds * 1000L + millis;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "📝 解析时间失败: " + time);
+        }
+        return -1;
+    }
+    
+    /**
+     * 📝 解析 ASS/SSA 字幕
+     */
+    private java.util.List<SubtitleEntry> parseAssSubtitle(String content) {
+        java.util.List<SubtitleEntry> entries = new java.util.ArrayList<>();
+        
+        // ASS 格式:
+        // Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,字幕文本
+        
+        String[] lines = content.split("\n|\r\n");
+        for (String line : lines) {
+            if (line.startsWith("Dialogue:")) {
+                String[] parts = line.substring(9).split(",", 10);
+                if (parts.length >= 10) {
+                    long startTime = parseAssTime(parts[1].trim());
+                    long endTime = parseAssTime(parts[2].trim());
+                    String text = parts[9].trim();
+                    
+                    // 移除 ASS 样式标签
+                    text = text.replaceAll("\\{[^}]*\\}", "");
+                    text = text.replace("\\N", "\n");
+                    text = text.replace("\\n", "\n");
+                    
+                    if (startTime >= 0 && endTime > startTime && !text.isEmpty()) {
+                        entries.add(new SubtitleEntry(startTime, endTime, text));
+                    }
+                }
+            }
+        }
+        
+        return entries;
+    }
+    
+    /**
+     * 📝 解析 ASS 时间格式 (0:00:01.00)
+     */
+    private long parseAssTime(String time) {
+        try {
+            String[] parts = time.split(":");
+            if (parts.length == 3) {
+                int hours = Integer.parseInt(parts[0]);
+                int minutes = Integer.parseInt(parts[1]);
+                String[] secParts = parts[2].split("\\.");
+                int seconds = Integer.parseInt(secParts[0]);
+                int centis = secParts.length > 1 ? Integer.parseInt(secParts[1]) : 0;
+                
+                return hours * 3600000L + minutes * 60000L + seconds * 1000L + centis * 10L;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "📝 解析 ASS 时间失败: " + time);
+        }
+        return -1;
+    }
+    
+    /**
+     * 📝 解析 VTT 字幕
+     */
+    private java.util.List<SubtitleEntry> parseVttSubtitle(String content) {
+        // VTT 格式类似 SRT，但时间用 . 而不是 ,
+        return parseSrtSubtitle(content);
+    }
+    
+    /**
+     * 📝 开始字幕同步
+     */
+    private void startSubtitleSync() {
+        if (subtitleRunnable != null) {
+            subtitleHandler.removeCallbacks(subtitleRunnable);
+        }
+        
+        subtitleRunnable = new Runnable() {
+            @Override
+            public void run() {
+                updateSubtitleDisplay();
+                subtitleHandler.postDelayed(this, 100); // 每 100ms 更新一次
+            }
+        };
+        
+        subtitleHandler.post(subtitleRunnable);
+    }
+    
+    /**
+     * 📝 停止字幕同步
+     */
+    private void stopSubtitleSync() {
+        if (subtitleRunnable != null) {
+            subtitleHandler.removeCallbacks(subtitleRunnable);
+            subtitleRunnable = null;
+        }
+        if (subtitleTextView != null) {
+            subtitleTextView.setVisibility(View.GONE);
+        }
+    }
+    
+    /**
+     * 📝 更新字幕显示
+     */
+    private void updateSubtitleDisplay() {
+        if (currentSubtitles == null || currentSubtitles.isEmpty() || playerView == null || subtitleTextView == null) {
+            return;
+        }
+        
+        long currentPosition = playerView.getCurrentPositionWhenPlaying();
+        
+        // 查找当前时间对应的字幕
+        String currentText = null;
+        for (SubtitleEntry entry : currentSubtitles) {
+            if (currentPosition >= entry.startTime && currentPosition <= entry.endTime) {
+                currentText = entry.text;
+                break;
+            }
+        }
+        
+        // 更新显示
+        if (currentText != null && !currentText.isEmpty()) {
+            subtitleTextView.setText(currentText);
+            subtitleTextView.setVisibility(View.VISIBLE);
+        } else {
+            subtitleTextView.setVisibility(View.GONE);
+        }
+    }
+    
+    /**
+     * 📝 启用内嵌字幕
+     * 通过 IJKPlayer 的轨道选择功能启用内嵌字幕
+     * 并设置 OnTimedTextListener 来接收字幕文本
      */
     private void enableInternalSubtitle(int index) {
-        Log.e(TAG, "📝 GSYVideoPlayer + IJKPlayer 不支持内嵌字幕选择");
-        Toast.makeText(this, "当前播放器不支持内嵌字幕", Toast.LENGTH_SHORT).show();
+        Log.i(TAG, "📝 启用内嵌字幕，索引: " + index);
+        
+        if (subtitleStreams == null || index < 0 || index >= subtitleStreams.size()) {
+            Log.e(TAG, "📝 无效的字幕索引: " + index);
+            return;
+        }
+        
+        // 尝试下载内嵌字幕（服务器可能支持提取）
+        // 如果下载失败，再尝试通过 IJKPlayer 轨道选择
+        loadSubtitle(index);
+    }
+    
+    /**
+     * 📝 通过 IJKPlayer 选择字幕轨道
+     * 当字幕下载失败时，尝试通过 IJKPlayer 的轨道选择功能
+     */
+    private void selectIjkSubtitleTrack(int subtitleIndex) {
+        // 延迟执行，等待 IJKPlayer 解析完视频
+        // IJKPlayer 需要一些时间来解析视频中的轨道信息
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            doSelectIjkSubtitleTrack(subtitleIndex);
+        }, 3000); // 延迟 3 秒，等待 IJKPlayer 解析完成
+    }
+    
+    /**
+     * 📝 实际执行 IJKPlayer 字幕轨道选择
+     */
+    private void doSelectIjkSubtitleTrack(int subtitleIndex) {
+        try {
+            // 获取 IJKPlayer 管理器
+            com.shuyu.gsyvideoplayer.player.IPlayerManager playerManager = 
+                com.shuyu.gsyvideoplayer.GSYVideoManager.instance().getPlayer();
+            
+            if (playerManager instanceof com.shuyu.gsyvideoplayer.player.IjkPlayerManager) {
+                com.shuyu.gsyvideoplayer.player.IjkPlayerManager ijkManager = 
+                    (com.shuyu.gsyvideoplayer.player.IjkPlayerManager) playerManager;
+                
+                // 获取轨道信息
+                tv.danmaku.ijk.media.player.misc.IjkTrackInfo[] trackInfos = ijkManager.getTrackInfo();
+                if (trackInfos != null && trackInfos.length > 0) {
+                    Log.i(TAG, "📝 IJKPlayer 轨道数量: " + trackInfos.length);
+                    
+                    int textTrackCount = 0;
+                    for (int i = 0; i < trackInfos.length; i++) {
+                        tv.danmaku.ijk.media.player.misc.IjkTrackInfo track = trackInfos[i];
+                        int trackType = track.getTrackType();
+                        String trackTypeName = "UNKNOWN";
+                        
+                        // IjkTrackInfo.MEDIA_TRACK_TYPE_VIDEO = 1
+                        // IjkTrackInfo.MEDIA_TRACK_TYPE_AUDIO = 2
+                        // IjkTrackInfo.MEDIA_TRACK_TYPE_TIMEDTEXT = 3
+                        // IjkTrackInfo.MEDIA_TRACK_TYPE_SUBTITLE = 4
+                        switch (trackType) {
+                            case 1: trackTypeName = "VIDEO"; break;
+                            case 2: trackTypeName = "AUDIO"; break;
+                            case 3: trackTypeName = "TIMEDTEXT"; break;
+                            case 4: trackTypeName = "SUBTITLE"; break;
+                        }
+                        
+                        Log.i(TAG, "📝 轨道 " + i + ": type=" + trackType + " (" + trackTypeName + "), lang=" + track.getLanguage());
+                        
+                        // MEDIA_TRACK_TYPE_TIMEDTEXT = 3 或 MEDIA_TRACK_TYPE_SUBTITLE = 4
+                        if (trackType == 3 || trackType == 4) {
+                            Log.i(TAG, "📝 找到字幕轨道 " + textTrackCount + " (index=" + i + "): " + track.getLanguage());
+                            
+                            if (textTrackCount == subtitleIndex) {
+                                // 选择这个字幕轨道
+                                ijkManager.selectTrack(i);
+                                currentSubtitleIndex = subtitleIndex;
+                                Log.i(TAG, "📝 已选择 IJKPlayer 字幕轨道: " + i);
+                                
+                                // 设置 TimedText 监听器
+                                setupTimedTextListener();
+                                
+                                String title = subtitleStreams != null && subtitleIndex < subtitleStreams.size() 
+                                    ? subtitleStreams.get(subtitleIndex).getTitle() : "字幕";
+                                Toast.makeText(this, "字幕已启用: " + title, Toast.LENGTH_SHORT).show();
+                                return;
+                            }
+                            textTrackCount++;
+                        }
+                    }
+                    
+                    Log.w(TAG, "📝 未找到匹配的字幕轨道，索引: " + subtitleIndex + ", 找到的字幕轨道数: " + textTrackCount);
+                } else {
+                    Log.w(TAG, "📝 无法获取 IJKPlayer 轨道信息，轨道数: " + (trackInfos != null ? trackInfos.length : "null"));
+                }
+            } else {
+                Log.w(TAG, "📝 当前播放器不是 IJKPlayer: " + (playerManager != null ? playerManager.getClass().getName() : "null"));
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "📝 选择 IJKPlayer 字幕轨道失败", e);
+        }
+        
+        Toast.makeText(this, "内嵌字幕暂不支持", Toast.LENGTH_SHORT).show();
+    }
+    
+    /**
+     * 📝 设置 IJKPlayer 的 TimedText 监听器
+     * 用于接收内嵌字幕文本
+     */
+    private void setupTimedTextListener() {
+        try {
+            com.shuyu.gsyvideoplayer.player.IPlayerManager playerManager = 
+                com.shuyu.gsyvideoplayer.GSYVideoManager.instance().getPlayer();
+            
+            if (playerManager != null) {
+                tv.danmaku.ijk.media.player.IMediaPlayer mediaPlayer = playerManager.getMediaPlayer();
+                
+                if (mediaPlayer instanceof tv.danmaku.ijk.media.player.IjkMediaPlayer) {
+                    tv.danmaku.ijk.media.player.IjkMediaPlayer ijkPlayer = 
+                        (tv.danmaku.ijk.media.player.IjkMediaPlayer) mediaPlayer;
+                    
+                    // 设置 TimedText 监听器
+                    ijkPlayer.setOnTimedTextListener((mp, text) -> {
+                        runOnUiThread(() -> {
+                            if (text != null && text.getText() != null) {
+                                String subtitleText = text.getText().toString();
+                                Log.d(TAG, "📝 IJKPlayer 字幕: " + subtitleText);
+                                
+                                if (subtitleTextView != null) {
+                                    if (!subtitleText.isEmpty()) {
+                                        subtitleTextView.setText(subtitleText);
+                                        subtitleTextView.setVisibility(View.VISIBLE);
+                                    } else {
+                                        subtitleTextView.setVisibility(View.GONE);
+                                    }
+                                }
+                            } else {
+                                if (subtitleTextView != null) {
+                                    subtitleTextView.setVisibility(View.GONE);
+                                }
+                            }
+                        });
+                    });
+                    
+                    Log.i(TAG, "📝 IJKPlayer TimedText 监听器已设置");
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "📝 设置 TimedText 监听器失败", e);
+        }
     }
     
     /**
@@ -1071,6 +1574,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         // 播放器选项
         int playerCategory = tv.danmaku.ijk.media.player.IjkMediaPlayer.OPT_CATEGORY_PLAYER;
         int formatCategory = tv.danmaku.ijk.media.player.IjkMediaPlayer.OPT_CATEGORY_FORMAT;
+        int codecCategory = tv.danmaku.ijk.media.player.IjkMediaPlayer.OPT_CATEGORY_CODEC;
         
         if (!useSoftware) {
             // 硬解模式配置
@@ -1085,6 +1589,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
             options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec-hevc", 0));
             Log.i(TAG, "🎬 IJKPlayer: 使用软解");
         }
+        
+        // 🔧 字幕选项 - 启用内嵌字幕解码
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "subtitle", 1));
+        Log.i(TAG, "🎬 IJKPlayer: 启用字幕解码");
         
         // 通用优化选项
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "framedrop", 1));
@@ -1177,12 +1685,47 @@ public class VideoPlayerActivity extends AppCompatActivity {
         positionHandler.removeCallbacks(positionRunnable);
     }
     
+    /**
+     * 🔧 立即释放播放器并退出
+     * 解决按返回键时播放器没有立即销毁的问题
+     */
+    private void releasePlayerAndFinish() {
+        Log.d(TAG, "🔧 releasePlayerAndFinish - 立即释放播放器");
+        
+        // 停止位置更新
+        stopPositionUpdate();
+        
+        // 停止播放进度记录
+        if (progressRecorder != null) {
+            progressRecorder.stopRecording();
+        }
+        
+        // 清理图标隐藏任务
+        if (hideIconRunnable != null) {
+            iconHandler.removeCallbacks(hideIconRunnable);
+        }
+        
+        // 立即释放播放器
+        if (playerView != null) {
+            playerView.release();
+        }
+        
+        // 销毁弹幕
+        if (danmuController != null) {
+            danmuController.destroy();
+        }
+        
+        // 退出 Activity
+        finish();
+    }
+    
     // 🚀 缓存由 GSYVideoPlayer + OkHttpProxyCacheManager 自动管理
     
     @Override
     protected void onDestroy() {
         super.onDestroy();
         stopPositionUpdate();
+        stopSubtitleSync(); // 📝 停止字幕同步
         
         // 🎬 停止播放进度记录
         if (progressRecorder != null) {
@@ -1207,10 +1750,17 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // 如果菜单可见，按返回键隐藏菜单
-        if (keyCode == KeyEvent.KEYCODE_BACK && isMenuVisible) {
-            hideSettingsMenu();
-            return true;
+        // 返回键处理
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (isMenuVisible) {
+                // 如果菜单可见，按返回键隐藏菜单
+                hideSettingsMenu();
+                return true;
+            } else {
+                // 菜单不可见时，立即销毁播放器并退出
+                releasePlayerAndFinish();
+                return true;
+            }
         }
         
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {

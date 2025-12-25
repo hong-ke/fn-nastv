@@ -38,7 +38,6 @@ public class NasTVApplication extends Application {
         
         // 🔑 注册基于 OkHttp 的缓存管理器
         // 解决 HttpProxyCacheServer (HttpURLConnection) 无法正确传递认证头的问题
-        // OkHttpProxyCacheManager 使用 OkHttp，参考 CachedDataSourceFactory 的实现
         CacheFactory.setCacheManager(OkHttpProxyCacheManager.class);
         Log.d(TAG, "🔑 OkHttpProxyCacheManager 已注册");
         

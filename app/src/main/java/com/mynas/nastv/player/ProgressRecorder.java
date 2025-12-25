@@ -230,30 +230,4 @@ public class ProgressRecorder {
     }
 }
 
-/**
- * 当前播放缓存策略
- * 1. ExoPlayer 内存缓冲 (DefaultLoadControl)
- * 参数	值	说明
- * minBufferMs	30秒	最小保持30秒缓冲
- * maxBufferMs	300秒 (5分钟)	最大缓冲5分钟视频
- * bufferForPlaybackMs	2秒	只需2秒缓冲就开始播放（快速启动）
- * bufferForPlaybackAfterRebufferMs	3秒	卡顿后只需3秒恢复
- * targetBufferBytes	100-300MB	根据可用内存动态计算（可用内存的15%）
- * backBuffer	30秒	保留30秒回看缓冲
- * 2. 磁盘缓存 (CachedDataSourceFactory)
- * 参数	值	说明
- * MAX_CACHE_SIZE	500MB	磁盘缓存最大500MB
- * fragmentSize	5MB	每个缓存片段5MB
- * 缓存策略	LRU	最近最少使用淘汰
- * 3. 多线程预缓存 (VideoPrefetchService)
- * 参数	值	说明
- * THREAD_COUNT	4	4个并发下载线程
- * CHUNK_SIZE	2MB	每个下载块2MB
- * PREFETCH_CHUNKS	10	预缓存10个块（20MB）
- * PRIORITY_CHUNKS	3	播放位置附近3个块优先下载
- * 工作流程
- * 快速启动：只需2秒缓冲就开始播放
- * 后台预缓存：4线程并行下载，优先下载播放位置附近的数据
- * 持续缓冲：后台持续缓冲到5分钟
- * 磁盘缓存：已下载数据保存到磁盘（最大500MB），下次播放可复用
- */
+// 缓存策略文档已移除 - 现在使用 GSYVideoPlayer + OkHttpProxyCacheManager

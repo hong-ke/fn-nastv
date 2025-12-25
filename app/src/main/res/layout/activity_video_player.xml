@@ -106,13 +106,7 @@
         
     </FrameLayout>
     
-    <!-- 📝 字幕视图 - 放在弹幕之上，确保可见 -->
-    <androidx.media3.ui.SubtitleView
-        android:id="@+id/subtitle_view"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_alignParentBottom="true"
-        android:paddingHorizontal="40dp" />
+    <!-- 📝 字幕由 GSYVideoPlayer 内置处理，不需要单独的 SubtitleView -->
 
     <!-- ▶️ 中央播放/暂停图标 -->
     <ImageView

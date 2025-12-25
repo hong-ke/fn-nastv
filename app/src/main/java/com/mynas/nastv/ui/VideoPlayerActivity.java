@@ -40,7 +40,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     // UI
     private StandardGSYVideoPlayer playerView;
-    // subtitleView 已移除 - GSYVideoPlayer + IJKPlayer 不支持字幕
     private ImageView posterImageView;
     private LinearLayout topInfoContainer;
     private TextView titleText;
@@ -50,7 +49,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private TextView errorText;
     private FrameLayout danmuContainer;
     
-    // ExoPlayer 已移除 - 使用 GSYVideoPlayer + IJKPlayer
     private IDanmuController danmuController;
     
     // Data
@@ -187,7 +185,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     private void initializeViews() {
         playerView = findViewById(R.id.player_view);
-        // subtitleView 已移除 - GSYVideoPlayer + IJKPlayer 不支持字幕
         posterImageView = findViewById(R.id.poster_image);
         topInfoContainer = findViewById(R.id.top_info_container);
         titleText = findViewById(R.id.title_text);
@@ -233,14 +230,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
             // 🎬 初始化 GSYVideoPlayer
             Log.d(TAG, "🎬 Initializing GSYVideoPlayer");
             
-            // 🔧 关键修复：显式设置使用 IJKPlayer 内核（ExoPlayer 遇到 HTTP 416 错误）
-            // ExoPlayer 自动发送 Range 请求，与服务器 URL 中的 range 参数冲突
-            // IJKPlayer 内核可以正确处理这种情况
-            // 注意：必须显式设置，否则 GSYVideoPlayer 可能会根据视频格式或配置自动选择播放器
-            // GSYVideoPlayer 默认使用 IJKPlayer，但为了明确，我们不设置
-            // 如果需要使用 ExoPlayer，需要调用：
-            // PlayerFactory.setPlayManager(Exo2PlayerManager.class);
-            Log.d(TAG, "🎬 Using default IJKPlayer kernel (ExoPlayer has HTTP 416 Range request conflict)");
+            // 🔧 使用 IJKPlayer 内核（默认）
+            Log.d(TAG, "🎬 Using default IJKPlayer kernel");
             
             // 🔧 设置视频渲染类型为 TEXTURE（TextureView）
             // TextureView 的 Surface 创建更可靠，不会出现 NULL native_window 问题
@@ -543,9 +534,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
             // 应用配置到播放器
             gsyVideoOptionBuilder.build(playerView);
             
-            // �  字幕功能已禁用 - GSYVideoPlayer + IJKPlayer 不支持外挂字幕
-            // subtitleView 配置代码已移除
-            
         } catch (Exception e) {
             Log.e(TAG, "GSYVideoPlayer Init Failed", e);
             showError("Player Init Failed");
@@ -595,9 +583,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         Log.e(TAG, "Danmaku params for playback: title=" + tvTitle + ", s" + seasonNumber + "e" + episodeNumber + ", guid=" + episodeGuid);
         showLoading("Loading...");
         
-        // 🔧 关键修复：保持 URL 原样，不修改
-        // 签名验证基于原始 URL，如果修改 URL 会导致鉴权失败（HTTP 416）
-        // ExoPlayer 会自动处理 Range 请求，不需要手动修改 URL
+        // 🔧 保持 URL 原样，不修改
         String playUrl = url;
         
         // 保存当前视频URL
@@ -805,8 +791,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             Log.e(TAG, "📝 Subtitle " + i + ": " + sub.getTitle() + " (" + sub.getLanguage() + ") external=" + sub.isExternal() + " guid=" + sub.getGuid());
                         }
                         
-                        // 🚀 新逻辑：使用 CacheDataSource + DefaultExtractorsFactory 后，
-                        // ExoPlayer 可以解析 MKV 内嵌字幕，优先使用内嵌字幕
+                        // 🚀 查找字幕
                         int firstSubtitleIndex = -1;
                         int firstExternalIndex = -1;
                         int firstInternalIndex = -1;
@@ -821,7 +806,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             }
                         }
                         
-                        // 优先使用内嵌字幕（ExoPlayer 可以直接解析 MKV）
+                        // 优先使用内嵌字幕
                         if (firstInternalIndex >= 0) {
                             firstSubtitleIndex = firstInternalIndex;
                             Log.e(TAG, "📝 Will use internal subtitle at index " + firstSubtitleIndex);
@@ -835,8 +820,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             final boolean isInternal = !subtitleStreams.get(index).isExternal();
                             
                             if (isInternal) {
-                                // 内嵌字幕：等待 ExoPlayer 解析 MKV 后自动选择
-                                Log.e(TAG, "📝 Internal subtitle will be auto-selected by ExoPlayer");
+                                // 内嵌字幕：GSYVideoPlayer + IJKPlayer 不支持
+                                Log.e(TAG, "📝 Internal subtitle not supported by IJKPlayer");
                                 runOnUiThread(() -> enableInternalSubtitle(index));
                             } else {
                                 // 外挂字幕：下载并加载
@@ -977,12 +962,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
         Toast.makeText(this, "当前播放器不支持外挂字幕", Toast.LENGTH_SHORT).show();
     }
     
-    // enableSubtitleTrack, logCurrentTracks 已移除 - ExoPlayer 相关代码
-    
-    // 📝 createDirectLinkMediaSource 已移除 - GSYVideoPlayer 使用 OkHttpProxyCacheManager 处理缓存
-    // 📝 getMimeTypeForSubtitle 已移除 - ExoPlayer 相关代码
-    // 📝 createCustomExtractorsFactory 已移除 - ExoPlayer 相关代码
-    
     /**
      * 📝 启用内嵌字幕（通过轨道选择）
      * 注意：GSYVideoPlayer + IJKPlayer 不支持内嵌字幕选择，此方法仅显示提示
@@ -991,9 +970,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
         Log.e(TAG, "📝 GSYVideoPlayer + IJKPlayer 不支持内嵌字幕选择");
         Toast.makeText(this, "当前播放器不支持内嵌字幕", Toast.LENGTH_SHORT).show();
     }
-    
-    // selectSubtitleTrack 已移除 - ExoPlayer 相关代码
-    // createMediaItemWithHeaders 已移除 - GSYVideoPlayer 使用 OkHttpProxyCacheManager 处理缓存和认证
     
     /**
      * 🔧 配置解码器：根据用户设置和自动降级逻辑
@@ -1201,8 +1177,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         positionHandler.removeCallbacks(positionRunnable);
     }
     
-    // 🚀 缓存由 GSYVideoPlayer + OkHttpProxyCacheManager 自动管理，无需手动停止
-    // extractCacheKeyFromUrl 已移除 - ExoPlayer 相关代码
+    // 🚀 缓存由 GSYVideoPlayer + OkHttpProxyCacheManager 自动管理
     
     @Override
     protected void onDestroy() {
@@ -1812,11 +1787,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
     /**
      * 📺 播放指定剧集
      * 
-     * 🔧 完全重新初始化策略：
-     * - 释放所有资源（ExoPlayer、缓存、预缓存服务）
-     * - 清空共享缓存（避免旧数据干扰）
-     * - 重新创建 ExoPlayer 和缓存工厂
-     * - 就像首次进入一样，完全干净的状态
+     * 🔧 重新初始化策略：
+     * - 释放播放器资源
+     * - 清空弹幕缓存
+     * - 重新初始化播放器
      */
     private void playEpisode(com.mynas.nastv.model.EpisodeListResponse.Episode episode) {
         Log.e(TAG, "🚀🚀🚀 playEpisode called for episode " + episode.getEpisodeNumber());
@@ -2264,8 +2238,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
             Toast.makeText(this, "正在重新加载...", Toast.LENGTH_SHORT).show();
         }
     }
-    
-    // shouldSwitchToSoftwareDecoder 已移除 - ExoPlayer 相关代码
     
     /**
      * 🔧 使用软解重新加载视频

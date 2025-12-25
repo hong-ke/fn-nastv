@@ -78,11 +78,7 @@ dependencies {
         exclude group: 'com.github.CarGuo.GSYVideoPlayer', module: 'gsyvideoplayer-ex_so'
     }
     
-    // 🔧 添加 ExoPlayer 内核支持（GSYVideoPlayer 可选内核，当前使用 IJKPlayer）
-    // 保留此依赖以便将来需要时切换到 ExoPlayer 内核
-    implementation 'com.github.CarGuo.GSYVideoPlayer:gsyvideoplayer-exo2:v11.3.0'
-    
-    // 📝 AndroidX Media3 依赖已移除 - 使用 GSYVideoPlayer + IJKPlayer，不需要 Media3
+    // 📝 使用 GSYVideoPlayer + IJKPlayer 内核，不需要 ExoPlayer 或 Media3
     
     // 🔗 网络请求
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'

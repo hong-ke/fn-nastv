@@ -35,11 +35,11 @@ public class SharedPreferencesManager {
     private static final String KEY_DANMU_SERVER_HOST = "danmu_server_host";
     private static final String KEY_LAST_USERNAME = "last_username";
     
-    // 默认服务器配置
+    // 默认服务器配置 - 统一使用 AppConfig 全局变量
     private static final String DEFAULT_SERVER_HOST = AppConfig.SERVER_IP;
     private static final String DEFAULT_SERVER_PORT = AppConfig.SERVER_PORT;
-    private static final String DEFAULT_DANMU_PORT = "5001"; // 本地弹幕服务器端口
-    private static final String DEFAULT_DANMU_HOST = "192.168.3.19"; // 本地弹幕服务器
+    private static final String DEFAULT_DANMU_PORT = AppConfig.DANMU_PORT;
+    private static final String DEFAULT_DANMU_HOST = AppConfig.SERVER_IP;
 
     private static SharedPreferences sharedPreferences;
     private static Context context;

@@ -104,6 +104,13 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private int currentAudioIndex = -1;
     private int preferredAudioIndex = -1;  // 用户选择的音频轨道索引
 
+    // 快进/快退相关
+    private long seekAccumulatedTime = 0;  // 累积的快进/快退时间（毫秒）
+    private long seekBasePosition = -1;    // 开始快进/快退时的基准位置
+    private Handler seekHandler = new Handler(Looper.getMainLooper());
+    private Runnable seekRunnable;
+    private static final long SEEK_DELAY = 500;  // 松开按键后延迟执行seek的时间
+
     // Manager
     private MediaManager mediaManager;
     private ProgressRecorder progressRecorder;
@@ -2588,50 +2595,77 @@ public class VideoPlayerActivity extends AppCompatActivity {
             }
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && !menuVisible) {
-            // 左键快退10秒（菜单不可见时）
-            if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
-                // ExoPlayer 模式
-                long currentPosition = exoPlayerKernel.getCurrentPosition();
-                long newPosition = Math.max(0, currentPosition - 10000);
-                exoPlayerKernel.seekTo(newPosition);
-                showSeekProgressOverlay(newPosition, false);
-                return true;
-            } else if (playerView != null) {
-                try {
-                    long currentPosition = playerView.getCurrentPositionWhenPlaying();
-                    long duration = playerView.getDuration();
-                    long newPosition = Math.max(0, currentPosition - 10000);
-                    playerView.seekTo(newPosition);
-                    showSeekProgressOverlay(newPosition, false);
-                } catch (Exception e) {
-                    Log.w(TAG, "Error seeking backward", e);
-                }
-                return true;
-            }
+            // 左键快退10秒（菜单不可见时）- 累积模式
+            accumulateSeek(-10000);
+            return true;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && !menuVisible) {
-            // 右键快进10秒（菜单不可见时）
-            if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
-                // ExoPlayer 模式
-                long currentPosition = exoPlayerKernel.getCurrentPosition();
-                long duration = exoPlayerKernel.getDuration();
-                long newPosition = Math.min(duration, currentPosition + 10000);
-                exoPlayerKernel.seekTo(newPosition);
-                showSeekProgressOverlay(newPosition, true);
-                return true;
-            } else if (playerView != null) {
-                try {
-                    long currentPosition = playerView.getCurrentPositionWhenPlaying();
-                    long duration = playerView.getDuration();
-                    long newPosition = Math.min(duration, currentPosition + 10000);
-                    playerView.seekTo(newPosition);
-                    showSeekProgressOverlay(newPosition, true);
-                } catch (Exception e) {
-                    Log.w(TAG, "Error seeking forward", e);
-                }
-                return true;
-            }
+            // 右键快进10秒（菜单不可见时）- 累积模式
+            accumulateSeek(10000);
+            return true;
         }
         return super.onKeyDown(keyCode, event);
+    }
+
+    /**
+     * 累积快进/快退时间，延迟执行实际seek
+     */
+    private void accumulateSeek(long deltaMs) {
+        // 取消之前的延迟seek
+        if (seekRunnable != null) {
+            seekHandler.removeCallbacks(seekRunnable);
+        }
+
+        // 如果是新的seek序列，记录基准位置
+        if (seekBasePosition < 0) {
+            if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
+                seekBasePosition = exoPlayerKernel.getCurrentPosition();
+            } else if (playerView != null) {
+                seekBasePosition = playerView.getCurrentPositionWhenPlaying();
+            }
+            seekAccumulatedTime = 0;
+        }
+
+        // 累积时间
+        seekAccumulatedTime += deltaMs;
+
+        // 计算目标位置并显示进度
+        long duration = 0;
+        if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
+            duration = exoPlayerKernel.getDuration();
+        } else if (playerView != null) {
+            duration = playerView.getDuration();
+        }
+
+        long targetPosition = seekBasePosition + seekAccumulatedTime;
+        targetPosition = Math.max(0, Math.min(duration, targetPosition));
+
+        // 显示进度覆盖层（不启动隐藏计时器，保持常亮）
+        showSeekProgressOverlay(targetPosition, deltaMs > 0, false);
+
+        // 延迟执行实际seek
+        final long finalTargetPosition = targetPosition;
+        final boolean isForward = deltaMs > 0;
+        seekRunnable = () -> {
+            executeSeek(finalTargetPosition, isForward);
+            // 重置状态
+            seekBasePosition = -1;
+            seekAccumulatedTime = 0;
+        };
+        seekHandler.postDelayed(seekRunnable, SEEK_DELAY);
+    }
+
+    /**
+     * 执行实际的seek操作
+     */
+    private void executeSeek(long position, boolean isForward) {
+        Log.d(TAG, "执行seek: position=" + position);
+        if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
+            exoPlayerKernel.seekTo(position);
+        } else if (playerView != null) {
+            playerView.seekTo(position);
+        }
+        // seek执行后，启动隐藏计时器
+        showSeekProgressOverlay(position, isForward, true);
     }
 
     @Override
@@ -2739,8 +2773,20 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
     /**
      * 显示快进/快退进度条
+     * @param newPosition 目标位置
+     * @param isForward 是否快进
      */
     private void showSeekProgressOverlay(long newPosition, boolean isForward) {
+        showSeekProgressOverlay(newPosition, isForward, false);
+    }
+
+    /**
+     * 显示快进/快退进度条
+     * @param newPosition 目标位置
+     * @param isForward 是否快进
+     * @param startHideTimer 是否启动隐藏计时器（累积seek期间不启动）
+     */
+    private void showSeekProgressOverlay(long newPosition, boolean isForward, boolean startHideTimer) {
         if (playerView == null) return;
 
         long duration = playerView.getDuration();
@@ -2759,47 +2805,47 @@ public class VideoPlayerActivity extends AppCompatActivity {
         }
 
         if (seekProgressOverlay != null && seekTimeText != null && seekProgressBar != null) {
-            // 显示进度条
+            // 取消之前的隐藏任务
+            if (hideSeekOverlayRunnable != null) {
+                seekOverlayHandler.removeCallbacks(hideSeekOverlayRunnable);
+            }
+
+            // 取消淡出动画
+            seekProgressOverlay.animate().cancel();
+            
+            // 检查是否需要淡入动画（只在首次显示时）
+            boolean needFadeIn = seekProgressOverlay.getVisibility() != View.VISIBLE || seekProgressOverlay.getAlpha() < 1f;
+            
+            // 确保完全可见
+            seekProgressOverlay.setAlpha(1f);
             seekProgressOverlay.setVisibility(View.VISIBLE);
 
             // 设置时间文本
             String timeText = (isForward ? "" : "") + formatTime(newPosition) + " / " + formatTime(duration);
             seekTimeText.setText(timeText);
 
-            // 设置进度条
+            // 设置进度条（直接设置，不用动画，避免闪烁）
             int progress = (int) ((newPosition * 100) / duration);
+            seekProgressBar.setProgress(progress);
 
-            // 动画更新进度条
-            android.animation.ObjectAnimator animator = android.animation.ObjectAnimator.ofInt(
-                    seekProgressBar, "progress", seekProgressBar.getProgress(), progress);
-            animator.setDuration(200);
-            animator.setInterpolator(new android.view.animation.DecelerateInterpolator());
-            animator.start();
-
-            // 取消之前的隐藏任务
-            if (hideSeekOverlayRunnable != null) {
-                seekOverlayHandler.removeCallbacks(hideSeekOverlayRunnable);
+            // 只有在startHideTimer为true时才启动隐藏计时器
+            if (startHideTimer) {
+                // 2秒后自动隐藏
+                hideSeekOverlayRunnable = () -> {
+                    if (seekProgressOverlay != null) {
+                        // 淡出动画
+                        seekProgressOverlay.animate()
+                                .alpha(0f)
+                                .setDuration(300)
+                                .withEndAction(() -> {
+                                    seekProgressOverlay.setVisibility(View.GONE);
+                                    seekProgressOverlay.setAlpha(1f);
+                                })
+                                .start();
+                    }
+                };
+                seekOverlayHandler.postDelayed(hideSeekOverlayRunnable, 2000);
             }
-
-            // 2秒后自动隐藏
-            hideSeekOverlayRunnable = () -> {
-                if (seekProgressOverlay != null) {
-                    // 淡出动画
-                    seekProgressOverlay.animate()
-                            .alpha(0f)
-                            .setDuration(300)
-                            .withEndAction(() -> {
-                                seekProgressOverlay.setVisibility(View.GONE);
-                                seekProgressOverlay.setAlpha(1f);
-                            })
-                            .start();
-                }
-            };
-            seekOverlayHandler.postDelayed(hideSeekOverlayRunnable, 2000);
-
-            // 淡入动画
-            seekProgressOverlay.setAlpha(0f);
-            seekProgressOverlay.animate().alpha(1f).setDuration(150).start();
         }
     }
 

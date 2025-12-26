@@ -287,6 +287,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
         danmuContainer = findViewById(R.id.danmu_container);
         subtitleTextView = findViewById(R.id.subtitle_text_view);
 
+        // 为 GSYVideoPlayer 应用饱和度增强滤镜
+        if (playerView != null) {
+            applySaturationFilter(playerView, 1.2f); // 增加20%饱和度
+        }
+
         // 初始化辅助类
         initializeHelpers();
 
@@ -1747,6 +1752,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
         // 创建 ExoPlayer 的 TextureView
         if (exoTextureView == null) {
             exoTextureView = new android.view.TextureView(this);
+            
+            // 应用饱和度增强滤镜 - 增加色彩饱和度
+            applySaturationFilter(exoTextureView, 1.2f); // 1.2 = 增加20%饱和度
+            
             // 添加到根布局（在 playerView 的位置）
             android.view.ViewGroup rootView = (android.view.ViewGroup) findViewById(android.R.id.content);
             if (rootView != null && rootView.getChildCount() > 0) {
@@ -1757,7 +1766,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         android.widget.RelativeLayout.LayoutParams.MATCH_PARENT
                 );
                 mainLayout.addView(exoTextureView, 1, params);
-                Log.d(TAG, "ExoPlayer TextureView 已添加到主布局");
+                Log.d(TAG, "ExoPlayer TextureView 已添加到主布局（已应用饱和度增强）");
             }
         }
         exoTextureView.setVisibility(View.VISIBLE);
@@ -1855,6 +1864,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
             @Override
             public void onVideoSizeChanged(int width, int height) {
                 Log.d(TAG, "ExoPlayer 视频尺寸: " + width + "x" + height);
+                // 根据视频尺寸调整 TextureView 的宽高比
+                runOnUiThread(() -> adjustTextureViewAspectRatio(width, height));
             }
         });
 
@@ -2061,17 +2072,42 @@ public class VideoPlayerActivity extends AppCompatActivity {
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "subtitle", 1));
         Log.d(TAG, "IJKPlayer: 启用字幕解码");
 
-        // 通用优化选项
+        // ==================== 画质优化选项 ====================
+        
+        // 1. 禁用环路滤波跳过 - 提高画质（0=不跳过，48=跳过非关键帧，默认48会降低画质）
+        // skip_loop_filter: 0=AVDISCARD_NONE(不跳过), 8=AVDISCARD_DEFAULT, 48=AVDISCARD_NONREF
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(codecCategory, "skip_loop_filter", 0));
+        
+        // 2. 禁用帧跳过 - 保证画面完整性
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(codecCategory, "skip_frame", 0));
+        
+        // 3. 不设置 overlay-format，使用默认格式避免色彩转换问题
+        // 移除了之前的 overlay-format 设置
+        
+        // 4. 增加视频缓冲帧数 - 减少丢帧，提高流畅度
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "video-pictq-size", 6));
+        
+        // ==================== 通用优化选项 ====================
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "framedrop", 1));
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "enable-accurate-seek", 1));
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max-buffer-size", 15 * 1024 * 1024));
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "min-frames", 50));
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "start-on-prepared", 1));
+        
+        // 7. 增加 packet 缓冲 - 减少卡顿
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "packet-buffering", 1));
+        
+        // 8. 增加最大缓存时长
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max_cached_duration", 3000));
 
         // 格式选项
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "probesize", 10 * 1024 * 1024));
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "analyzeduration", 5 * 1000 * 1000));
+        
+        // 9. 刷新数据包 - 减少延迟
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "flush_packets", 1));
 
+        Log.d(TAG, "IJKPlayer: 已应用画质优化配置");
         return options;
     }
 
@@ -2272,7 +2308,27 @@ public class VideoPlayerActivity extends AppCompatActivity {
         }
 
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-            if (playerView != null) {
+            // 处理播放/暂停
+            if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
+                // ExoPlayer 模式
+                if (exoPlayerKernel.isPlaying()) {
+                    exoPlayerKernel.pause();
+                    showCenterIcon(false); // 显示暂停图标
+                    // 暂停弹幕
+                    if (danmuController != null) {
+                        danmuController.pausePlayback();
+                    }
+                } else {
+                    exoPlayerKernel.start();
+                    showCenterIcon(true); // 显示播放图标
+                    // 恢复弹幕
+                    if (danmuController != null) {
+                        danmuController.startPlayback();
+                    }
+                }
+                return true;
+            } else if (playerView != null) {
+                // GSYVideoPlayer 模式
                 try {
                     // GSYVideoPlayer 使用 getCurrentState() 检查状态
                     int state = playerView.getCurrentState();
@@ -2303,7 +2359,14 @@ public class VideoPlayerActivity extends AppCompatActivity {
             return true;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && !menuVisible) {
             // 左键快退10秒（菜单不可见时）
-            if (playerView != null) {
+            if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
+                // ExoPlayer 模式
+                long currentPosition = exoPlayerKernel.getCurrentPosition();
+                long newPosition = Math.max(0, currentPosition - 10000);
+                exoPlayerKernel.seekTo(newPosition);
+                showSeekProgressOverlay(newPosition, false);
+                return true;
+            } else if (playerView != null) {
                 try {
                     long currentPosition = playerView.getCurrentPositionWhenPlaying();
                     long duration = playerView.getDuration();
@@ -2317,7 +2380,15 @@ public class VideoPlayerActivity extends AppCompatActivity {
             }
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && !menuVisible) {
             // 右键快进10秒（菜单不可见时）
-            if (playerView != null) {
+            if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
+                // ExoPlayer 模式
+                long currentPosition = exoPlayerKernel.getCurrentPosition();
+                long duration = exoPlayerKernel.getDuration();
+                long newPosition = Math.min(duration, currentPosition + 10000);
+                exoPlayerKernel.seekTo(newPosition);
+                showSeekProgressOverlay(newPosition, true);
+                return true;
+            } else if (playerView != null) {
                 try {
                     long currentPosition = playerView.getCurrentPositionWhenPlaying();
                     long duration = playerView.getDuration();
@@ -3023,5 +3094,89 @@ public class VideoPlayerActivity extends AppCompatActivity {
             }
         }
         return false;
+    }
+
+    /**
+     * 为 View 应用饱和度增强滤镜
+     * @param view 目标 View
+     * @param saturation 饱和度值 (0=灰度, 1=正常, >1=增强饱和度)
+     */
+    private void applySaturationFilter(View view, float saturation) {
+        if (view == null) return;
+        
+        // 创建饱和度矩阵
+        android.graphics.ColorMatrix colorMatrix = new android.graphics.ColorMatrix();
+        colorMatrix.setSaturation(saturation);
+        
+        // 可选：轻微增加对比度，让画面更鲜艳
+        float contrast = 1.05f; // 增加5%对比度
+        float brightness = 0f;
+        float scale = contrast;
+        float translate = (-.5f * scale + .5f) * 255f + brightness;
+        android.graphics.ColorMatrix contrastMatrix = new android.graphics.ColorMatrix(new float[] {
+            scale, 0, 0, 0, translate,
+            0, scale, 0, 0, translate,
+            0, 0, scale, 0, translate,
+            0, 0, 0, 1, 0
+        });
+        colorMatrix.postConcat(contrastMatrix);
+        
+        // 应用滤镜
+        android.graphics.ColorMatrixColorFilter filter = new android.graphics.ColorMatrixColorFilter(colorMatrix);
+        view.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        android.graphics.Paint paint = new android.graphics.Paint();
+        paint.setColorFilter(filter);
+        view.setLayerPaint(paint);
+        
+        Log.d(TAG, "已应用饱和度滤镜: saturation=" + saturation + ", contrast=" + contrast);
+    }
+
+    /**
+     * 调整 ExoPlayer TextureView 的宽高比以匹配视频
+     * 保持视频原始比例，避免拉伸导致画面模糊
+     */
+    private void adjustTextureViewAspectRatio(int videoWidth, int videoHeight) {
+        if (exoTextureView == null || videoWidth <= 0 || videoHeight <= 0) {
+            return;
+        }
+
+        // 获取父容器的尺寸
+        android.view.ViewGroup parent = (android.view.ViewGroup) exoTextureView.getParent();
+        if (parent == null) {
+            return;
+        }
+
+        int parentWidth = parent.getWidth();
+        int parentHeight = parent.getHeight();
+        if (parentWidth <= 0 || parentHeight <= 0) {
+            return;
+        }
+
+        float videoAspect = (float) videoWidth / videoHeight;
+        float parentAspect = (float) parentWidth / parentHeight;
+
+        int newWidth, newHeight;
+
+        if (videoAspect > parentAspect) {
+            // 视频更宽，以宽度为准
+            newWidth = parentWidth;
+            newHeight = (int) (parentWidth / videoAspect);
+        } else {
+            // 视频更高，以高度为准
+            newHeight = parentHeight;
+            newWidth = (int) (parentHeight * videoAspect);
+        }
+
+        // 居中显示
+        int leftMargin = (parentWidth - newWidth) / 2;
+        int topMargin = (parentHeight - newHeight) / 2;
+
+        android.widget.RelativeLayout.LayoutParams params = new android.widget.RelativeLayout.LayoutParams(newWidth, newHeight);
+        params.leftMargin = leftMargin;
+        params.topMargin = topMargin;
+        exoTextureView.setLayoutParams(params);
+
+        Log.d(TAG, "调整 TextureView 尺寸: " + newWidth + "x" + newHeight + 
+              " (视频: " + videoWidth + "x" + videoHeight + ", 容器: " + parentWidth + "x" + parentHeight + ")");
     }
 }

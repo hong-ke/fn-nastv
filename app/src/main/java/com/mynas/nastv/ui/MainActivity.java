@@ -802,6 +802,10 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // 双击返回键退出相关
+    private long lastBackPressTime = 0;
+    private static final long BACK_PRESS_INTERVAL = 2000; // 2秒内双击退出
+
     /**
      * 处理按键事件
      */
@@ -815,8 +819,16 @@ public class MainActivity extends AppCompatActivity {
                     showHomeContent();
                     return true;
                 } else {
-                    // 如果在主页，退出应用
-                    finish();
+                    // 如果在主页，双击退出应用
+                    long currentTime = System.currentTimeMillis();
+                    if (currentTime - lastBackPressTime < BACK_PRESS_INTERVAL) {
+                        // 双击，退出应用
+                        finish();
+                    } else {
+                        // 第一次按返回键，提示再按一次退出
+                        lastBackPressTime = currentTime;
+                        ToastUtils.show(this, "再按一次返回键退出");
+                    }
                     return true;
                 }
             case KeyEvent.KEYCODE_MENU:

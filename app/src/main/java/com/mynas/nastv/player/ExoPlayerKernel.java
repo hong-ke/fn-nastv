@@ -103,30 +103,37 @@ public class ExoPlayerKernel implements Player.Listener {
         
         DataSource.Factory dataSourceFactory = new DefaultDataSource.Factory(context, httpFactory);
         
-        // 创建 LoadControl - 优化缓冲策略
+        // 创建 LoadControl - 优化缓冲策略，增加缓冲以提高画质稳定性
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                5000,   // minBufferMs
-                30000,  // maxBufferMs
-                1000,   // bufferForPlaybackMs
-                2000    // bufferForPlaybackAfterRebufferMs
+                10000,  // minBufferMs - 增加最小缓冲
+                60000,  // maxBufferMs - 增加最大缓冲
+                2500,   // bufferForPlaybackMs - 开始播放前的缓冲
+                5000    // bufferForPlaybackAfterRebufferMs - 重新缓冲后的缓冲
             )
+            .setTargetBufferBytes(C.LENGTH_UNSET) // 不限制缓冲大小
+            .setPrioritizeTimeOverSizeThresholds(false) // 优先保证画质
             .build();
         
-        // 创建 RenderersFactory
+        // 创建 RenderersFactory - 优先使用硬件解码器
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            .setEnableDecoderFallback(true); // 启用解码器回退，确保兼容性
         
         // 创建 ExoPlayer
         exoPlayer = new ExoPlayer.Builder(context, renderersFactory)
             .setLoadControl(loadControl)
             .setMediaSourceFactory(new DefaultMediaSourceFactory(dataSourceFactory))
+            .setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING) // 视频缩放模式
             .build();
         
         // 添加监听器
         exoPlayer.addListener(this);
         
-        Log.d(TAG, "ExoPlayer 初始化完成");
+        // 设置视频缩放模式为高质量
+        exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT);
+        
+        Log.d(TAG, "ExoPlayer 初始化完成（已优化画质设置）");
     }
 
     /**

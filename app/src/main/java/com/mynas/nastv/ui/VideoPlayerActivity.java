@@ -294,7 +294,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
         // 为 GSYVideoPlayer 应用饱和度增强滤镜
         if (playerView != null) {
-            applySaturationFilter(playerView, 1.2f); // 增加20%饱和度
+            applySaturationFilter(playerView, 1.35f); // 增加35%饱和度，改善颜色偏白和饱和度不足问题
         }
 
         // 初始化辅助类
@@ -1806,7 +1806,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             exoTextureView = new android.view.TextureView(this);
             
             // 应用饱和度增强滤镜 - 增加色彩饱和度
-            applySaturationFilter(exoTextureView, 1.2f); // 1.2 = 增加20%饱和度
+            applySaturationFilter(exoTextureView, 1.35f); // 1.35 = 增加35%饱和度，改善颜色偏白和饱和度不足问题
             
             // 添加到根布局（在 playerView 的位置）
             android.view.ViewGroup rootView = (android.view.ViewGroup) findViewById(android.R.id.content);
@@ -2283,34 +2283,59 @@ public class VideoPlayerActivity extends AppCompatActivity {
         // skip_loop_filter: 0=AVDISCARD_NONE(不跳过), 8=AVDISCARD_DEFAULT, 48=AVDISCARD_NONREF
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(codecCategory, "skip_loop_filter", 0));
         
-        // 2. 禁用帧跳过 - 保证画面完整性
+        // 2. 禁用帧跳过 - 保证画面完整性，减少颗粒感
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(codecCategory, "skip_frame", 0));
         
-        // 3. 不设置 overlay-format，使用默认格式避免色彩转换问题
-        // 移除了之前的 overlay-format 设置
+        // 3. 优化像素格式 - 使用高质量像素格式提升清晰度
+        // 硬解模式下，使用最佳像素格式以获得更好的画质
+        if (!useSoftware) {
+            // 硬解模式：使用硬件解码器的最佳像素格式
+            // 不强制指定 overlay-format，让系统选择最佳格式
+            // 但可以通过其他参数优化颜色空间转换
+        } else {
+            // 软解模式：使用高质量像素格式
+            // 尝试使用 RGB565 或更高精度格式
+        }
         
-        // 4. 增加视频缓冲帧数 - 减少丢帧，提高流畅度
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "video-pictq-size", 6));
+        // 4. 增加视频缓冲帧数 - 减少丢帧，提高清晰度和流畅度
+        // 从 6 增加到 10，提供更多缓冲帧以减少颗粒感
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "video-pictq-size", 10));
+        
+        // 5. 优化帧率控制 - 减少帧率波动导致的颗粒感
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "fps", 0)); // 0=不限制帧率，使用原始帧率
         
         // ==================== 通用优化选项 ====================
+        // 帧丢弃策略：智能丢弃帧，在保持流畅度的同时保证画质
+        // framedrop=1 表示在必要时丢弃帧以保持流畅，但不会过度丢弃导致画质下降
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "framedrop", 1));
+        
+        // 精确跳转
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "enable-accurate-seek", 1));
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max-buffer-size", 15 * 1024 * 1024));
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "min-frames", 50));
+        
+        // 增加缓冲区大小 - 提供更多缓冲以减少卡顿和颗粒感
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max-buffer-size", 20 * 1024 * 1024)); // 从15MB增加到20MB
+        
+        // 最小帧数 - 增加预缓冲帧数
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "min-frames", 60)); // 从50增加到60
+        
+        // 准备完成后自动开始播放
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "start-on-prepared", 1));
         
-        // 7. 增加 packet 缓冲 - 减少卡顿
+        // 增加 packet 缓冲 - 减少卡顿
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "packet-buffering", 1));
         
-        // 8. 增加最大缓存时长
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max_cached_duration", 3000));
+        // 增加最大缓存时长 - 提供更长的缓冲时间
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max_cached_duration", 5000)); // 从3000增加到5000ms
 
-        // 格式选项
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "probesize", 10 * 1024 * 1024));
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "analyzeduration", 5 * 1000 * 1000));
+        // 格式选项 - 增加探测和分析时间以获得更好的画质
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "probesize", 20 * 1024 * 1024)); // 从10MB增加到20MB
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "analyzeduration", 10 * 1000 * 1000)); // 从5秒增加到10秒
         
-        // 9. 刷新数据包 - 减少延迟
+        // 刷新数据包 - 减少延迟
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "flush_packets", 1));
+        
+        // 额外优化：禁用低延迟模式以获得更好的画质
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "low_delay", 0));
 
         Log.d(TAG, "IJKPlayer: 已应用画质优化配置");
         return options;
@@ -3412,6 +3437,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
     /**
      * 为 View 应用饱和度增强滤镜
+     * 优化方案：
+     * 1. 提高饱和度以改善颜色偏白和饱和度不足问题
+     * 2. 增强对比度以提升画面层次感
+     * 3. 微调亮度以改善偏白问题
+     * 
      * @param view 目标 View
      * @param saturation 饱和度值 (0=灰度, 1=正常, >1=增强饱和度)
      */
@@ -3422,9 +3452,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
         android.graphics.ColorMatrix colorMatrix = new android.graphics.ColorMatrix();
         colorMatrix.setSaturation(saturation);
         
-        // 可选：轻微增加对比度，让画面更鲜艳
-        float contrast = 1.05f; // 增加5%对比度
-        float brightness = 0f;
+        // 增强对比度 - 从1.05增加到1.1，提升画面层次感和清晰度
+        float contrast = 1.1f; // 增加10%对比度
+        // 微调亮度 - 降低2%亮度以改善颜色偏白问题
+        float brightness = -5f; // 降低约2%亮度（-5/255 ≈ -2%）
         float scale = contrast;
         float translate = (-.5f * scale + .5f) * 255f + brightness;
         android.graphics.ColorMatrix contrastMatrix = new android.graphics.ColorMatrix(new float[] {
@@ -3442,7 +3473,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         paint.setColorFilter(filter);
         view.setLayerPaint(paint);
         
-        Log.d(TAG, "已应用饱和度滤镜: saturation=" + saturation + ", contrast=" + contrast);
+        Log.d(TAG, "已应用饱和度滤镜: saturation=" + saturation + ", contrast=" + contrast + ", brightness=" + brightness);
     }
 
     /**

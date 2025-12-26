@@ -1773,8 +1773,14 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         StringBuilder sb = new StringBuilder();
                         for (androidx.media3.common.text.Cue cue : cues) {
                             if (cue.text != null) {
+                                String cueText = cue.text.toString();
+                                // 过滤 ASS 绘图命令 (drawing commands)
+                                // 绘图命令格式: m x y b x1 y1 x2 y2... (move 和 bezier curve)
+                                if (isAssDrawingCommand(cueText)) {
+                                    continue; // 跳过绘图命令
+                                }
                                 if (sb.length() > 0) sb.append("\n");
-                                sb.append(cue.text);
+                                sb.append(cueText);
                             }
                         }
                         String text = sb.toString();
@@ -2993,5 +2999,29 @@ public class VideoPlayerActivity extends AppCompatActivity {
      */
     private void showAudioTrackDialog() {
         ToastUtils.show(this, "当前播放器不支持音频轨道选择");
+    }
+
+    /**
+     * 检查是否是 ASS 绘图命令
+     * ASS 绘图命令格式: m x y b x1 y1 x2 y2... (move 和 bezier curve)
+     * 这些命令用于绘制 logo 或图形，不应该作为文本显示
+     */
+    private boolean isAssDrawingCommand(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        // 去除首尾空格
+        text = text.trim();
+        // 绘图命令通常以 "m" 开头，后面跟数字
+        // 例如: "m 2.39 33.02 b 2.6 33.37..."
+        if (text.startsWith("m ") || text.startsWith("m\t")) {
+            // 检查是否主要由数字、空格、小数点和绘图命令字母(m, b, l, c, s, p, n)组成
+            String cleaned = text.replaceAll("[mblcspn\\s\\d\\.]", "");
+            // 如果清理后几乎没有其他字符，说明是绘图命令
+            if (cleaned.length() < text.length() * 0.1) {
+                return true;
+            }
+        }
+        return false;
     }
 }

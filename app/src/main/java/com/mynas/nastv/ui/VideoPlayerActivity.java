@@ -17,24 +17,36 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.shuyu.gsyvideoplayer.builder.GSYVideoOptionBuilder;
 import com.shuyu.gsyvideoplayer.listener.GSYVideoProgressListener;
 import com.shuyu.gsyvideoplayer.listener.VideoAllCallBack;
-import com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer;
 import com.shuyu.gsyvideoplayer.utils.GSYVideoType;
 
 import com.mynas.nastv.R;
 import com.mynas.nastv.feature.danmaku.api.IDanmuController;
 import com.mynas.nastv.feature.danmaku.logic.DanmuControllerImpl;
 import com.mynas.nastv.manager.MediaManager;
+import com.mynas.nastv.model.EpisodeListResponse;
+import com.mynas.nastv.model.PlayStartInfo;
+import com.mynas.nastv.player.EpisodeController;
+import com.mynas.nastv.player.PlayerMenuController;
+import com.mynas.nastv.player.PlayerSettingsHelper;
 import com.mynas.nastv.player.ProgressRecorder;
+import com.mynas.nastv.player.SubtitleManager;
 import com.mynas.nastv.utils.SharedPreferencesManager;
 import com.mynas.nastv.utils.ToastUtils;
 
 import java.io.File;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * VideoPlayerActivity
- * Plays video and handles Danmaku.
+ * 视频播放器 Activity
+ * 
+ * 重构说明：
+ * - SubtitleManager: 字幕管理（加载、解析、显示）
+ * - PlayerMenuController: 菜单控制（底部菜单、进度条）
+ * - PlayerSettingsHelper: 播放器设置（解码器、画面比例等）
+ * - EpisodeController: 剧集管理（选集、下一集）
  */
 public class VideoPlayerActivity extends AppCompatActivity {
     private static final String TAG = "VideoPlayerActivity";
@@ -49,9 +61,15 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private View errorLayout;
     private TextView errorText;
     private FrameLayout danmuContainer;
-    private TextView subtitleTextView; // 字幕显示
+    private TextView subtitleTextView;
 
     private IDanmuController danmuController;
+
+    // 辅助类
+    private SubtitleManager subtitleManager;
+    private PlayerMenuController menuController;
+    private PlayerSettingsHelper settingsHelper;
+    private EpisodeController episodeController;
 
     // Data
     private String videoUrl;
@@ -65,9 +83,9 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private String doubanId;
     private int episodeNumber;
     private int seasonNumber;
-    private String parentGuid; // 父级GUID（季GUID）
-    private String tvTitle;    // 电视剧标题（用于弹幕搜索）
-    private String seasonGuid; // 季GUID（用于获取剧集列表）
+    private String parentGuid;
+    private String tvTitle;
+    private String seasonGuid;
 
     // 恢复播放位置
     private long resumePositionSeconds = 0;
@@ -75,35 +93,28 @@ public class VideoPlayerActivity extends AppCompatActivity {
     // 跳过片头标志
     private boolean hasSkippedIntro = false;
 
-    // 剧集列表（用于选集和下一集功能）
-    private java.util.List<com.mynas.nastv.model.EpisodeListResponse.Episode> episodeList;
-
-    // 字幕相关
-    private java.util.List<com.mynas.nastv.model.StreamListResponse.SubtitleStream> subtitleStreams;
-    private int currentSubtitleIndex = -1; // -1 表示关闭字幕
-    private String currentVideoUrl; // 保存当前视频URL用于字幕重载
-    private boolean isDirectLinkMode = false; // 是否为直连模式
-
-    // 缓存由 GSYVideoPlayer + OkHttpProxyCacheManager 处理
+    // 字幕相关（由 SubtitleManager 管理，保留兼容变量）
+    private List<com.mynas.nastv.model.StreamListResponse.SubtitleStream> subtitleStreams;
+    private int currentSubtitleIndex = -1;
+    private String currentVideoUrl;
+    private boolean isDirectLinkMode = false;
 
     // Manager
     private MediaManager mediaManager;
-
-    // 播放进度记录器
     private ProgressRecorder progressRecorder;
 
     private boolean isPlayerReady = false;
 
-    // 解码器自动切换：本次会话是否强制使用软解（硬解崩溃后自动切换）
+    // 解码器（由 PlayerSettingsHelper 管理，保留兼容变量）
     private boolean forceUseSoftwareDecoder = false;
     private int decoderRetryCount = 0;
-    private static final int MAX_DECODER_RETRY = 1; // 最多重试1次（切换到软解）
+    private static final int MAX_DECODER_RETRY = 1;
     private tv.danmaku.ijk.media.player.IjkMediaPlayer currentIjkPlayer = null;
 
     // ExoPlayer 内核（用于内嵌字幕）
     private com.mynas.nastv.player.ExoPlayerKernel exoPlayerKernel;
-    private boolean useExoPlayerForSubtitle = false; // 是否使用 ExoPlayer 播放内嵌字幕
-    private android.view.TextureView exoTextureView; // ExoPlayer 的 TextureView
+    private boolean useExoPlayerForSubtitle = false;
+    private android.view.TextureView exoTextureView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -163,9 +174,36 @@ public class VideoPlayerActivity extends AppCompatActivity {
         // 初始化播放进度记录器
         progressRecorder = new ProgressRecorder();
 
-        // 加载剧集列表（用于选集和下一集功能）
+        // 初始化剧集控制器
+        episodeController = new EpisodeController(this);
+        episodeController.setSeasonGuid(seasonGuid);
+        episodeController.setCurrentEpisodeNumber(episodeNumber);
+        episodeController.setCallback(new EpisodeController.EpisodeCallback() {
+            @Override
+            public void onEpisodeLoaded(PlayStartInfo playInfo, EpisodeListResponse.Episode episode) {
+                handleEpisodeLoaded(playInfo, episode);
+            }
+            @Override
+            public void onEpisodeLoadError(String error) {
+                ToastUtils.show(VideoPlayerActivity.this, "加载失败: " + error);
+            }
+            @Override
+            public void onEpisodeListLoaded(List<EpisodeListResponse.Episode> episodes) {
+                Log.d(TAG, "Episode list loaded: " + episodes.size());
+            }
+            @Override
+            public void onNoMoreEpisodes() {
+                ToastUtils.show(VideoPlayerActivity.this, "暂无下一集");
+            }
+            @Override
+            public void onLastEpisodeFinished() {
+                finish();
+            }
+        });
+
+        // 加载剧集列表
         if (seasonGuid != null && !seasonGuid.isEmpty()) {
-            loadEpisodeListForPlayer();
+            episodeController.loadEpisodeList();
         }
 
         Log.d(TAG, "Data Initialized: " + mediaTitle + ", URL: " + videoUrl);
@@ -173,20 +211,67 @@ public class VideoPlayerActivity extends AppCompatActivity {
     }
 
     /**
-     * 加载剧集列表（用于选集和下一集功能）
+     * 处理剧集加载完成
      */
-    private void loadEpisodeListForPlayer() {
-        mediaManager.getEpisodeList(seasonGuid, new MediaManager.MediaCallback<java.util.List<com.mynas.nastv.model.EpisodeListResponse.Episode>>() {
-            @Override
-            public void onSuccess(java.util.List<com.mynas.nastv.model.EpisodeListResponse.Episode> episodes) {
-                episodeList = episodes;
-                Log.d(TAG, "Loaded " + episodes.size() + " episodes for player");
+    private void handleEpisodeLoaded(PlayStartInfo playInfo, EpisodeListResponse.Episode episode) {
+        runOnUiThread(() -> {
+            Log.d(TAG, "Episode loaded: " + episode.getEpisodeNumber());
+
+            // 记录当前是否使用 ExoPlayer
+            final boolean wasUsingExoPlayer = useExoPlayerForSubtitle;
+
+            // 更新当前剧集信息
+            episodeNumber = episode.getEpisodeNumber();
+            episodeGuid = episode.getGuid();
+            videoGuid = playInfo.getVideoGuid();
+            audioGuid = playInfo.getAudioGuid();
+            mediaGuid = playInfo.getMediaGuid();
+
+            // 更新标题
+            String newTitle = episode.getTitle() != null ? episode.getTitle() : "第" + episode.getEpisodeNumber() + "集";
+            mediaTitle = newTitle;
+            updateTitleDisplay();
+
+            // 重置恢复位置
+            resumePositionSeconds = playInfo.getResumePositionSeconds();
+
+            // 释放 ExoPlayer
+            if (wasUsingExoPlayer) {
+                releaseExoPlayerKernel();
+                useExoPlayerForSubtitle = false;
+                if (exoTextureView != null) {
+                    exoTextureView.setVisibility(View.GONE);
+                }
             }
 
-            @Override
-            public void onError(String error) {
-                Log.e(TAG, "Failed to load episode list: " + error);
+            // 停止 GSYVideoPlayer
+            if (playerView != null) {
+                playerView.release();
+                isPlayerReady = false;
             }
+
+            // 清空弹幕缓存
+            if (danmuController != null) {
+                danmuController.clearDanmaku();
+            }
+
+            // 重置状态
+            hasSkippedIntro = false;
+            currentSubtitleIndex = -1;
+            subtitleStreams = null;
+
+            // 重新初始化播放器
+            if (playerView != null) {
+                playerView.setVisibility(View.VISIBLE);
+            }
+            initializePlayer();
+
+            // 播放新视频
+            showLoading("加载中...");
+            videoUrl = playInfo.getPlayUrl();
+            playMedia(videoUrl);
+
+            hideSettingsMenu();
         });
     }
 
@@ -200,7 +285,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
         errorLayout = findViewById(R.id.error_layout);
         errorText = findViewById(R.id.error_text);
         danmuContainer = findViewById(R.id.danmu_container);
-        subtitleTextView = findViewById(R.id.subtitle_text_view); // 字幕显示
+        subtitleTextView = findViewById(R.id.subtitle_text_view);
+
+        // 初始化辅助类
+        initializeHelpers();
 
         // 关键修复：立即隐藏海报背景，避免显示灰色山景默认图
         if (posterImageView != null) {
@@ -212,10 +300,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
         // 添加点击屏幕呼出/隐藏菜单
         playerView.setOnClickListener(v -> {
-            if (isMenuVisible) {
-                hideSettingsMenu();
-            } else {
-                showSettingsMenu();
+            if (menuController != null && menuController.isMenuVisible()) {
+                menuController.hideMenu();
+            } else if (menuController != null) {
+                menuController.showMenu();
             }
         });
 
@@ -228,6 +316,132 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 Log.e(TAG, "DanmuController Init Failed", e);
             }
         }
+    }
+
+    /**
+     * 初始化辅助类
+     */
+    private void initializeHelpers() {
+        // 字幕管理器
+        subtitleManager = new SubtitleManager(this, subtitleTextView);
+        subtitleManager.setPositionProvider(() -> {
+            if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
+                return exoPlayerKernel.getCurrentPosition();
+            } else if (playerView != null) {
+                return playerView.getCurrentPositionWhenPlaying();
+            }
+            return 0;
+        });
+        subtitleManager.setCallback(new SubtitleManager.SubtitleCallback() {
+            @Override
+            public void onSubtitleLoaded(String title) {
+                ToastUtils.show(VideoPlayerActivity.this, "字幕已加载: " + title);
+            }
+            @Override
+            public void onSubtitleError(String error) {
+                ToastUtils.show(VideoPlayerActivity.this, error);
+            }
+            @Override
+            public void onInternalSubtitleDetected() {
+                switchToExoPlayerForInternalSubtitle();
+            }
+        });
+
+        // 菜单控制器
+        menuController = new PlayerMenuController(this, getWindow().getDecorView());
+        menuController.setPositionProvider(new PlayerMenuController.PositionProvider() {
+            @Override
+            public long getCurrentPosition() {
+                if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
+                    return exoPlayerKernel.getCurrentPosition();
+                } else if (playerView != null) {
+                    return playerView.getCurrentPositionWhenPlaying();
+                }
+                return 0;
+            }
+            @Override
+            public long getDuration() {
+                if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
+                    return exoPlayerKernel.getDuration();
+                } else if (playerView != null) {
+                    return playerView.getDuration();
+                }
+                return 0;
+            }
+        });
+        menuController.setCallback(new PlayerMenuController.MenuCallback() {
+            @Override
+            public void onSpeedChanged(float speed) {
+                if (playerView != null) {
+                    playerView.setSpeed(speed);
+                }
+            }
+            @Override
+            public void onEpisodeSelected(EpisodeListResponse.Episode episode) {
+                if (episodeController != null) {
+                    episodeController.playEpisode(episode);
+                }
+            }
+            @Override
+            public void onNextEpisode() {
+                if (episodeController != null) {
+                    episodeController.playNextEpisode();
+                }
+            }
+            @Override
+            public void onSubtitleMenuRequested() {
+                showSubtitleMenu();
+            }
+            @Override
+            public void onDanmakuToggled(boolean enabled) {
+                if (danmuController != null) {
+                    if (enabled) {
+                        danmuController.startPlayback();
+                    } else {
+                        danmuController.pausePlayback();
+                    }
+                }
+                if (danmuContainer != null) {
+                    danmuContainer.setVisibility(enabled ? View.VISIBLE : View.GONE);
+                }
+            }
+            @Override
+            public void onSeekTo(long position) {
+                if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
+                    exoPlayerKernel.seekTo(position);
+                } else if (playerView != null) {
+                    playerView.seekTo(position);
+                }
+            }
+            @Override
+            public void onSettingsRequested() {
+                if (settingsHelper != null) {
+                    settingsHelper.showSettingsDialog();
+                }
+            }
+        });
+        menuController.setEpisodeClickListener(v -> {
+            if (episodeController != null) {
+                episodeController.showEpisodeMenu();
+            }
+        });
+
+        // 设置辅助类
+        settingsHelper = new PlayerSettingsHelper(this);
+        settingsHelper.setCallback(new PlayerSettingsHelper.SettingsCallback() {
+            @Override
+            public void onDecoderChanged(boolean useSoftware) {
+                forceUseSoftwareDecoder = useSoftware;
+            }
+            @Override
+            public void onAspectRatioChanged(int ratio) {
+                applyAspectRatio(ratio);
+            }
+            @Override
+            public void onReloadVideoRequested() {
+                reloadVideo();
+            }
+        });
     }
 
     // 记录是否已显示软解提示（避免重复提示）
@@ -456,16 +670,12 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
                         @Override
                         public void onClickBlank(String url, Object... objects) {
-                            Log.d(TAG, "GSYVideoPlayer onClickBlank - 切换菜单显示, isMenuVisible=" + isMenuVisible);
+                            boolean menuVisible = menuController != null && menuController.isMenuVisible();
+                            Log.d(TAG, "GSYVideoPlayer onClickBlank - 切换菜单显示, isMenuVisible=" + menuVisible);
                             // 修复：在 GSYVideoPlayer 的点击回调中切换菜单显示
                             runOnUiThread(() -> {
-                                Log.d(TAG, "onClickBlank runOnUiThread - isMenuVisible=" + isMenuVisible);
-                                if (isMenuVisible) {
-                                    Log.d(TAG, "调用 hideSettingsMenu()");
-                                    hideSettingsMenu();
-                                } else {
-                                    Log.d(TAG, "调用 showSettingsMenu()");
-                                    showSettingsMenu();
+                                if (menuController != null) {
+                                    menuController.toggleMenu();
                                 }
                             });
                         }
@@ -474,8 +684,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         public void onAutoComplete(String url, Object... objects) {
                             Log.d(TAG, "GSYVideoPlayer onAutoComplete");
                             // 自动连播：播放结束时自动播放下一集
-                            if (SharedPreferencesManager.isAutoPlayNext() && episodeList != null && !episodeList.isEmpty()) {
-                                playNextEpisodeAuto();
+                            if (SharedPreferencesManager.isAutoPlayNext() && episodeController != null && episodeController.hasEpisodeList()) {
+                                episodeController.playNextEpisodeAuto();
                             } else {
                                 finish();
                             }
@@ -544,10 +754,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         public void onClickBlankFullscreen(String url, Object... objects) {
                             Log.d(TAG, "GSYVideoPlayer onClickBlankFullscreen - 切换菜单显示");
                             // 修复：全屏模式下也切换菜单显示
-                            if (isMenuVisible) {
-                                hideSettingsMenu();
-                            } else {
-                                showSettingsMenu();
+                            if (menuController != null) {
+                                menuController.toggleMenu();
                             }
                         }
 
@@ -1619,8 +1827,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
             public void onCompletion() {
                 Log.d(TAG, "ExoPlayer 播放完成");
                 runOnUiThread(() -> {
-                    if (SharedPreferencesManager.isAutoPlayNext() && episodeList != null && !episodeList.isEmpty()) {
-                        playNextEpisodeAuto();
+                    if (SharedPreferencesManager.isAutoPlayNext() && episodeController != null && episodeController.hasEpisodeList()) {
+                        episodeController.playNextEpisodeAuto();
                     } else {
                         finish();
                     }
@@ -1737,26 +1945,20 @@ public class VideoPlayerActivity extends AppCompatActivity {
      * 配置解码器：根据用户设置和自动降级逻辑
      */
     private void configureDecoder() {
-        boolean useSoftware = SharedPreferencesManager.useSoftwareDecoder() || forceUseSoftwareDecoder;
-
-        if (useSoftware) {
-            // 软解模式
-            GSYVideoType.disableMediaCodec();
-            Log.d(TAG, "解码器配置: 软解模式");
+        if (settingsHelper != null) {
+            settingsHelper.setForceUseSoftwareDecoder(forceUseSoftwareDecoder);
+            settingsHelper.configureDecoder();
         } else {
-            // 硬解模式
-            GSYVideoType.enableMediaCodec();
-            GSYVideoType.enableMediaCodecTexture();
-            Log.d(TAG, "解码器配置: 硬解模式");
+            // 兼容：settingsHelper 未初始化时的处理
+            boolean useSoftware = SharedPreferencesManager.useSoftwareDecoder() || forceUseSoftwareDecoder;
+            if (useSoftware) {
+                GSYVideoType.disableMediaCodec();
+            } else {
+                GSYVideoType.enableMediaCodec();
+                GSYVideoType.enableMediaCodecTexture();
+            }
         }
-
-        // 配置 IJKPlayer 高级选项
-        try {
-            com.shuyu.gsyvideoplayer.GSYVideoManager.instance().setOptionModelList(getIjkOptions(useSoftware));
-            Log.d(TAG, "IJKPlayer 选项已配置");
-        } catch (Exception e) {
-            Log.e(TAG, "配置 IJKPlayer 选项失败", e);
-        }
+        Log.d(TAG, "解码器配置完成");
     }
 
     /**
@@ -2003,7 +2205,16 @@ public class VideoPlayerActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         stopPositionUpdate();
-        stopSubtitleSync(); // 停止字幕同步
+
+        // 释放辅助类
+        if (subtitleManager != null) {
+            subtitleManager.release();
+            subtitleManager = null;
+        }
+        if (menuController != null) {
+            menuController.release();
+            menuController = null;
+        }
 
         // 停止播放进度记录
         if (progressRecorder != null) {
@@ -2016,7 +2227,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             iconHandler.removeCallbacks(hideIconRunnable);
         }
 
-        // 释放 ExoPlayer 内核（会清除 exoPlayerUsingProxy 标志）
+        // 释放 ExoPlayer 内核
         releaseExoPlayerKernel();
 
         if (playerView != null) {
@@ -2024,7 +2235,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             playerView = null;
         }
 
-        // 强制释放缓存管理器（清理缓存状态）
+        // 强制释放缓存管理器
         try {
             com.mynas.nastv.cache.OkHttpProxyCacheManager.instance().forceRelease();
         } catch (Exception e) {
@@ -2039,11 +2250,13 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        boolean menuVisible = menuController != null && menuController.isMenuVisible();
+        
         // 返回键处理
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (isMenuVisible) {
+            if (menuVisible) {
                 // 如果菜单可见，按返回键隐藏菜单
-                hideSettingsMenu();
+                menuController.hideMenu();
                 return true;
             } else {
                 // 菜单不可见时，立即销毁播放器并退出
@@ -2072,17 +2285,17 @@ public class VideoPlayerActivity extends AppCompatActivity {
             }
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
             // 按下键呼出/隐藏设置菜单和进度条
-            if (isMenuVisible) {
-                hideSettingsMenu();
-            } else {
-                showSettingsMenu();
+            if (menuController != null) {
+                menuController.toggleMenu();
             }
             return true;
-        } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP && isMenuVisible) {
+        } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP && menuVisible) {
             // 菜单可见时，按上键隐藏菜单
-            hideSettingsMenu();
+            if (menuController != null) {
+                menuController.hideMenu();
+            }
             return true;
-        } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && !isMenuVisible) {
+        } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && !menuVisible) {
             // 左键快退10秒（菜单不可见时）
             if (playerView != null) {
                 try {
@@ -2096,7 +2309,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 }
                 return true;
             }
-        } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && !isMenuVisible) {
+        } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && !menuVisible) {
             // 右键快进10秒（菜单不可见时）
             if (playerView != null) {
                 try {
@@ -2118,240 +2331,45 @@ public class VideoPlayerActivity extends AppCompatActivity {
     public boolean onTouchEvent(android.view.MotionEvent event) {
         // 点击屏幕呼出/隐藏菜单
         if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
-            if (isMenuVisible) {
-                hideSettingsMenu();
-            } else {
-                showSettingsMenu();
+            if (menuController != null) {
+                menuController.toggleMenu();
             }
             return true;
         }
         return super.onTouchEvent(event);
     }
 
-    // UI - 底部菜单
-    private LinearLayout bottomMenuContainer;
-    private TextView menuNextEpisode, menuSpeed, menuEpisode, menuQuality, menuSubtitle, menuDanmaku, menuSettings;
-    private boolean isMenuVisible = false;
-
-    // UI - 进度条
-    private TextView progressCurrentTime, progressTotalTime;
-    private TextView bufferInfoText;
-    private android.widget.SeekBar progressSeekbar;
-    private android.widget.ProgressBar bufferProgressbar;
-    private boolean isSeekbarTracking = false;
-
     // UI - 中央播放/暂停图标
     private ImageView centerPlayIcon;
     private Handler iconHandler = new Handler(Looper.getMainLooper());
     private Runnable hideIconRunnable;
 
-    // 当前播放速度
+    // 当前播放速度（由 menuController 管理，保留兼容变量）
     private float currentSpeed = 1.0f;
     private static final float[] SPEED_OPTIONS = {0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
     private static final String[] SPEED_LABELS = {"0.5x", "0.75x", "1.0x", "1.25x", "1.5x", "2.0x"};
 
+    /**
+     * 显示设置菜单（委托给 menuController）
+     */
     private void showSettingsMenu() {
-        Log.d(TAG, "showSettingsMenu() 被调用");
-        if (bottomMenuContainer == null) {
-            Log.d(TAG, "bottomMenuContainer 为 null，初始化视图");
-            bottomMenuContainer = findViewById(R.id.bottom_menu_container);
-            Log.d(TAG, "bottomMenuContainer = " + bottomMenuContainer);
-            menuNextEpisode = findViewById(R.id.menu_next_episode);
-            menuSpeed = findViewById(R.id.menu_speed);
-            menuEpisode = findViewById(R.id.menu_episode);
-            menuQuality = findViewById(R.id.menu_quality);
-            menuSubtitle = findViewById(R.id.menu_subtitle);
-            menuDanmaku = findViewById(R.id.menu_danmaku);
-
-            // 进度条
-            progressCurrentTime = findViewById(R.id.progress_current_time);
-            progressTotalTime = findViewById(R.id.progress_total_time);
-            progressSeekbar = findViewById(R.id.progress_seekbar);
-            bufferProgressbar = findViewById(R.id.buffer_progressbar);
-            bufferInfoText = findViewById(R.id.buffer_info_text);
-
-            // 设置点击事件
-            if (menuNextEpisode != null) {
-                menuNextEpisode.setOnClickListener(v -> playNextEpisode());
-            }
-            menuSpeed.setOnClickListener(v -> showSpeedMenu());
-            menuEpisode.setOnClickListener(v -> showEpisodeMenu());
-            menuQuality.setOnClickListener(v -> showQualityMenu());
-            menuSubtitle.setOnClickListener(v -> showSubtitleMenu());
-            menuDanmaku.setOnClickListener(v -> toggleDanmaku());
-            menuSettings = findViewById(R.id.menu_settings);
-            if (menuSettings != null) {
-                menuSettings.setOnClickListener(v -> showSettingsDialog());
-            }
-
-            // 进度条拖动监听
-            if (progressSeekbar != null) {
-                progressSeekbar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
-                    @Override
-                    public void onProgressChanged(android.widget.SeekBar seekBar, int progress, boolean fromUser) {
-                        if (fromUser) {
-                            // 根据当前播放器获取时长
-                            long duration = 0;
-                            if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
-                                duration = exoPlayerKernel.getDuration();
-                            } else if (playerView != null) {
-                                duration = playerView.getDuration();
-                            }
-                            if (duration > 0) {
-                                long newPosition = (duration * progress) / 100;
-                                progressCurrentTime.setText(formatTime(newPosition));
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void onStartTrackingTouch(android.widget.SeekBar seekBar) {
-                        isSeekbarTracking = true;
-                    }
-
-                    @Override
-                    public void onStopTrackingTouch(android.widget.SeekBar seekBar) {
-                        isSeekbarTracking = false;
-                        // 根据当前播放器进行 seek
-                        long duration = 0;
-                        if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
-                            duration = exoPlayerKernel.getDuration();
-                            if (duration > 0) {
-                                long newPosition = (duration * seekBar.getProgress()) / 100;
-                                exoPlayerKernel.seekTo(newPosition);
-                                Log.d(TAG, "ExoPlayer seekTo: " + (newPosition / 1000) + "s");
-                            }
-                        } else if (playerView != null) {
-                            duration = playerView.getDuration();
-                            if (duration > 0) {
-                                long newPosition = (duration * seekBar.getProgress()) / 100;
-                                playerView.seekTo(newPosition);
-                            }
-                        }
-                    }
-                });
-            }
-
-            // 更新当前速度显示
-            updateSpeedLabel();
-            // 更新弹幕状态
-            updateDanmakuLabel();
-        }
-
-        // 更新进度条
-        updateProgressBar();
-
-        // 显示顶部信息
-        if (topInfoContainer != null) {
-            topInfoContainer.setVisibility(View.VISIBLE);
-            topInfoContainer.bringToFront();
-            topInfoContainer.requestLayout();
-            Log.d(TAG, "topInfoContainer 设置为 VISIBLE");
-        }
-
-        if (bottomMenuContainer != null) {
-            bottomMenuContainer.setVisibility(View.VISIBLE);
-            bottomMenuContainer.bringToFront();
-            // 强制请求布局，确保视图被正确测量
-            bottomMenuContainer.requestLayout();
-            bottomMenuContainer.invalidate();
-            Log.d(TAG, "bottomMenuContainer 设置为 VISIBLE, visibility=" + bottomMenuContainer.getVisibility() +
-                    ", width=" + bottomMenuContainer.getWidth() + ", height=" + bottomMenuContainer.getHeight());
-        }
-        if (menuSpeed != null) {
-            menuSpeed.requestFocus();
-        }
-        isMenuVisible = true;
-        Log.d(TAG, "菜单已显示, isMenuVisible=" + isMenuVisible);
-
-        // 开始进度更新
-        startProgressUpdate();
-    }
-
-    // 进度条更新
-    private Handler progressHandler = new Handler(Looper.getMainLooper());
-    private Runnable progressRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (isMenuVisible && !isSeekbarTracking) {
-                updateProgressBar();
-            }
-            if (isMenuVisible) {
-                progressHandler.postDelayed(this, 500);
-            }
-        }
-    };
-
-    private void startProgressUpdate() {
-        progressHandler.removeCallbacks(progressRunnable);
-        progressHandler.post(progressRunnable);
-    }
-
-    private void stopProgressUpdate() {
-        progressHandler.removeCallbacks(progressRunnable);
-    }
-
-    private void updateProgressBar() {
-        // 根据当前播放器获取进度
-        long currentPosition = 0;
-        long duration = 0;
-
-        if (useExoPlayerForSubtitle && exoPlayerKernel != null) {
-            currentPosition = exoPlayerKernel.getCurrentPosition();
-            duration = exoPlayerKernel.getDuration();
-        } else if (playerView != null) {
-            currentPosition = playerView.getCurrentPositionWhenPlaying();
-            duration = playerView.getDuration();
-        }
-
-        if (progressSeekbar != null && duration > 0) {
-            try {
-                // 播放进度
-                int progress = (int) ((currentPosition * 100) / duration);
-                progressSeekbar.setProgress(progress);
-                progressCurrentTime.setText(formatTime(currentPosition));
-                progressTotalTime.setText(formatTime(duration));
-
-                // 从 OkHttpProxyCacheManager 获取真实缓存进度
-                int bufferProgress = progress; // 默认等于播放进度
-                int cachedChunks = 0;
-                int currentChunk = 0;
-
-                try {
-                    com.mynas.nastv.cache.OkHttpProxyCacheManager cacheManager =
-                            com.mynas.nastv.cache.OkHttpProxyCacheManager.instance();
-                    if (cacheManager != null) {
-                        bufferProgress = cacheManager.getDownloadProgress();
-                        cachedChunks = cacheManager.getCachedChunksCount();
-                        currentChunk = cacheManager.getCurrentPlaybackChunk();
-                    }
-                } catch (Exception e) {
-                    // 忽略缓存管理器错误
-                }
-
-                // 更新缓存进度条
-                if (bufferProgressbar != null) {
-                    bufferProgressbar.setProgress(bufferProgress);
-                }
-
-                // 缓存信息文本
-                if (bufferInfoText != null) {
-                    if (cachedChunks > 0) {
-                        // 显示缓存块数和进度
-                        int cachedMB = cachedChunks * 2; // 每块 2MB
-                        bufferInfoText.setText("已缓存 " + cachedMB + "MB (" + bufferProgress + "%)");
-                    } else if (bufferProgress >= 99) {
-                        bufferInfoText.setText("缓存完成");
-                    } else {
-                        bufferInfoText.setText("");
-                    }
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "Error updating progress bar", e);
-            }
+        if (menuController != null) {
+            menuController.showMenu();
         }
     }
 
+    /**
+     * 隐藏设置菜单（委托给 menuController）
+     */
+    private void hideSettingsMenu() {
+        if (menuController != null) {
+            menuController.hideMenu();
+        }
+    }
+
+    /**
+     * 格式化时间
+     */
     private String formatTime(long millis) {
         long totalSeconds = millis / 1000;
         long hours = totalSeconds / 3600;
@@ -2363,6 +2381,20 @@ public class VideoPlayerActivity extends AppCompatActivity {
         } else {
             return String.format("%02d:%02d", minutes, seconds);
         }
+    }
+
+    /**
+     * 更新速度标签（委托给 menuController）
+     */
+    private void updateSpeedLabel() {
+        // 由 menuController 管理
+    }
+
+    /**
+     * 更新弹幕标签（委托给 menuController）
+     */
+    private void updateDanmakuLabel() {
+        // 由 menuController 管理
     }
 
     // 显示中央播放/暂停图标
@@ -2516,41 +2548,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
         seekProgressOverlay.setVisibility(View.GONE);
     }
 
-    private void hideSettingsMenu() {
-        Log.d(TAG, "hideSettingsMenu() 被调用");
-        if (bottomMenuContainer != null) {
-            bottomMenuContainer.setVisibility(View.GONE);
-            Log.d(TAG, "bottomMenuContainer 设置为 GONE");
-        }
-        // 隐藏顶部信息
-        if (topInfoContainer != null) {
-            topInfoContainer.setVisibility(View.GONE);
-        }
-        // 停止进度更新
-        stopProgressUpdate();
-        isMenuVisible = false;
-        Log.d(TAG, "菜单已隐藏, isMenuVisible=" + isMenuVisible);
-    }
-
-    private void updateSpeedLabel() {
-        if (menuSpeed != null) {
-            int index = 2; // 默认1.0x
-            for (int i = 0; i < SPEED_OPTIONS.length; i++) {
-                if (Math.abs(SPEED_OPTIONS[i] - currentSpeed) < 0.01f) {
-                    index = i;
-                    break;
-                }
-            }
-            menuSpeed.setText("倍速 " + SPEED_LABELS[index]);
-        }
-    }
-
-    private void updateDanmakuLabel() {
-        if (menuDanmaku != null) {
-            menuDanmaku.setText(isDanmakuEnabled ? "弹幕 开" : "弹幕 关");
-        }
-    }
-
     /**
      * 更新左上角标题显示
      * 电影：显示电影标题
@@ -2607,190 +2604,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     dialog.dismiss();
                 })
                 .show();
-    }
-
-    private void showEpisodeMenu() {
-        if (episodeList == null || episodeList.isEmpty()) {
-            ToastUtils.show(this, "暂无剧集列表");
-            return;
-        }
-
-        // 构建剧集选项
-        String[] episodeLabels = new String[episodeList.size()];
-        int currentIndex = -1;
-
-        for (int i = 0; i < episodeList.size(); i++) {
-            com.mynas.nastv.model.EpisodeListResponse.Episode ep = episodeList.get(i);
-            String title = ep.getTitle();
-            if (title != null && !title.isEmpty()) {
-                episodeLabels[i] = "第" + ep.getEpisodeNumber() + "集 " + title;
-            } else {
-                episodeLabels[i] = "第" + ep.getEpisodeNumber() + "集";
-            }
-
-            // 找到当前播放的剧集
-            if (ep.getEpisodeNumber() == episodeNumber) {
-                currentIndex = i;
-            }
-        }
-
-        final int checkedItem = currentIndex;
-
-        new android.app.AlertDialog.Builder(this)
-                .setTitle("选集")
-                .setSingleChoiceItems(episodeLabels, checkedItem, (dialog, which) -> {
-                    com.mynas.nastv.model.EpisodeListResponse.Episode selectedEp = episodeList.get(which);
-                    if (selectedEp.getEpisodeNumber() != episodeNumber) {
-                        // 切换到选中的剧集
-                        playEpisode(selectedEp);
-                    }
-                    dialog.dismiss();
-                })
-                .show();
-    }
-
-    /**
-     * 播放指定剧集
-     * <p>
-     * 重新初始化策略：
-     * - 释放播放器资源（包括 ExoPlayer）
-     * - 清空弹幕缓存
-     * - 重新初始化播放器
-     */
-    private void playEpisode(com.mynas.nastv.model.EpisodeListResponse.Episode episode) {
-        Log.e(TAG, "playEpisode called for episode " + episode.getEpisodeNumber());
-        ToastUtils.show(this, "正在加载第" + episode.getEpisodeNumber() + "集...");
-
-        // 记录当前是否使用 ExoPlayer，用于切换后恢复
-        final boolean wasUsingExoPlayer = useExoPlayerForSubtitle;
-
-        mediaManager.startPlayWithInfo(episode.getGuid(), new MediaManager.MediaCallback<com.mynas.nastv.model.PlayStartInfo>() {
-            @Override
-            public void onSuccess(com.mynas.nastv.model.PlayStartInfo playInfo) {
-                runOnUiThread(() -> {
-                    Log.e(TAG, "Starting FULL REINITIALIZATION for episode switch");
-                    Log.e(TAG, "Was using ExoPlayer: " + wasUsingExoPlayer);
-
-                    // 更新当前剧集信息
-                    episodeNumber = episode.getEpisodeNumber();
-                    episodeGuid = episode.getGuid();
-                    videoGuid = playInfo.getVideoGuid();
-                    audioGuid = playInfo.getAudioGuid();
-                    mediaGuid = playInfo.getMediaGuid();
-
-                    // 更新标题
-                    String newTitle = episode.getTitle() != null ? episode.getTitle() : "第" + episode.getEpisodeNumber() + "集";
-                    mediaTitle = newTitle;
-                    updateTitleDisplay();
-
-                    // 重置恢复位置
-                    resumePositionSeconds = playInfo.getResumePositionSeconds();
-
-                    // 步骤1：释放 ExoPlayer（如果正在使用）
-                    if (wasUsingExoPlayer) {
-                        Log.e(TAG, "Step 1a: Releasing ExoPlayer");
-                        releaseExoPlayerKernel();
-                        useExoPlayerForSubtitle = false;
-                        if (exoTextureView != null) {
-                            exoTextureView.setVisibility(View.GONE);
-                        }
-                    }
-
-                    // 步骤1b：停止 GSYVideoPlayer
-                    Log.e(TAG, "Step 1b: Stopping GSYVideoPlayer");
-                    if (playerView != null) {
-                        playerView.release();
-                        isPlayerReady = false;
-                    }
-
-                    // 步骤2：清空弹幕缓存
-                    Log.e(TAG, "Step 2: Clearing danmaku cache");
-                    if (danmuController != null) {
-                        danmuController.clearDanmaku();
-                    }
-
-                    // 步骤3：重置播放器状态
-                    Log.e(TAG, "Step 3: Resetting player state");
-                    hasSkippedIntro = false;
-                    currentSubtitleIndex = -1;
-                    subtitleStreams = null;
-
-                    // 步骤4：重新初始化 GSYVideoPlayer
-                    Log.e(TAG, "Step 4: Reinitializing GSYVideoPlayer");
-                    if (playerView != null) {
-                        playerView.setVisibility(View.VISIBLE);
-                    }
-                    initializePlayer();
-
-                    // 步骤5：显示加载界面并播放新视频
-                    Log.e(TAG, "Step 5: Playing new video");
-                    showLoading("加载中...");
-                    videoUrl = playInfo.getPlayUrl();
-                    playMedia(videoUrl);
-
-                    hideSettingsMenu();
-
-                    Log.e(TAG, "Episode switch completed");
-                });
-            }
-
-            @Override
-            public void onError(String error) {
-                runOnUiThread(() -> {
-                    ToastUtils.show(VideoPlayerActivity.this, "加载失败: " + error);
-                });
-            }
-        });
-    }
-
-    /**
-     * 播放下一集
-     */
-    private void playNextEpisode() {
-        if (episodeList == null || episodeList.isEmpty()) {
-            ToastUtils.show(this, "暂无下一集");
-            return;
-        }
-
-        // 找到当前剧集的下一集
-        for (int i = 0; i < episodeList.size(); i++) {
-            if (episodeList.get(i).getEpisodeNumber() == episodeNumber) {
-                if (i + 1 < episodeList.size()) {
-                    playEpisode(episodeList.get(i + 1));
-                } else {
-                    ToastUtils.show(this, "已经是最后一集");
-                }
-                return;
-            }
-        }
-
-        ToastUtils.show(this, "暂无下一集");
-    }
-
-    /**
-     * 自动播放下一集（播放结束时调用）
-     */
-    private void playNextEpisodeAuto() {
-        if (episodeList == null || episodeList.isEmpty()) {
-            finish();
-            return;
-        }
-
-        // 找到当前剧集的下一集
-        for (int i = 0; i < episodeList.size(); i++) {
-            if (episodeList.get(i).getEpisodeNumber() == episodeNumber) {
-                if (i + 1 < episodeList.size()) {
-                    ToastUtils.show(this, "自动播放下一集...");
-                    playEpisode(episodeList.get(i + 1));
-                } else {
-                    ToastUtils.show(this, "已播放完最后一集");
-                    finish();
-                }
-                return;
-            }
-        }
-
-        finish();
     }
 
     private void showQualityMenu() {

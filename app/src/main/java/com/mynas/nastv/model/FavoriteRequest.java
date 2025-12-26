@@ -3,7 +3,7 @@ package com.mynas.nastv.model;
 import com.google.gson.annotations.SerializedName;
 
 /**
- * ⭐ 收藏请求模型
+ * 收藏请求模型
  */
 public class FavoriteRequest {
     @SerializedName("item_guid")

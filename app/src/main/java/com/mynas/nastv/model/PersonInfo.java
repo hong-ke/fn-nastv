@@ -3,7 +3,7 @@ package com.mynas.nastv.model;
 import com.google.gson.annotations.SerializedName;
 
 /**
- * 👥 PersonInfo - 演职人员数据模型
+ * PersonInfo - 演职人员数据模型
  * 用于展示导演、演员、编剧等信息
  */
 public class PersonInfo {

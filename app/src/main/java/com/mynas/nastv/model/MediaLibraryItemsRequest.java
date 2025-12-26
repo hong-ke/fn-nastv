@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 📚 获取媒体库内容的请求参数
+ * 获取媒体库内容的请求参数
  * 对应Web项目中的POST /api/v1/item/list请求
  */
 public class MediaLibraryItemsRequest {

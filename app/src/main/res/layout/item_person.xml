@@ -20,7 +20,7 @@
         android:contentDescription="@string/poster_description"
         tools:src="@color/tv_card_background" />
 
-    <!-- 📝 姓名 -->
+    <!-- 姓名 -->
     <TextView
         android:id="@+id/person_name"
         android:layout_width="match_parent"
@@ -34,7 +34,7 @@
         android:ellipsize="end"
         tools:text="演员姓名" />
 
-    <!-- 📝 角色 -->
+    <!-- 角色 -->
     <TextView
         android:id="@+id/person_role"
         android:layout_width="match_parent"

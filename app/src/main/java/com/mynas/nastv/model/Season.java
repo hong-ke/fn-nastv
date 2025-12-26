@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 📺 季度数据模型
+ * 季度数据模型
  * 对应Web项目中的电视剧/动漫的季度信息
  * 用于VideoDetailActivity的季度选择功能
  */
@@ -20,28 +20,28 @@ public class Season implements Parcelable {
     private String airDate;         // 首播日期
     private String overview;        // 季度简介
     
-    // 📊 统计信息
+    // 统计信息
     private int episodeCount;       // 集数
     private int watchedEpisodes;    // 已观看集数
     private float watchedProgress;  // 观看进度 (0-100)
     
-    // 🖼️ 图片信息
+    // 图片信息
     private String posterUrl;       // 季度海报URL
     private String backdropUrl;     // 季度背景图URL
     
-    // 📺 剧集列表
+    // 剧集列表
     private List<Episode> episodes; // 该季度的所有剧集
     
-    // 📊 评分信息
+    // 评分信息
     private float rating;           // 季度评分
     private int voteCount;          // 评分人数
     
-    // 📱 状态信息
+    // 状态信息
     private String status;          // 状态 (ongoing, completed, upcoming等)
     private boolean isCurrentSeason; // 是否为当前季
     private boolean isSelected;     // 是否选中状态
     
-    // 🔧 构造函数
+    // 构造函数
     public Season() {
         this.episodes = new ArrayList<>();
     }
@@ -69,7 +69,7 @@ public class Season implements Parcelable {
         this.isSelected = false;
     }
     
-    // 🔄 Parcelable实现
+    // Parcelable实现
     protected Season(Parcel in) {
         id = in.readString();
         name = in.readString();
@@ -130,7 +130,7 @@ public class Season implements Parcelable {
         dest.writeByte((byte) (isSelected ? 1 : 0));
     }
     
-    // 📖 Getter和Setter方法
+    // Getter和Setter方法
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     
@@ -207,10 +207,10 @@ public class Season implements Parcelable {
     public boolean isSelected() { return isSelected; }
     public void setSelected(boolean selected) { isSelected = selected; }
     
-    // 🔧 辅助方法
+    // 辅助方法
     
     /**
-     * 📊 获取观看进度文本
+     * 获取观看进度文本
      */
     public String getProgressText() {
         if (watchedEpisodes <= 0) {
@@ -223,7 +223,7 @@ public class Season implements Parcelable {
     }
     
     /**
-     * 📊 获取观看进度百分比文本
+     * 获取观看进度百分比文本
      */
     public String getProgressPercentageText() {
         if (watchedProgress <= 0) {
@@ -236,21 +236,21 @@ public class Season implements Parcelable {
     }
     
     /**
-     * 📺 是否有观看进度
+     * 是否有观看进度
      */
     public boolean hasWatchProgress() {
         return watchedProgress > 0 && watchedProgress < 99;
     }
     
     /**
-     * ✅ 是否已观看完毕
+     * 是否已观看完毕
      */
     public boolean isCompleted() {
         return watchedProgress >= 99 || watchedEpisodes >= episodeCount;
     }
     
     /**
-     * 📱 获取季度状态文本
+     * 获取季度状态文本
      */
     public String getStatusText() {
         switch (status != null ? status.toLowerCase() : "") {
@@ -268,7 +268,7 @@ public class Season implements Parcelable {
     }
     
     /**
-     * 🆕 是否为新季度
+     * 是否为新季度
      */
     public boolean isNewSeason() {
         if (airDate == null) return false;
@@ -288,7 +288,7 @@ public class Season implements Parcelable {
     }
     
     /**
-     * 📺 获取下一个未观看的剧集
+     * 获取下一个未观看的剧集
      */
     public Episode getNextUnwatchedEpisode() {
         if (episodes == null || episodes.isEmpty()) {
@@ -305,7 +305,7 @@ public class Season implements Parcelable {
     }
     
     /**
-     * 📺 根据集数获取剧集
+     * 根据集数获取剧集
      */
     public Episode getEpisodeByNumber(int episodeNumber) {
         if (episodes == null || episodes.isEmpty()) {
@@ -322,7 +322,7 @@ public class Season implements Parcelable {
     }
     
     /**
-     * 📊 获取格式化的评分文本
+     * 获取格式化的评分文本
      */
     public String getFormattedRating() {
         if (rating > 0) {
@@ -332,7 +332,7 @@ public class Season implements Parcelable {
     }
     
     /**
-     * 📺 获取季度显示名称
+     * 获取季度显示名称
      */
     public String getDisplayName() {
         if (name != null && !name.isEmpty()) {
@@ -345,7 +345,7 @@ public class Season implements Parcelable {
     }
     
     /**
-     * 📅 获取年份和集数信息
+     * 获取年份和集数信息
      */
     public String getYearAndEpisodeInfo() {
         StringBuilder info = new StringBuilder();

@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName;
 import java.util.List;
 
 /**
- * 📚 媒体库列表响应数据模型
+ * 媒体库列表响应数据模型
  */
 public class MediaDbListResponse extends BaseResponse<List<MediaDbListResponse.MediaDb>> {
     

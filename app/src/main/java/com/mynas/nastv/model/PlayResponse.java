@@ -3,7 +3,7 @@ package com.mynas.nastv.model;
 import com.google.gson.annotations.SerializedName;
 
 /**
- * 🎬 播放响应模型
+ * 播放响应模型
  */
 public class PlayResponse {
     
@@ -42,7 +42,7 @@ public class PlayResponse {
     }
     
     /**
-     * 📺 播放数据
+     * 播放数据
      */
     public static class PlayData {
         @SerializedName("play_link")

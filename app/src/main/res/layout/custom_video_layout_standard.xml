@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 🔧 自定义 GSYVideoPlayer 布局，移除内置 loading -->
+<!-- 自定义 GSYVideoPlayer 布局，移除内置 loading -->
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -119,14 +119,14 @@
             android:visibility="gone" />
     </LinearLayout>
 
-    <!-- 🔧 loading 视图 - 用空 View 替代 ENDownloadView，完全不显示 -->
+    <!-- loading 视图 - 用空 View 替代 ENDownloadView，完全不显示 -->
     <View
         android:id="@+id/loading"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:visibility="gone" />
 
-    <!-- 🔧 start 视图 - 用空 View 替代 ENPlayView，完全不显示 -->
+    <!-- start 视图 - 用空 View 替代 ENPlayView，完全不显示 -->
     <View
         android:id="@+id/start"
         android:layout_width="0dp"

@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 👥 演职人员适配器
+ * 演职人员适配器
  * 显示演员头像、姓名、角色
  */
 public class PersonAdapter extends RecyclerView.Adapter<PersonAdapter.PersonViewHolder> {
@@ -86,7 +86,7 @@ public class PersonAdapter extends RecyclerView.Adapter<PersonAdapter.PersonView
         }
 
         public void bind(PersonInfo person) {
-            // 👤 加载头像
+            // 加载头像
             String profilePath = person.getProfilePath();
             if (profilePath != null && !profilePath.isEmpty()) {
                 String imageUrl = profilePath;
@@ -104,10 +104,10 @@ public class PersonAdapter extends RecyclerView.Adapter<PersonAdapter.PersonView
                 avatarImage.setImageResource(R.drawable.person_avatar_background);
             }
 
-            // 📝 姓名
+            // 姓名
             nameText.setText(person.getName());
 
-            // 📝 角色/职位
+            // 角色/职位
             String role = person.getRole();
             String job = person.getJob();
             

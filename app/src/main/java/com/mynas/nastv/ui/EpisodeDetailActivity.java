@@ -24,7 +24,7 @@ import com.mynas.nastv.utils.SharedPreferencesManager;
 import java.util.List;
 
 /**
- * 📺 Episode Detail Activity
+ * Episode Detail Activity
  * 显示剧集详情页（第三层详情页）
  * Web端URL格式: /v/tv/episode/{episode_guid}
  */

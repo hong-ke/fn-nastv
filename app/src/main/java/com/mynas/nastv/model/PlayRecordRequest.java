@@ -3,7 +3,7 @@ package com.mynas.nastv.model;
 import com.google.gson.annotations.SerializedName;
 
 /**
- * 📖 播放记录请求模型
+ * 播放记录请求模型
  * 对应 /v/api/v1/play/record 接口
  * 与 fntv-electron 的 PlayStatusData 保持一致
  */

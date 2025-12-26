@@ -13,7 +13,7 @@ import com.mynas.nastv.feature.danmaku.api.IDanmuController;
 import com.mynas.nastv.utils.SharedPreferencesManager;
 
 /**
- * 🎨 弹幕设置对话框
+ * 弹幕设置对话框
  * 专为 Android TV 遥控器优化
  */
 public class DanmuSettingsDialog extends Dialog {

@@ -4,7 +4,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 
 /**
- * 📂 媒体分类数据模型
+ * 媒体分类数据模型
  * 对应Web项目中的媒体分类功能
  * 用于主页分类显示和列表页筛选
  */
@@ -17,7 +17,7 @@ public class MediaCategory implements Parcelable {
     private String description;  // 分类描述
     private boolean isSelected;  // 是否选中状态
     
-    // 🔧 构造函数
+    // 构造函数
     public MediaCategory() {}
     
     public MediaCategory(String id, String name, String type, int iconResource) {
@@ -38,7 +38,7 @@ public class MediaCategory implements Parcelable {
         this.isSelected = false;
     }
     
-    // 🔄 Parcelable实现
+    // Parcelable实现
     protected MediaCategory(Parcel in) {
         id = in.readString();
         name = in.readString();
@@ -77,7 +77,7 @@ public class MediaCategory implements Parcelable {
         dest.writeByte((byte) (isSelected ? 1 : 0));
     }
     
-    // 📖 Getter和Setter方法
+    // Getter和Setter方法
     public String getId() {
         return id;
     }
@@ -134,7 +134,7 @@ public class MediaCategory implements Parcelable {
         isSelected = selected;
     }
     
-    // 🔧 辅助方法
+    // 辅助方法
     @Override
     public String toString() {
         return "MediaCategory{" +

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     
-    <!-- 🎯 获得焦点状态 -->
+    <!-- 获得焦点状态 -->
     <item android:state_focused="true">
         <shape android:shape="rectangle">
             <solid android:color="@color/tv_accent_color" />
@@ -10,7 +10,7 @@
         </shape>
     </item>
     
-    <!-- 📱 按下状态 -->
+    <!-- 按下状态 -->
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
             <solid android:color="@color/tv_accent_color_dark" />

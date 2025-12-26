@@ -4,7 +4,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 
 /**
- * 👥 演员数据模型
+ * 演员数据模型
  * 用于VideoDetailActivity的演员和制作团队信息显示
  * 对应Web项目中的演员相关功能
  */
@@ -16,26 +16,26 @@ public class Actor implements Parcelable {
     private String job;             // 职务 (演员、导演、编剧等)
     private String department;      // 部门 (Acting, Directing, Writing等)
     
-    // 🖼️ 图片信息
+    // 图片信息
     private String profileUrl;      // 头像URL
     private String profilePath;     // 头像路径
     
-    // 📊 统计信息
+    // 统计信息
     private float popularity;       // 知名度
     private int order;              // 排序顺序 (主演排前面)
     
-    // 📝 详细信息
+    // 详细信息
     private String biography;       // 个人简介
     private String birthday;        // 生日
     private String placeOfBirth;    // 出生地
     private String gender;          // 性别
     
-    // 🏆 作品信息
+    // 作品信息
     private String[] knownFor;      // 知名作品
     private int movieCredits;       // 电影作品数
     private int tvCredits;          // 电视剧作品数
     
-    // 🔧 构造函数
+    // 构造函数
     public Actor() {}
     
     public Actor(String id, String name, String character) {
@@ -63,7 +63,7 @@ public class Actor implements Parcelable {
         // isCrewMember参数用于区分此构造函数，但不存储该值
     }
     
-    // 🔄 Parcelable实现
+    // Parcelable实现
     protected Actor(Parcel in) {
         id = in.readString();
         name = in.readString();
@@ -122,7 +122,7 @@ public class Actor implements Parcelable {
         dest.writeInt(tvCredits);
     }
     
-    // 📖 Getter和Setter方法
+    // Getter和Setter方法
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     
@@ -174,38 +174,38 @@ public class Actor implements Parcelable {
     public int getTvCredits() { return tvCredits; }
     public void setTvCredits(int tvCredits) { this.tvCredits = tvCredits; }
     
-    // 🔧 辅助方法
+    // 辅助方法
     
     /**
-     * 🎭 是否为演员
+     * 是否为演员
      */
     public boolean isActor() {
         return "Actor".equalsIgnoreCase(job) || "Acting".equalsIgnoreCase(department);
     }
     
     /**
-     * 🎬 是否为导演
+     * 是否为导演
      */
     public boolean isDirector() {
         return "Director".equalsIgnoreCase(job) || "Directing".equalsIgnoreCase(department);
     }
     
     /**
-     * ✍️ 是否为编剧
+     * ️ 是否为编剧
      */
     public boolean isWriter() {
         return "Writer".equalsIgnoreCase(job) || "Writing".equalsIgnoreCase(department);
     }
     
     /**
-     * 🎵 是否为制片人
+     * 是否为制片人
      */
     public boolean isProducer() {
         return job != null && job.toLowerCase().contains("producer");
     }
     
     /**
-     * 📱 获取显示名称
+     * 获取显示名称
      */
     public String getDisplayName() {
         if (name != null && !name.isEmpty()) {
@@ -218,7 +218,7 @@ public class Actor implements Parcelable {
     }
     
     /**
-     * 🎭 获取角色信息文本
+     * 获取角色信息文本
      */
     public String getRoleText() {
         if (isActor() && character != null && !character.isEmpty()) {
@@ -231,7 +231,7 @@ public class Actor implements Parcelable {
     }
     
     /**
-     * 🌐 获取本地化的职务名称
+     * 获取本地化的职务名称
      */
     public String getLocalizedJob() {
         if (job == null) return "";
@@ -268,7 +268,7 @@ public class Actor implements Parcelable {
     }
     
     /**
-     * 📊 获取作品统计文本
+     * 获取作品统计文本
      */
     public String getCreditsText() {
         int totalCredits = movieCredits + tvCredits;
@@ -285,7 +285,7 @@ public class Actor implements Parcelable {
     }
     
     /**
-     * 🏆 获取知名作品文本
+     * 获取知名作品文本
      */
     public String getKnownForText() {
         if (knownFor != null && knownFor.length > 0) {
@@ -299,14 +299,14 @@ public class Actor implements Parcelable {
     }
     
     /**
-     * 🌟 是否为主要演员 (前8位)
+     * 是否为主要演员 (前8位)
      */
     public boolean isMainCast() {
         return isActor() && order < 8;
     }
     
     /**
-     * 🎭 获取性别文本
+     * 获取性别文本
      */
     public String getGenderText() {
         if (gender == null) return "";
@@ -326,7 +326,7 @@ public class Actor implements Parcelable {
     }
     
     /**
-     * 📅 获取年龄 (如果有生日信息)
+     * 获取年龄 (如果有生日信息)
      */
     public String getAgeText() {
         if (birthday == null || birthday.isEmpty()) {
@@ -350,7 +350,7 @@ public class Actor implements Parcelable {
     }
     
     /**
-     * 📍 获取出生信息文本
+     * 获取出生信息文本
      */
     public String getBirthInfoText() {
         StringBuilder info = new StringBuilder();
@@ -370,7 +370,7 @@ public class Actor implements Parcelable {
     }
     
     /**
-     * 🖼️ 是否有头像图片
+     * 是否有头像图片
      */
     public boolean hasProfileImage() {
         return (profileUrl != null && !profileUrl.isEmpty()) || 
@@ -378,7 +378,7 @@ public class Actor implements Parcelable {
     }
     
     /**
-     * 🖼️ 获取完整的头像URL
+     * 获取完整的头像URL
      */
     public String getFullProfileUrl() {
         if (profileUrl != null && !profileUrl.isEmpty()) {

@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName;
 import java.util.List;
 
 /**
- * ⭐ 收藏列表响应模型
+ * 收藏列表响应模型
  * 对应 /v/api/v1/favorite/list 接口
  */
 public class FavoriteListResponse {

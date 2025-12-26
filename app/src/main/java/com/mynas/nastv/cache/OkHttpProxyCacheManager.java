@@ -34,7 +34,7 @@ import okhttp3.Response;
 import tv.danmaku.ijk.media.player.IMediaPlayer;
 
 /**
- * 🔧 基于 OkHttp 的缓存管理器 - 分块文件缓存
+ * 基于 OkHttp 的缓存管理器 - 分块文件缓存
  * 
  * 目录结构：
  * okhttp_video_cache/
@@ -58,20 +58,20 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     private static final int PREFETCH_HEAD_CHUNKS = 3; // 预缓存头部 3 个块 (6MB)
     private static final int PREFETCH_TAIL_CHUNKS = 2; // 预缓存尾部 2 个块 (4MB)
     
-    // 🔑 智能预缓存配置
+    // 智能预缓存配置
     private static final int PREFETCH_AHEAD_MB = 50; // 提前缓存 50MB
     private static final int PREFETCH_AHEAD_CHUNKS = PREFETCH_AHEAD_MB / 2; // 25 个块
     private static final int PREFETCH_TRIGGER_CHUNKS = 5; // 当缓存剩余 5 个块时触发预缓存
     
-    // 🔑 已播放 chunk 清理配置
+    // 已播放 chunk 清理配置
     private static final int KEEP_BEHIND_CHUNKS = 3; // 保留当前位置前 3 个 chunk（支持回退）
     private static final long CLEANUP_PLAYED_INTERVAL_MS = 30 * 1000; // 每 30 秒清理一次已播放的 chunk
     
-    // 🔑 缓存过期配置
+    // 缓存过期配置
     private static final long STALE_DIR_AGE_MS = 30 * 60 * 1000; // 30 分钟未修改的目录视为遗留
     private static final long CLEANUP_INTERVAL_MS = 60 * 1000; // 每分钟检查一次
     
-    // 🔑 磁盘空间限制配置
+    // 磁盘空间限制配置
     private static final long MIN_FREE_SPACE_MB = 500; // 最少保留 500MB 可用空间
     
     // 单例
@@ -86,37 +86,37 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     // 缓存监听
     private ICacheAvailableListener cacheAvailableListener;
     
-    // 🔑 关键：静态 headers
+    // 关键：静态 headers
     private static volatile Map<String, String> sCurrentHeaders = new HashMap<>();
     private static final Object sHeaderLock = new Object();
     
-    // 🔑 本地代理服务器（静态，所有实例共享）
+    // 本地代理服务器（静态，所有实例共享）
     private static ServerSocket proxyServer;
     private static int proxyPort = -1;
     private static AtomicBoolean isProxyRunning = new AtomicBoolean(false);
     private static ExecutorService proxyExecutor;
     
-    // 🔑 当前播放的视频信息（静态，所有实例共享）
+    // 当前播放的视频信息（静态，所有实例共享）
     private static String currentOriginUrl;
     private static String currentVideoId;  // md5(url) 作为视频唯一标识
     private static File currentVideoDir;   // 当前视频的缓存目录
     private static long currentContentLength = -1;
     private static Context appContext;
     
-    // 🔑 分块缓存状态（静态，所有实例共享）
+    // 分块缓存状态（静态，所有实例共享）
     private static ConcurrentHashMap<Integer, Boolean> cachedChunks = new ConcurrentHashMap<>();
     private static final Object cacheLock = new Object();
     
-    // 🔑 播放位置跟踪（静态，所有实例共享）
+    // 播放位置跟踪（静态，所有实例共享）
     private static AtomicLong currentPlaybackPosition = new AtomicLong(0);
     private static AtomicInteger currentPlaybackChunk = new AtomicInteger(0);
     private static AtomicInteger prefetchTargetChunk = new AtomicInteger(0);
     private static AtomicBoolean isPrefetching = new AtomicBoolean(false);
     
-    // 🔑 ExoPlayer 是否正在使用代理
+    // ExoPlayer 是否正在使用代理
     private static boolean exoPlayerUsingProxy = false;
     
-    // 🔑 定时清理任务
+    // 定时清理任务
     private static ScheduledExecutorService cleanupScheduler;
     private static ScheduledFuture<?> cleanupTask;
     private static ScheduledFuture<?> playedChunkCleanupTask;
@@ -132,12 +132,12 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     }
     
     /**
-     * 🔑 默认构造函数 - 被 CacheFactory.newInstance() 调用
+     * 默认构造函数 - 被 CacheFactory.newInstance() 调用
      */
     public OkHttpProxyCacheManager() {
         if (instance != null) {
             this.httpClient = instance.httpClient;
-            Log.d(TAG, "🔑 OkHttpProxyCacheManager: 复用单例 httpClient");
+            Log.d(TAG, "OkHttpProxyCacheManager: 复用单例 httpClient");
         } else {
             this.httpClient = new OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
@@ -146,12 +146,12 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                 .retryOnConnectionFailure(true)
                 .build();
             instance = this;
-            Log.d(TAG, "🔑 OkHttpProxyCacheManager: 创建新实例并设为单例");
+            Log.d(TAG, "OkHttpProxyCacheManager: 创建新实例并设为单例");
         }
     }
     
     /**
-     * 🔑 私有构造函数 - 用于创建真正的单例
+     * 私有构造函数 - 用于创建真正的单例
      */
     private OkHttpProxyCacheManager(boolean isSingleton) {
         httpClient = new OkHttpClient.Builder()
@@ -163,7 +163,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     }
     
     /**
-     * 🔑 初始化定时清理任务（在 Application 中调用）
+     * 初始化定时清理任务（在 Application 中调用）
      */
     public static void initCleanupTask(Context context) {
         if (cleanupScheduler == null) {
@@ -179,14 +179,14 @@ public class OkHttpProxyCacheManager implements ICacheManager {
             cleanupStaleCacheDirectories(ctx);
         }, CLEANUP_INTERVAL_MS, CLEANUP_INTERVAL_MS, TimeUnit.MILLISECONDS);
         
-        Log.d(TAG, "🔑 Cleanup task initialized, interval=" + (CLEANUP_INTERVAL_MS / 1000) + "s");
+        Log.d(TAG, "Cleanup task initialized, interval=" + (CLEANUP_INTERVAL_MS / 1000) + "s");
         
         // 启动时立即清理一次
         cleanupScheduler.submit(() -> cleanupStaleCacheDirectories(ctx));
     }
 
     /**
-     * 🔑 清理遗留的缓存目录（非当前视频的目录）
+     * 清理遗留的缓存目录（非当前视频的目录）
      */
     private static void cleanupStaleCacheDirectories(Context context) {
         try {
@@ -202,7 +202,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
             
             for (File dir : dirs) {
                 if (dir.isDirectory()) {
-                    // 🔑 如果是当前正在播放的视频目录，跳过
+                    // 如果是当前正在播放的视频目录，跳过
                     if (currentVideoId != null && dir.getName().equals(currentVideoId)) {
                         continue;
                     }
@@ -214,22 +214,22 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                         if (deleteDirectory(dir)) {
                             deletedCount++;
                             deletedSize += size;
-                            Log.i(TAG, "🔑 Cleanup: deleted " + dir.getName() + " (age=" + (age / 60000) + "min)");
+                            Log.i(TAG, "Cleanup: deleted " + dir.getName() + " (age=" + (age / 60000) + "min)");
                         }
                     }
                 }
             }
             
             if (deletedCount > 0) {
-                Log.i(TAG, "🔑 Cleanup: deleted " + deletedCount + " dirs, freed " + (deletedSize / 1024 / 1024) + "MB");
+                Log.i(TAG, "Cleanup: deleted " + deletedCount + " dirs, freed " + (deletedSize / 1024 / 1024) + "MB");
             }
         } catch (Exception e) {
-            Log.e(TAG, "🔑 Cleanup error: " + e.getMessage());
+            Log.e(TAG, "Cleanup error: " + e.getMessage());
         }
     }
     
     /**
-     * 🔑 删除其他视频的缓存目录（切换视频时调用）
+     * 删除其他视频的缓存目录（切换视频时调用）
      */
     private void cleanupOtherVideoDirectories(Context context, String currentVideoId) {
         try {
@@ -248,21 +248,21 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                     if (deleteDirectory(dir)) {
                         deletedCount++;
                         deletedSize += size;
-                        Log.i(TAG, "📦 ✅ 删除其他视频缓存: " + dir.getName() + " (" + (size / 1024 / 1024) + "MB)");
+                        Log.i(TAG, "删除其他视频缓存: " + dir.getName() + " (" + (size / 1024 / 1024) + "MB)");
                     }
                 }
             }
             
             if (deletedCount > 0) {
-                Log.i(TAG, "📦 清理完成: 删除 " + deletedCount + " 个视频目录, 释放 " + (deletedSize / 1024 / 1024) + "MB");
+                Log.i(TAG, "清理完成: 删除 " + deletedCount + " 个视频目录, 释放 " + (deletedSize / 1024 / 1024) + "MB");
             }
         } catch (Exception e) {
-            Log.e(TAG, "📦 清理其他视频缓存失败: " + e.getMessage());
+            Log.e(TAG, "清理其他视频缓存失败: " + e.getMessage());
         }
     }
     
     /**
-     * 🔑 启动已播放 chunk 清理任务
+     * 启动已播放 chunk 清理任务
      */
     private void startPlayedChunkCleanupTask() {
         if (cleanupScheduler == null) {
@@ -277,11 +277,11 @@ public class OkHttpProxyCacheManager implements ICacheManager {
             cleanupPlayedChunks();
         }, CLEANUP_PLAYED_INTERVAL_MS, CLEANUP_PLAYED_INTERVAL_MS, TimeUnit.MILLISECONDS);
         
-        Log.d(TAG, "🔑 Played chunk cleanup task started, interval=" + (CLEANUP_PLAYED_INTERVAL_MS / 1000) + "s");
+        Log.d(TAG, "Played chunk cleanup task started, interval=" + (CLEANUP_PLAYED_INTERVAL_MS / 1000) + "s");
     }
     
     /**
-     * 🔑 清理已播放的 chunk（保留当前位置前 KEEP_BEHIND_CHUNKS 个）
+     * 清理已播放的 chunk（保留当前位置前 KEEP_BEHIND_CHUNKS 个）
      */
     private void cleanupPlayedChunks() {
         if (currentVideoDir == null || !currentVideoDir.exists()) return;
@@ -307,7 +307,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
         }
         
         if (deletedCount > 0) {
-            Log.d(TAG, "🔑 Cleaned " + deletedCount + " played chunks, freed " + (deletedSize / 1024 / 1024) + "MB, current=" + currentChunk);
+            Log.d(TAG, "Cleaned " + deletedCount + " played chunks, freed " + (deletedSize / 1024 / 1024) + "MB, current=" + currentChunk);
         }
     }
 
@@ -315,7 +315,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
         synchronized (sHeaderLock) {
             sCurrentHeaders.clear();
             if (headers != null) sCurrentHeaders.putAll(headers);
-            Log.d(TAG, "🔑 Headers updated: " + sCurrentHeaders.size() + " headers");
+            Log.d(TAG, "Headers updated: " + sCurrentHeaders.size() + " headers");
         }
     }
     
@@ -339,14 +339,14 @@ public class OkHttpProxyCacheManager implements ICacheManager {
         if (isDirectLink && originUrl.startsWith("http") && !originUrl.contains(".m3u8")) {
             String newVideoId = md5(originUrl);
             
-            Log.i(TAG, "📦 ========== 切换视频 ==========");
-            Log.i(TAG, "📦 上一个视频ID: " + (currentVideoId != null ? currentVideoId : "null"));
-            Log.i(TAG, "📦 新视频ID: " + newVideoId);
+            Log.i(TAG, "========== 切换视频 ==========");
+            Log.i(TAG, "上一个视频ID: " + (currentVideoId != null ? currentVideoId : "null"));
+            Log.i(TAG, "新视频ID: " + newVideoId);
             
-            // 🔑 列出缓存目录
+            // 列出缓存目录
             listCacheDirectory(context);
             
-            // 🔑 删除其他视频的缓存目录
+            // 删除其他视频的缓存目录
             cleanupOtherVideoDirectories(context, newVideoId);
             
             // 重置状态
@@ -367,17 +367,17 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                 currentVideoDir.mkdirs();
             }
             
-            // 🔑 扫描已存在的 chunk 文件（断点续传支持）
+            // 扫描已存在的 chunk 文件（断点续传支持）
             scanExistingChunks();
             
-            Log.i(TAG, "📦 视频缓存目录: " + currentVideoDir.getAbsolutePath());
+            Log.i(TAG, "视频缓存目录: " + currentVideoDir.getAbsolutePath());
             
             startProxyServer();
             
             if (proxyPort > 0) {
                 playUrl = "http://127.0.0.1:" + proxyPort + "/video";
                 mCacheFile = true;
-                Log.d(TAG, "🔑 Using proxy URL: " + playUrl);
+                Log.d(TAG, "Using proxy URL: " + playUrl);
                 
                 // 启动预缓存和清理任务
                 startInitialPrefetch();
@@ -385,7 +385,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                 
                 listCacheDirectory(context);
             } else {
-                Log.e(TAG, "🔑 Proxy failed, using network URL");
+                Log.e(TAG, "Proxy failed, using network URL");
                 mCacheFile = false;
             }
         } else if (!originUrl.startsWith("http") && !originUrl.startsWith("rtmp")
@@ -394,7 +394,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
         }
         
         try {
-            Log.d(TAG, "🔑 Setting data source: " + playUrl.substring(0, Math.min(80, playUrl.length())));
+            Log.d(TAG, "Setting data source: " + playUrl.substring(0, Math.min(80, playUrl.length())));
             if (playUrl.startsWith("http://127.0.0.1")) {
                 mediaPlayer.setDataSource(context, Uri.parse(playUrl), null);
             } else {
@@ -406,7 +406,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     }
     
     /**
-     * 🔑 扫描已存在的 chunk 文件
+     * 扫描已存在的 chunk 文件
      */
     private void scanExistingChunks() {
         if (currentVideoDir == null || !currentVideoDir.exists()) return;
@@ -429,43 +429,43 @@ public class OkHttpProxyCacheManager implements ICacheManager {
         }
         
         if (count > 0) {
-            Log.d(TAG, "🔑 Found " + count + " existing chunks");
+            Log.d(TAG, "Found " + count + " existing chunks");
         }
     }
 
     /**
-     * 🔑 [DEBUG] 列出缓存目录
+     * [DEBUG] 列出缓存目录
      */
     private void listCacheDirectory(Context context) {
         try {
             File cacheDir = new File(context.getCacheDir(), CACHE_DIR);
-            Log.i(TAG, "📂 缓存根目录: " + cacheDir.getAbsolutePath());
+            Log.i(TAG, "缓存根目录: " + cacheDir.getAbsolutePath());
             
             if (!cacheDir.exists()) {
-                Log.i(TAG, "📂 缓存目录不存在");
+                Log.i(TAG, "缓存目录不存在");
                 return;
             }
             
             File[] dirs = cacheDir.listFiles();
             if (dirs == null || dirs.length == 0) {
-                Log.i(TAG, "📂 缓存目录为空");
+                Log.i(TAG, "缓存目录为空");
                 return;
             }
             
             long totalSize = 0;
-            Log.i(TAG, "📂 视频缓存目录列表 (" + dirs.length + " 个):");
+            Log.i(TAG, "视频缓存目录列表 (" + dirs.length + " 个):");
             for (File dir : dirs) {
                 if (dir.isDirectory()) {
                     long size = getDirectorySize(dir);
                     totalSize += size;
                     int chunkCount = countChunkFiles(dir);
                     String marker = dir.getName().equals(currentVideoId) ? " ← 当前" : "";
-                    Log.i(TAG, "📂   - " + dir.getName() + " (" + chunkCount + " chunks, " + (size / 1024 / 1024) + "MB)" + marker);
+                    Log.i(TAG, "  - " + dir.getName() + " (" + chunkCount + " chunks, " + (size / 1024 / 1024) + "MB)" + marker);
                 }
             }
-            Log.i(TAG, "📂 缓存总大小: " + (totalSize / 1024 / 1024) + "MB");
+            Log.i(TAG, "缓存总大小: " + (totalSize / 1024 / 1024) + "MB");
         } catch (Exception e) {
-            Log.e(TAG, "📂 列出缓存目录失败: " + e.getMessage());
+            Log.e(TAG, "列出缓存目录失败: " + e.getMessage());
         }
     }
     
@@ -480,7 +480,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     }
     
     /**
-     * 🔑 启动初始预缓存（头部 + 尾部）
+     * 启动初始预缓存（头部 + 尾部）
      */
     private void startInitialPrefetch() {
         proxyExecutor.submit(() -> {
@@ -488,14 +488,14 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                 if (currentContentLength <= 0) {
                     currentContentLength = fetchContentLength(currentOriginUrl, getCurrentHeaders());
                     if (currentContentLength <= 0) {
-                        Log.e(TAG, "🔑 Prefetch failed: cannot get content length");
+                        Log.e(TAG, "Prefetch failed: cannot get content length");
                         return;
                     }
-                    Log.d(TAG, "🔑 Content length: " + (currentContentLength / 1024 / 1024) + "MB");
+                    Log.d(TAG, "Content length: " + (currentContentLength / 1024 / 1024) + "MB");
                 }
                 
                 int totalChunks = (int) Math.ceil((double) currentContentLength / CHUNK_SIZE);
-                Log.d(TAG, "🔑 Total chunks: " + totalChunks);
+                Log.d(TAG, "Total chunks: " + totalChunks);
                 
                 // 预缓存头部
                 for (int i = 0; i < Math.min(PREFETCH_HEAD_CHUNKS, totalChunks); i++) {
@@ -516,17 +516,17 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                 
                 prefetchTargetChunk.set(PREFETCH_HEAD_CHUNKS + PREFETCH_AHEAD_CHUNKS);
                 
-                Log.d(TAG, "🔑 Initial prefetch done: head=" + PREFETCH_HEAD_CHUNKS + 
+                Log.d(TAG, "Initial prefetch done: head=" + PREFETCH_HEAD_CHUNKS + 
                       ", tail=" + PREFETCH_TAIL_CHUNKS + ", target=" + prefetchTargetChunk.get());
                 
             } catch (Exception e) {
-                Log.e(TAG, "🔑 Initial prefetch error: " + e.getMessage());
+                Log.e(TAG, "Initial prefetch error: " + e.getMessage());
             }
         });
     }
     
     /**
-     * 🔑 检查是否有足够空间缓存一个块
+     * 检查是否有足够空间缓存一个块
      */
     private boolean checkDiskSpaceForChunk() {
         try {
@@ -537,7 +537,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
             long required = CHUNK_SIZE + MIN_FREE_SPACE_MB * 1024 * 1024;
             
             if (freeSpace < required) {
-                Log.w(TAG, "🔑 磁盘空间不足，停止预缓存");
+                Log.w(TAG, "磁盘空间不足，停止预缓存");
                 return false;
             }
             return true;
@@ -547,7 +547,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     }
 
     /**
-     * 🔑 智能预缓存：根据播放位置提前缓存
+     * 智能预缓存：根据播放位置提前缓存
      */
     private void triggerSmartPrefetch(int playbackChunk) {
         if (isPrefetching.get()) return;
@@ -566,7 +566,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
         if (cachedAhead < PREFETCH_TRIGGER_CHUNKS) {
             int newTarget = Math.min(playbackChunk + PREFETCH_AHEAD_CHUNKS, totalChunks);
             if (newTarget > playbackChunk) {
-                Log.d(TAG, "🔑 Smart prefetch triggered: playback=" + playbackChunk + 
+                Log.d(TAG, "Smart prefetch triggered: playback=" + playbackChunk + 
                       ", cachedAhead=" + cachedAhead + ", target=" + newTarget);
                 startSmartPrefetch(playbackChunk, newTarget);
             }
@@ -574,7 +574,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     }
     
     /**
-     * 🔑 执行智能预缓存
+     * 执行智能预缓存
      */
     private void startSmartPrefetch(int startChunk, int endChunk) {
         if (isPrefetching.compareAndSet(false, true)) {
@@ -585,17 +585,17 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                     for (int i = startChunk; i < endChunk && isProxyRunning.get(); i++) {
                         if (!cachedChunks.containsKey(i)) {
                             if (!checkDiskSpaceForChunk()) {
-                                Log.w(TAG, "🔑 磁盘空间不足，停止智能预缓存");
+                                Log.w(TAG, "磁盘空间不足，停止智能预缓存");
                                 break;
                             }
                             downloadAndCacheChunk(i);
                             downloaded++;
                         }
                     }
-                    Log.d(TAG, "🔑 Smart prefetch done: " + downloaded + " chunks (" + 
+                    Log.d(TAG, "Smart prefetch done: " + downloaded + " chunks (" + 
                           startChunk + "-" + endChunk + ")");
                 } catch (Exception e) {
-                    Log.e(TAG, "🔑 Smart prefetch error: " + e.getMessage());
+                    Log.e(TAG, "Smart prefetch error: " + e.getMessage());
                 } finally {
                     isPrefetching.set(false);
                 }
@@ -604,7 +604,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     }
     
     /**
-     * 🔑 下载并缓存单个块（写入独立文件）
+     * 下载并缓存单个块（写入独立文件）
      */
     private void downloadAndCacheChunk(int chunkIndex) {
         if (cachedChunks.containsKey(chunkIndex)) return;
@@ -615,12 +615,12 @@ public class OkHttpProxyCacheManager implements ICacheManager {
         byte[] data = downloadChunk(start, end);
         if (data != null && data.length > 0) {
             writeChunkToFile(chunkIndex, data);
-            Log.d(TAG, "🔑 Prefetch chunk " + chunkIndex + " (" + (data.length/1024) + "KB)");
+            Log.d(TAG, "Prefetch chunk " + chunkIndex + " (" + (data.length/1024) + "KB)");
         }
     }
     
     /**
-     * 🔑 写入 chunk 到独立文件
+     * 写入 chunk 到独立文件
      */
     private void writeChunkToFile(int chunkIndex, byte[] data) {
         if (currentVideoDir == null) return;
@@ -631,13 +631,13 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                 raf.write(data);
                 cachedChunks.put(chunkIndex, true);
             } catch (Exception e) {
-                Log.e(TAG, "🔑 Write chunk error: " + e.getMessage());
+                Log.e(TAG, "Write chunk error: " + e.getMessage());
             }
         }
     }
     
     /**
-     * 🔑 从文件读取 chunk 数据
+     * 从文件读取 chunk 数据
      */
     private byte[] readChunkFromFile(int chunkIndex, long requestStart, long requestEnd) {
         if (currentVideoDir == null) return null;
@@ -659,7 +659,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                 raf.readFully(data);
                 return data;
             } catch (Exception e) {
-                Log.e(TAG, "🔑 Read chunk error: " + e.getMessage());
+                Log.e(TAG, "Read chunk error: " + e.getMessage());
                 cachedChunks.remove(chunkIndex);
                 return null;
             }
@@ -668,7 +668,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
 
     private void startProxyServer() {
         if (isProxyRunning.get()) {
-            Log.d(TAG, "🔑 Proxy already running on port " + proxyPort);
+            Log.d(TAG, "Proxy already running on port " + proxyPort);
             return;
         }
         
@@ -682,7 +682,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
             }
             
             if (proxyServer == null) {
-                Log.e(TAG, "🔑 Failed to find available port");
+                Log.e(TAG, "Failed to find available port");
                 return;
             }
             
@@ -690,21 +690,21 @@ public class OkHttpProxyCacheManager implements ICacheManager {
             proxyExecutor = Executors.newCachedThreadPool();
             
             proxyExecutor.submit(() -> {
-                Log.d(TAG, "🔑 Proxy server started on port " + proxyPort);
+                Log.d(TAG, "Proxy server started on port " + proxyPort);
                 while (isProxyRunning.get()) {
                     try {
                         Socket client = proxyServer.accept();
                         proxyExecutor.submit(() -> handleClient(client));
                     } catch (IOException e) {
                         if (isProxyRunning.get()) {
-                            Log.e(TAG, "🔑 Proxy accept error: " + e.getMessage());
+                            Log.e(TAG, "Proxy accept error: " + e.getMessage());
                         }
                     }
                 }
             });
             
         } catch (Exception e) {
-            Log.e(TAG, "🔑 Failed to start proxy server", e);
+            Log.e(TAG, "Failed to start proxy server", e);
             proxyPort = -1;
         }
     }
@@ -722,7 +722,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
             }
             
             String request = new String(buffer, 0, len);
-            Log.d(TAG, "🔑 Proxy request: " + request.split("\r\n")[0]);
+            Log.d(TAG, "Proxy request: " + request.split("\r\n")[0]);
             
             long rangeStart = 0;
             long rangeEnd = -1;
@@ -737,19 +737,19 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                 }
             }
             
-            // 🔑 更新播放位置
+            // 更新播放位置
             int playbackChunk = (int) (rangeStart / CHUNK_SIZE);
             currentPlaybackChunk.set(playbackChunk);
             
-            // 🔑 触发智能预缓存
+            // 触发智能预缓存
             triggerSmartPrefetch(playbackChunk);
             
-            Log.d(TAG, "🔑 Range: " + rangeStart + "-" + (rangeEnd > 0 ? rangeEnd : "") + 
+            Log.d(TAG, "Range: " + rangeStart + "-" + (rangeEnd > 0 ? rangeEnd : "") + 
                   " (chunk " + playbackChunk + ")");
             
             if (currentContentLength <= 0) {
                 currentContentLength = fetchContentLength(currentOriginUrl, getCurrentHeaders());
-                Log.d(TAG, "🔑 Content length: " + (currentContentLength / 1024 / 1024) + "MB");
+                Log.d(TAG, "Content length: " + (currentContentLength / 1024 / 1024) + "MB");
             }
             
             if (currentContentLength <= 0) {
@@ -779,7 +779,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
             client.close();
             
         } catch (Exception e) {
-            Log.e(TAG, "🔑 Handle client error: " + e.getMessage());
+            Log.e(TAG, "Handle client error: " + e.getMessage());
             try { client.close(); } catch (Exception ignored) {}
         }
     }
@@ -795,30 +795,30 @@ public class OkHttpProxyCacheManager implements ICacheManager {
             long sendStart = position;
             long sendEnd = Math.min(end, chunkEnd);
             
-            // 🔑 先检查缓存文件
+            // 先检查缓存文件
             if (cachedChunks.containsKey(chunkIndex)) {
                 byte[] data = readChunkFromFile(chunkIndex, sendStart, sendEnd);
                 if (data != null && data.length > 0) {
                     output.write(data);
-                    Log.d(TAG, "🔑 From cache: chunk " + chunkIndex);
+                    Log.d(TAG, "From cache: chunk " + chunkIndex);
                     position = sendEnd + 1;
                     continue;
                 }
             }
             
-            // 🔑 从网络下载整个 chunk
+            // 从网络下载整个 chunk
             byte[] chunkData = downloadChunk(chunkStart, chunkEnd);
             if (chunkData == null || chunkData.length == 0) {
-                Log.e(TAG, "🔑 Download failed at chunk " + chunkIndex);
+                Log.e(TAG, "Download failed at chunk " + chunkIndex);
                 break;
             }
             
-            // 🔑 写入缓存文件
+            // 写入缓存文件
             if (checkDiskSpaceForChunk()) {
                 writeChunkToFile(chunkIndex, chunkData);
-                Log.d(TAG, "🔑 From network -> cache: chunk " + chunkIndex);
+                Log.d(TAG, "From network -> cache: chunk " + chunkIndex);
             } else {
-                Log.d(TAG, "🔑 From network (no space): chunk " + chunkIndex);
+                Log.d(TAG, "From network (no space): chunk " + chunkIndex);
             }
             
             // 发送请求的部分
@@ -857,10 +857,10 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                 return data;
             }
             
-            Log.e(TAG, "🔑 Download failed: " + response.code());
+            Log.e(TAG, "Download failed: " + response.code());
             response.close();
         } catch (Exception e) {
-            Log.e(TAG, "🔑 Download error: " + e.getMessage());
+            Log.e(TAG, "Download error: " + e.getMessage());
         }
         return null;
     }
@@ -898,7 +898,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                 }
                 response.close();
             } catch (Exception e) {
-                Log.e(TAG, "🔑 Fetch content length error: " + e.getMessage());
+                Log.e(TAG, "Fetch content length error: " + e.getMessage());
                 try { Thread.sleep(500); } catch (InterruptedException ie) { break; }
             }
         }
@@ -906,7 +906,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     }
 
     /**
-     * 🔑 获取视频缓存目录
+     * 获取视频缓存目录
      */
     private File getVideoDirectory(Context context, String videoId) {
         File cacheDir = new File(context.getCacheDir(), CACHE_DIR);
@@ -964,7 +964,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
             proxyExecutor = null;
         }
         proxyPort = -1;
-        Log.d(TAG, "🔑 Proxy server stopped");
+        Log.d(TAG, "Proxy server stopped");
     }
     
     @Override
@@ -981,12 +981,12 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     
     @Override
     public void release() {
-        Log.i(TAG, "📦 ========== release() 被调用 ==========");
-        Log.i(TAG, "📦 exoPlayerUsingProxy=" + exoPlayerUsingProxy);
-        Log.i(TAG, "📦 当前视频ID: " + (currentVideoId != null ? currentVideoId : "null"));
+        Log.i(TAG, "========== release() 被调用 ==========");
+        Log.i(TAG, "exoPlayerUsingProxy=" + exoPlayerUsingProxy);
+        Log.i(TAG, "当前视频ID: " + (currentVideoId != null ? currentVideoId : "null"));
         
         if (exoPlayerUsingProxy) {
-            Log.i(TAG, "📦 ExoPlayer 正在使用代理，跳过释放");
+            Log.i(TAG, "ExoPlayer 正在使用代理，跳过释放");
             return;
         }
         
@@ -1003,9 +1003,9 @@ public class OkHttpProxyCacheManager implements ICacheManager {
             long size = getDirectorySize(currentVideoDir);
             String dirName = currentVideoDir.getName();
             if (deleteDirectory(currentVideoDir)) {
-                Log.i(TAG, "📦 ✅ release() 删除缓存目录: " + dirName + " (" + (size / 1024 / 1024) + "MB)");
+                Log.i(TAG, "release() 删除缓存目录: " + dirName + " (" + (size / 1024 / 1024) + "MB)");
             } else {
-                Log.e(TAG, "📦 ❌ release() 删除缓存目录失败: " + dirName);
+                Log.e(TAG, "release() 删除缓存目录失败: " + dirName);
             }
         }
         
@@ -1019,24 +1019,24 @@ public class OkHttpProxyCacheManager implements ICacheManager {
         currentContentLength = -1;
         cachedChunks.clear();
         
-        Log.i(TAG, "📦 ========== release() 完成 ==========");
+        Log.i(TAG, "========== release() 完成 ==========");
     }
     
     /**
-     * 🔑 强制释放
+     * 强制释放
      */
     public void forceRelease() {
-        Log.d(TAG, "🔑 forceRelease() called");
+        Log.d(TAG, "forceRelease() called");
         exoPlayerUsingProxy = false;
         release();
     }
     
     /**
-     * 🔑 设置 ExoPlayer 是否正在使用代理
+     * 设置 ExoPlayer 是否正在使用代理
      */
     public static void setExoPlayerUsingProxy(boolean using) {
         exoPlayerUsingProxy = using;
-        Log.d(TAG, "🔑 setExoPlayerUsingProxy: " + using);
+        Log.d(TAG, "setExoPlayerUsingProxy: " + using);
     }
     
     @Override
@@ -1061,7 +1061,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     public int getCurrentPlaybackChunk() { return currentPlaybackChunk.get(); }
 
     /**
-     * 🔑 获取代理 URL（供 ExoPlayer 使用）
+     * 获取代理 URL（供 ExoPlayer 使用）
      */
     public String getProxyUrl(Context context, String originUrl, Map<String, String> headers, File cachePath) {
         appContext = context.getApplicationContext();
@@ -1073,13 +1073,13 @@ public class OkHttpProxyCacheManager implements ICacheManager {
         if (isDirectLink && originUrl.startsWith("http") && !originUrl.contains(".m3u8")) {
             String newVideoId = md5(originUrl);
             
-            Log.i(TAG, "📦 ========== ExoPlayer 切换视频 ==========");
-            Log.i(TAG, "📦 上一个视频ID: " + (currentVideoId != null ? currentVideoId : "null"));
-            Log.i(TAG, "📦 新视频ID: " + newVideoId);
+            Log.i(TAG, "========== ExoPlayer 切换视频 ==========");
+            Log.i(TAG, "上一个视频ID: " + (currentVideoId != null ? currentVideoId : "null"));
+            Log.i(TAG, "新视频ID: " + newVideoId);
             
             listCacheDirectory(context);
             
-            // 🔑 删除其他视频的缓存目录
+            // 删除其他视频的缓存目录
             cleanupOtherVideoDirectories(context, newVideoId);
             
             // 重置状态
@@ -1101,14 +1101,14 @@ public class OkHttpProxyCacheManager implements ICacheManager {
             
             scanExistingChunks();
             
-            Log.i(TAG, "📦 ExoPlayer 视频缓存目录: " + currentVideoDir.getAbsolutePath());
+            Log.i(TAG, "ExoPlayer 视频缓存目录: " + currentVideoDir.getAbsolutePath());
             
             startProxyServer();
             
             if (proxyPort > 0) {
                 String proxyUrl = "http://127.0.0.1:" + proxyPort + "/video";
                 mCacheFile = true;
-                Log.d(TAG, "🔑 ExoPlayer proxy URL: " + proxyUrl);
+                Log.d(TAG, "ExoPlayer proxy URL: " + proxyUrl);
                 
                 startInitialPrefetch();
                 startPlayedChunkCleanupTask();
@@ -1117,7 +1117,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                 
                 return proxyUrl;
             } else {
-                Log.e(TAG, "🔑 Proxy failed for ExoPlayer, using original URL");
+                Log.e(TAG, "Proxy failed for ExoPlayer, using original URL");
                 mCacheFile = false;
                 return originUrl;
             }

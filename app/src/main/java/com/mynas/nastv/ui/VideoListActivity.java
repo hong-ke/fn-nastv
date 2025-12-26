@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 📱 Video List Activity
+ * Video List Activity
  * Displays media items for a category.
  */
 public class VideoListActivity extends AppCompatActivity implements SimpleMediaAdapter.OnItemClickListener {
@@ -49,7 +49,7 @@ public class VideoListActivity extends AppCompatActivity implements SimpleMediaA
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_video_list);
         
-        Log.d(TAG, "🚀 VideoListActivity Start");
+        Log.d(TAG, "VideoListActivity Start");
         
         mediaManager = new MediaManager(this);
         initializeData();

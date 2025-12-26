@@ -22,7 +22,7 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 /**
- * 🎬 ProgressRecorder - 播放进度记录器
+ * ProgressRecorder - 播放进度记录器
  * 定时记录播放进度到服务器，与 Web 端行为一致
  * 
  * 功能:
@@ -68,7 +68,7 @@ public class ProgressRecorder {
      * @param mediaGuid 媒体文件 GUID
      */
     public void startRecording(String itemGuid, String mediaGuid) {
-        Log.d(TAG, "🎬 Start recording: itemGuid=" + itemGuid + ", mediaGuid=" + mediaGuid);
+        Log.d(TAG, "Start recording: itemGuid=" + itemGuid + ", mediaGuid=" + mediaGuid);
         
         this.itemGuid = itemGuid;
         this.mediaGuid = mediaGuid;
@@ -111,7 +111,7 @@ public class ProgressRecorder {
      */
     public void saveImmediately() {
         if (isRecording && itemGuid != null) {
-            Log.d(TAG, "🎬 Save immediately: position=" + currentPosition);
+            Log.d(TAG, "Save immediately: position=" + currentPosition);
             sendProgressRecord();
         }
     }
@@ -120,7 +120,7 @@ public class ProgressRecorder {
      * 停止记录
      */
     public void stopRecording() {
-        Log.d(TAG, "🎬 Stop recording");
+        Log.d(TAG, "Stop recording");
         
         // 停止前保存一次
         if (isRecording) {
@@ -145,13 +145,13 @@ public class ProgressRecorder {
      */
     private void sendProgressRecord() {
         if (itemGuid == null || mediaGuid == null) {
-            Log.w(TAG, "⚠️ Cannot send record: missing itemGuid or mediaGuid");
+            Log.w(TAG, "Cannot send record: missing itemGuid or mediaGuid");
             return;
         }
         
         String token = SharedPreferencesManager.getAuthToken();
         if (token == null || token.isEmpty()) {
-            Log.w(TAG, "⚠️ Cannot send record: not logged in");
+            Log.w(TAG, "Cannot send record: not logged in");
             return;
         }
         
@@ -188,23 +188,23 @@ public class ProgressRecorder {
                     if (response.isSuccessful() && response.body() != null) {
                         BaseResponse<Object> res = response.body();
                         if (res.getCode() == 0) {
-                            Log.d(TAG, "✅ Progress recorded: " + currentPosition + "s / " + duration + "s");
+                            Log.d(TAG, "Progress recorded: " + currentPosition + "s / " + duration + "s");
                         } else {
-                            Log.w(TAG, "⚠️ Record failed: " + res.getMessage());
+                            Log.w(TAG, "Record failed: " + res.getMessage());
                         }
                     } else {
-                        Log.w(TAG, "⚠️ Record request failed: " + response.message());
+                        Log.w(TAG, "Record request failed: " + response.message());
                     }
                 }
                 
                 @Override
                 public void onFailure(Call<BaseResponse<Object>> call, Throwable t) {
-                    Log.e(TAG, "❌ Record error: " + t.getMessage());
+                    Log.e(TAG, "Record error: " + t.getMessage());
                 }
             });
             
         } catch (Exception e) {
-            Log.e(TAG, "❌ Record exception: " + e.getMessage());
+            Log.e(TAG, "Record exception: " + e.getMessage());
         }
     }
     
@@ -229,5 +229,3 @@ public class ProgressRecorder {
         return mediaGuid;
     }
 }
-
-// 缓存策略文档已移除 - 现在使用 GSYVideoPlayer + OkHttpProxyCacheManager

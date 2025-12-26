@@ -28,7 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 🎬 Media Detail Activity
+ * Media Detail Activity
  * 显示媒体详情（电影/电视剧第一层）
  */
 public class MediaDetailActivity extends AppCompatActivity {
@@ -622,7 +622,7 @@ public class MediaDetailActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     createSeasonList();
                     if (seasonList != null && !seasonList.isEmpty()) {
-                        playButtonTextView.setText("▶ 播放第1季");
+                        playButtonTextView.setText("播放第1季");
                     }
                 });
             }

@@ -117,7 +117,7 @@ public class DanmakuOverlayView extends View {
         try {
             frameCount++;
             
-            // 🔧 不清空画布，保持透明背景，让播放器可见
+            // 不清空画布，保持透明背景，让播放器可见
             // canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
             
             // 获取可见弹幕列表（线程安全）

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 🔥 焦点状态 -->
+    <!-- 焦点状态 -->
     <item android:state_focused="true">
         <shape android:shape="oval">
             <solid android:color="@color/tv_focus_background" />
@@ -24,7 +24,7 @@
         </shape>
     </item>
     
-    <!-- 📱 默认状态 -->
+    <!-- 默认状态 -->
     <item>
         <shape android:shape="oval">
             <solid android:color="@color/button_background" />

@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName;
 import java.util.List;
 
 /**
- * 🔄 继续观看列表响应数据模型
+ * 继续观看列表响应数据模型
  * 匹配 /api/v1/play/list 接口的返回格式
  */
 public class PlayListResponse {

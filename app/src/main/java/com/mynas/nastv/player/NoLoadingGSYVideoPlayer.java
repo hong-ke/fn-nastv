@@ -9,7 +9,7 @@ import com.mynas.nastv.R;
 import com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer;
 
 /**
- * 🔧 自定义 GSYVideoPlayer，禁用内置 loading 显示
+ * 自定义 GSYVideoPlayer，禁用内置 loading 显示
  * 使用自定义布局，loading 视图尺寸为 0
  */
 public class NoLoadingGSYVideoPlayer extends StandardGSYVideoPlayer {
@@ -27,7 +27,7 @@ public class NoLoadingGSYVideoPlayer extends StandardGSYVideoPlayer {
     }
 
     /**
-     * 🔧 使用自定义布局，loading 视图尺寸为 0
+     * 使用自定义布局，loading 视图尺寸为 0
      */
     @Override
     public int getLayoutId() {
@@ -35,7 +35,7 @@ public class NoLoadingGSYVideoPlayer extends StandardGSYVideoPlayer {
     }
 
     /**
-     * 🔧 覆盖：正常状态 UI
+     * 覆盖：正常状态 UI
      */
     @Override
     protected void changeUiToNormal() {
@@ -48,7 +48,7 @@ public class NoLoadingGSYVideoPlayer extends StandardGSYVideoPlayer {
     }
 
     /**
-     * 🔧 覆盖：准备中状态 UI - 不显示 loading
+     * 覆盖：准备中状态 UI - 不显示 loading
      */
     @Override
     protected void changeUiToPreparingShow() {
@@ -61,7 +61,7 @@ public class NoLoadingGSYVideoPlayer extends StandardGSYVideoPlayer {
     }
 
     /**
-     * 🔧 覆盖：缓冲中状态 UI - 不显示 loading
+     * 覆盖：缓冲中状态 UI - 不显示 loading
      */
     @Override
     protected void changeUiToPlayingBufferingShow() {
@@ -74,7 +74,7 @@ public class NoLoadingGSYVideoPlayer extends StandardGSYVideoPlayer {
     }
 
     /**
-     * 🔧 覆盖：播放中状态 UI
+     * 覆盖：播放中状态 UI
      */
     @Override
     protected void changeUiToPlayingShow() {
@@ -87,7 +87,7 @@ public class NoLoadingGSYVideoPlayer extends StandardGSYVideoPlayer {
     }
 
     /**
-     * 🔧 覆盖：暂停状态 UI
+     * 覆盖：暂停状态 UI
      */
     @Override
     protected void changeUiToPauseShow() {
@@ -100,7 +100,7 @@ public class NoLoadingGSYVideoPlayer extends StandardGSYVideoPlayer {
     }
 
     /**
-     * 🔧 覆盖：播放完成状态 UI
+     * 覆盖：播放完成状态 UI
      */
     @Override
     protected void changeUiToCompleteShow() {
@@ -113,7 +113,7 @@ public class NoLoadingGSYVideoPlayer extends StandardGSYVideoPlayer {
     }
 
     /**
-     * 🔧 覆盖：错误状态 UI
+     * 覆盖：错误状态 UI
      */
     @Override
     protected void changeUiToError() {
@@ -126,7 +126,7 @@ public class NoLoadingGSYVideoPlayer extends StandardGSYVideoPlayer {
     }
 
     /**
-     * 🔧 覆盖：设置 loading 可见性 - 始终隐藏
+     * 覆盖：设置 loading 可见性 - 始终隐藏
      */
     @Override
     protected void setViewShowState(View view, int visibility) {

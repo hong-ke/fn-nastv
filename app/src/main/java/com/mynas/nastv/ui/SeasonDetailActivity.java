@@ -35,7 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 📺 Season Detail Activity
+ * Season Detail Activity
  * 显示季详情和剧集列表（第二层详情页）
  * Web端URL格式: /v/tv/season/{season_guid}
  */
@@ -102,7 +102,7 @@ public class SeasonDetailActivity extends AppCompatActivity {
             return;
         }
         
-        // 🚀 优化：先显示简单布局，再异步加载数据
+        // 优化：先显示简单布局，再异步加载数据
         createLayout();
         mediaManager = new MediaManager(this);
         
@@ -275,7 +275,7 @@ public class SeasonDetailActivity extends AppCompatActivity {
                     }
                     
                     if (!episodeList.isEmpty()) {
-                        playButtonTextView.setText("▶ 播放第" + episodeList.get(0).getEpisodeNumber() + "集");
+                        playButtonTextView.setText("播放第" + episodeList.get(0).getEpisodeNumber() + "集");
                     }
                 });
             }
@@ -482,7 +482,7 @@ public class SeasonDetailActivity extends AppCompatActivity {
                     intent.putExtra("episode_number", episode.getEpisodeNumber());
                     intent.putExtra("season_number", seasonNumber);
                     
-                    // 🎬 传递恢复播放位置
+                    // 传递恢复播放位置
                     intent.putExtra("resume_position", playInfo.getResumePositionSeconds());
                     intent.putExtra("video_guid", playInfo.getVideoGuid());
                     intent.putExtra("audio_guid", playInfo.getAudioGuid());

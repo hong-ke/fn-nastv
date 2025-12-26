@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName;
 import java.util.List;
 
 /**
- * 🔍 搜索响应模型
+ * 搜索响应模型
  */
 public class SearchResponse {
     private List<MediaItem> results;

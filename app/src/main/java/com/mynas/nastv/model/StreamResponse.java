@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName;
 import java.util.List;
 
 /**
- * 🎬 流信息响应
+ * 流信息响应
  * 对应 POST /v/api/v1/stream 接口
  */
 public class StreamResponse {

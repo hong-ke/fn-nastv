@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName;
 import java.util.List;
 
 /**
- * 🎬 剧集列表响应模型
+ * 剧集列表响应模型
  */
 public class EpisodeListResponse {
     
@@ -43,7 +43,7 @@ public class EpisodeListResponse {
     }
     
     /**
-     * 📺 单个剧集信息
+     * 单个剧集信息
      */
     public static class Episode {
         @SerializedName("guid")
@@ -180,7 +180,7 @@ public class EpisodeListResponse {
     }
     
     /**
-     * 📺 媒体流信息
+     * 媒体流信息
      */
     public static class MediaStream {
         @SerializedName("resolutions")

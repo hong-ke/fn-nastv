@@ -3,7 +3,7 @@ package com.mynas.nastv.model;
 import android.graphics.Color;
 
 /**
- * 🎨 弹幕数据模型
+ * 弹幕数据模型
  */
 public class DanmakuItem {
     private String text;

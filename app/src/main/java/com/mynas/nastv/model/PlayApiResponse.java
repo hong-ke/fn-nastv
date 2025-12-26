@@ -1,7 +1,7 @@
 package com.mynas.nastv.model;
 
 /**
- * 🎬 播放API响应模型
+ * 播放API响应模型
  * 响应 /fnos/v/api/v1/play/play
  */
 public class PlayApiResponse {

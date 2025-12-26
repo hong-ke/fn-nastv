@@ -1,7 +1,7 @@
 package com.mynas.nastv.model;
 
 /**
- * 🎬 播放启动信息
+ * 播放启动信息
  * 包含播放URL和恢复位置等信息
  */
 public class PlayStartInfo {

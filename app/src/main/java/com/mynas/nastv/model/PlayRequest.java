@@ -3,7 +3,7 @@ package com.mynas.nastv.model;
 import com.google.gson.annotations.SerializedName;
 
 /**
- * 🎬 播放请求模型
+ * 播放请求模型
  */
 public class PlayRequest {
     

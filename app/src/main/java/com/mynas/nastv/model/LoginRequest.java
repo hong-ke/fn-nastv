@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName;
 import com.mynas.nastv.config.AppConfig;
 
 /**
- * 🔐 登录请求模型
+ * 登录请求模型
  * 对应 /v/api/v1/login 接口
  * 与 fntv-electron 项目保持一致
  */

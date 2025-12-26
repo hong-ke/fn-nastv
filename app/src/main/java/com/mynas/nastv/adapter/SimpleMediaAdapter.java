@@ -16,7 +16,7 @@ import com.mynas.nastv.model.MediaItem;
 import java.util.List;
 
 /**
- * 📱 简化媒体适配器
+ * 简化媒体适配器
  * 用于VideoListActivity显示媒体项目列表
  * 避免复杂的图片加载和复杂布局，专注基础功能
  */
@@ -27,12 +27,12 @@ public class SimpleMediaAdapter extends RecyclerView.Adapter<SimpleMediaAdapter.
     private List<MediaItem> mediaList;
     private OnItemClickListener onItemClickListener;
     
-    // 📱 点击事件接口
+    // 点击事件接口
     public interface OnItemClickListener {
         void onItemClick(MediaItem mediaItem, int position);
     }
     
-    // 🔧 构造函数
+    // 构造函数
     public SimpleMediaAdapter(Context context, List<MediaItem> mediaList) {
         this.context = context;
         this.mediaList = mediaList;
@@ -61,7 +61,7 @@ public class SimpleMediaAdapter extends RecyclerView.Adapter<SimpleMediaAdapter.
     }
     
     /**
-     * 🔄 更新数据
+     * 更新数据
      */
     public void updateData(List<MediaItem> newMediaList) {
         this.mediaList = newMediaList;
@@ -69,7 +69,7 @@ public class SimpleMediaAdapter extends RecyclerView.Adapter<SimpleMediaAdapter.
     }
     
     /**
-     * 📱 媒体项目ViewHolder
+     * 媒体项目ViewHolder
      */
     public class MediaViewHolder extends RecyclerView.ViewHolder {
         private CardView cardView;
@@ -89,7 +89,7 @@ public class SimpleMediaAdapter extends RecyclerView.Adapter<SimpleMediaAdapter.
             typeText = itemView.findViewById(R.id.media_type);
             progressText = itemView.findViewById(R.id.media_progress);
             
-            // 🎯 设置点击事件
+            // 设置点击事件
             cardView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -100,7 +100,7 @@ public class SimpleMediaAdapter extends RecyclerView.Adapter<SimpleMediaAdapter.
                 }
             });
             
-            // 🎯 设置焦点事件 (Android TV)
+            // 设置焦点事件 (Android TV)
             cardView.setOnFocusChangeListener(new View.OnFocusChangeListener() {
                 @Override
                 public void onFocusChange(View v, boolean hasFocus) {
@@ -116,13 +116,13 @@ public class SimpleMediaAdapter extends RecyclerView.Adapter<SimpleMediaAdapter.
         }
         
         /**
-         * 🔗 绑定数据
+         * 绑定数据
          */
         public void bind(MediaItem mediaItem) {
-            // 🏷️ 标题
+            // 标题
             titleText.setText(mediaItem.getTitle());
             
-            // 📝 副标题
+            // 副标题
             if (mediaItem.getSubtitle() != null && !mediaItem.getSubtitle().isEmpty()) {
                 subtitleText.setText(mediaItem.getSubtitle());
                 subtitleText.setVisibility(View.VISIBLE);
@@ -130,15 +130,15 @@ public class SimpleMediaAdapter extends RecyclerView.Adapter<SimpleMediaAdapter.
                 subtitleText.setVisibility(View.GONE);
             }
             
-            // ⭐ 评分
+            // 评分
             if (mediaItem.getRating() > 0) {
-                ratingText.setText(String.format("⭐ %.1f", mediaItem.getRating()));
+                ratingText.setText(String.format("%.1f", mediaItem.getRating()));
                 ratingText.setVisibility(View.VISIBLE);
             } else {
                 ratingText.setVisibility(View.GONE);
             }
             
-            // 🎬 类型标签
+            // 类型标签
             if (mediaItem.getType() != null) {
                 String typeDisplay = getTypeDisplay(mediaItem.getType());
                 typeText.setText(typeDisplay);
@@ -147,7 +147,7 @@ public class SimpleMediaAdapter extends RecyclerView.Adapter<SimpleMediaAdapter.
                 typeText.setVisibility(View.GONE);
             }
             
-            // 📊 进度信息
+            // 进度信息
             if (mediaItem.isTvSeries()) {
                 progressText.setText(mediaItem.getEpisodeProgressText());
                 progressText.setVisibility(View.VISIBLE);
@@ -160,22 +160,22 @@ public class SimpleMediaAdapter extends RecyclerView.Adapter<SimpleMediaAdapter.
         }
         
         /**
-         * 🎭 获取类型显示文本
+         * 获取类型显示文本
          */
         private String getTypeDisplay(String type) {
             switch (type) {
                 case "movie":
-                    return "🎬 电影";
+                    return "电影";
                 case "tv":
-                    return "📺 电视剧";
+                    return "电视剧";
                 case "anime":
-                    return "🎨 动漫";
+                    return "动漫";
                 case "documentary":
-                    return "📖 纪录片";
+                    return "纪录片";
                 case "variety":
-                    return "🎪 综艺";
+                    return "综艺";
                 default:
-                    return "📱 未知";
+                    return "未知";
             }
         }
     }

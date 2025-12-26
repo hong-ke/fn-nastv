@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 🔄 继续观看适配器
+ * 继续观看适配器
  * 显示用户最近观看的内容
  */
 public class ContinueWatchingAdapter extends RecyclerView.Adapter<ContinueWatchingAdapter.ContinueWatchingViewHolder> {
@@ -87,9 +87,9 @@ public class ContinueWatchingAdapter extends RecyclerView.Adapter<ContinueWatchi
         }
         
         public void bind(MediaItem item) {
-            // 🖼️ 加载海报图片
+            // 加载海报图片
             String posterUrl = item.getPosterUrl();
-            android.util.Log.d("ContinueWatching", "🖼️ [调试] 加载海报: " + item.getTitle() + " -> " + posterUrl);
+            android.util.Log.d("ContinueWatching", "[调试] 加载海报: " + item.getTitle() + " -> " + posterUrl);
             
             if (posterUrl != null && !posterUrl.isEmpty()) {
                 Glide.with(posterImage.getContext())
@@ -105,9 +105,9 @@ public class ContinueWatchingAdapter extends RecyclerView.Adapter<ContinueWatchi
                             public boolean onLoadFailed(com.bumptech.glide.load.engine.GlideException e, Object model, 
                                     com.bumptech.glide.request.target.Target<android.graphics.Bitmap> target, 
                                     boolean isFirstResource) {
-                                android.util.Log.e("ContinueWatching", "❌ [调试] 海报加载失败: " + posterUrl);
+                                android.util.Log.e("ContinueWatching", "[调试] 海报加载失败: " + posterUrl);
                                 if (e != null) {
-                                    android.util.Log.e("ContinueWatching", "❌ [调试] 详细错误: " + e.getCause());
+                                    android.util.Log.e("ContinueWatching", "[调试] 详细错误: " + e.getCause());
                                 }
                                 return false;
                             }
@@ -115,19 +115,19 @@ public class ContinueWatchingAdapter extends RecyclerView.Adapter<ContinueWatchi
                             public boolean onResourceReady(android.graphics.Bitmap resource, Object model, 
                                     com.bumptech.glide.request.target.Target<android.graphics.Bitmap> target, 
                                     com.bumptech.glide.load.DataSource dataSource, boolean isFirstResource) {
-                                android.util.Log.d("ContinueWatching", "✅ [调试] 海报加载成功: " + posterUrl);
+                                android.util.Log.d("ContinueWatching", "[调试] 海报加载成功: " + posterUrl);
                                 return false;
                             }
                         })
                         .into(posterImage);
             } else {
-                android.util.Log.w("ContinueWatching", "⚠️ [调试] 海报URL为空: " + item.getTitle());
+                android.util.Log.w("ContinueWatching", "[调试] 海报URL为空: " + item.getTitle());
                 posterImage.setImageResource(R.color.tv_card_background);
             }
             
             titleText.setText(item.getTitle());
             
-            // 📺 类型显示：Episode 类型不显示，Movie 显示
+            // 类型显示：Episode 类型不显示，Movie 显示
             String type = item.getType();
             String subtitle = item.getSubtitle();
             if ("Episode".equalsIgnoreCase(type)) {
@@ -143,7 +143,7 @@ public class ContinueWatchingAdapter extends RecyclerView.Adapter<ContinueWatchi
                 subtitleText.setVisibility(View.GONE);
             }
             
-            // 📺 显示剧集进度文本（第X季·第X集）
+            // 显示剧集进度文本（第X季·第X集）
             int seasonNum = item.getSeasonNumber();
             int episodeNum = item.getEpisodeNumber();
             if (seasonNum > 0 || episodeNum > 0) {
@@ -158,7 +158,7 @@ public class ContinueWatchingAdapter extends RecyclerView.Adapter<ContinueWatchi
                 episodeText.setVisibility(View.GONE);
             }
             
-            // 📊 显示进度条
+            // 显示进度条
             long watchedTs = item.getWatchedTs();
             long totalDuration = item.getTotalDuration();
             if (watchedTs > 0 && totalDuration > 0) {

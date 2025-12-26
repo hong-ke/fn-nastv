@@ -31,7 +31,7 @@
     <color name="tv_background_tertiary">#FF2A2A35</color>       <!-- 更浅蓝黑色 筛选栏背景 -->
     <color name="tv_background_overlay">#80000000</color>        <!-- 半透明黑色 遮罩 -->
     
-    <!-- 📱 卡片和表面色 -->
+    <!-- 卡片和表面色 -->
     <color name="tv_card_background">#FF242438</color>           <!-- 卡片背景色 -->
     <color name="tv_card_focused">#FF3A3A52</color>              <!-- 焦点卡片背景色 -->
     <color name="tv_card_elevated">#FF2F2F45</color>             <!-- 悬浮卡片背景 -->
@@ -43,14 +43,14 @@
     <color name="tv_accent_secondary">#FF7B68EE</color>          <!-- 次强调色 紫色 -->
     <color name="tv_accent_tertiary">#FF50C878</color>           <!-- 第三强调色 绿色 -->
     
-    <!-- 🔥 状态色彩 -->
+    <!-- 状态色彩 -->
     <color name="tv_accent_red">#FFE74C3C</color>                <!-- 红色 错误/删除 -->
     <color name="tv_accent_green">#FF27AE60</color>              <!-- 绿色 成功/完成 -->
     <color name="tv_accent_yellow">#FFF39C12</color>             <!-- 黄色 警告/评分 -->
     <color name="tv_accent_blue">#FF3498DB</color>               <!-- 蓝色 信息/进行中 -->
     <color name="tv_accent_orange">#FFE67E22</color>             <!-- 橙色 更新/新内容 -->
     
-    <!-- 📝 文本颜色 -->
+    <!-- 文本颜色 -->
     <color name="tv_text_primary">#FFFFFFFF</color>              <!-- 主要文本 白色 -->
     <color name="tv_text_secondary">#FFBDC3C7</color>            <!-- 次要文本 浅灰 -->
     <color name="tv_text_tertiary">#FF7F8C8D</color>             <!-- 第三级文本 深灰 -->
@@ -58,7 +58,7 @@
     <color name="tv_text_on_accent">#FFFFFFFF</color>            <!-- 强调色上的文本 白色 -->
     <color name="tv_text_on_surface">#FF2C3E50</color>           <!-- 浅色表面上的文本 深色 -->
     
-    <!-- 🎯 焦点和选中状态 -->
+    <!-- 焦点和选中状态 -->
     <color name="tv_focus_color">#FF4A90E2</color>               <!-- 焦点边框色 -->
     <color name="tv_focus_background">#204A90E2</color>          <!-- 焦点背景色 -->
     <color name="tv_selected_color">#FF3F51B5</color>            <!-- 选中背景色 -->
@@ -112,7 +112,7 @@
     <color name="divider_color">#FF34495E</color>                <!-- 分割线颜色 -->
     <color name="shadow_color">#80000000</color>                 <!-- 阴影颜色 -->
     
-    <!-- 📺 播放器专用色彩 -->
+    <!-- 播放器专用色彩 -->
     <color name="player_background">#FF000000</color>            <!-- 播放器背景 黑色 -->
     <color name="player_control_background">#CC000000</color>    <!-- 播放器控制栏背景 -->
     <color name="player_control_text">#FFFFFFFF</color>          <!-- 播放器控制栏文本 -->

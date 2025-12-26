@@ -37,12 +37,12 @@ import retrofit2.http.Path;
 import retrofit2.http.Query;
 
 /**
- * 🌐 API Service Interface
+ * API Service Interface
  * Redesigned to match fntv-electron and new web interface (v/api/v1).
  */
 public interface ApiService {
     
-    // 🔐 Login
+    // Login
     @GET("/api/getFnUrl")
     Call<ResponseBody> getFnUrl();
     
@@ -55,18 +55,18 @@ public interface ApiService {
     @GET("/api/v1/logincode/check")
     Call<com.mynas.nastv.model.LoginResponse> checkQrLogin(@Query("code") String code);
     
-    // ⚙️ Config
+    // ️ Config
     @GET("/v/api/v1/sys/config")
     Call<ConfigResponse> getConfig(@Header("Authorization") String token, @Header("authx") String signature);
     
-    // 📚 Media Library List (Root)
+    // Media Library List (Root)
     @GET("/v/api/v1/mediadb/list")
     Call<MediaDbListResponse> getMediaDbList(@Header("Authorization") String token, @Header("authx") String signature);
 
     @GET("/v/api/v1/mediadb/sum")
     Call<BaseResponse<Map<String, Integer>>> getMediaDbSum(@Header("Authorization") String token, @Header("authx") String signature);
     
-    // 📚 Media Content List / Folder Content
+    // Media Content List / Folder Content
     @POST("/v/api/v1/item/list")
     Call<MediaItemListResponse> getItemList(
         @Header("Authorization") String token,
@@ -74,7 +74,7 @@ public interface ApiService {
         @Body Object requestData
     );
 
-    // 🎬 Get Item Detail (TV/Season/Episode/Movie)
+    // Get Item Detail (TV/Season/Episode/Movie)
     // Web端使用: GET /v/api/v1/item/{guid}
     @GET("/v/api/v1/item/{guid}")
     Call<BaseResponse<MediaDetailResponse>> getItemDetail(
@@ -83,7 +83,7 @@ public interface ApiService {
         @Path("guid") String guid
     );
 
-    // 📺 Season List (for TV shows)
+    // Season List (for TV shows)
     // Web端使用: GET /v/api/v1/season/list/{tv_guid}
     @GET("/v/api/v1/season/list/{tvGuid}")
     Call<SeasonListResponse> getSeasonList(
@@ -92,7 +92,7 @@ public interface ApiService {
         @Path("tvGuid") String tvGuid
     );
 
-    // 🎬 Play Info (Includes Item Details)
+    // Play Info (Includes Item Details)
     @POST("/v/api/v1/play/info")
     Call<PlayInfoResponse> getPlayInfo(
         @Header("Authorization") String token,
@@ -100,7 +100,7 @@ public interface ApiService {
         @Body PlayInfoRequest request
     );
     
-    // 🎬 Play Info (使用 Map 作为请求体，确保签名一致)
+    // Play Info (使用 Map 作为请求体，确保签名一致)
     @POST("/v/api/v1/play/info")
     Call<PlayInfoResponse> getPlayInfoMap(
         @Header("Authorization") String token,
@@ -108,7 +108,7 @@ public interface ApiService {
         @Body Map<String, Object> requestData
     );
 
-    // 📺 Episode List
+    // Episode List
     @GET("/v/api/v1/episode/list/{parentGuid}")
     Call<BaseResponse<List<EpisodeListResponse.Episode>>> getEpisodeList(
         @Header("Authorization") String token, 
@@ -116,7 +116,7 @@ public interface ApiService {
         @Path("parentGuid") String parentGuid
     );
 
-    // 🎬 Stream Info (for playback quality selection)
+    // Stream Info (for playback quality selection)
     @POST("/v/api/v1/stream")
     Call<ResponseBody> getStream(
         @Header("Authorization") String token, 
@@ -124,7 +124,7 @@ public interface ApiService {
         @Body Map<String, Object> requestData
     );
 
-    // 🎬 Stream List (for item streams info)
+    // Stream List (for item streams info)
     // Web端使用: GET /v/api/v1/stream/list/{item_guid}
     @GET("/v/api/v1/stream/list/{itemGuid}")
     Call<StreamListResponse> getStreamList(
@@ -133,18 +133,18 @@ public interface ApiService {
         @Path("itemGuid") String itemGuid
     );
     
-    // 🎬 Direct Media URL
+    // Direct Media URL
     @GET("/v/api/v1/media/range/{mediaGuid}")
     Call<ResponseBody> getMediaRange(@Header("Authorization") String token, @Path("mediaGuid") String mediaGuid);
 
-    // 👤 User Info
+    // User Info
     @GET("/v/api/v1/user/info")
     Call<BaseResponse<UserInfoResponse>> getUserInfo(
         @Header("Authorization") String token,
         @Header("authx") String signature
     );
 
-    // 👥 Person List - 演职人员列表
+    // Person List - 演职人员列表
     @GET("/v/api/v1/person/list/{itemGuid}")
     Call<BaseResponse<java.util.List<PersonInfo>>> getPersonList(
         @Header("Authorization") String token,
@@ -152,7 +152,7 @@ public interface ApiService {
         @Path("itemGuid") String itemGuid
     );
     
-    // 🔍 Search
+    // Search
     @POST("/v/api/v1/search")
     Call<BaseResponse<SearchResponse>> search(
         @Header("Authorization") String token,
@@ -160,7 +160,7 @@ public interface ApiService {
         @Body SearchRequest request
     );
     
-    // 📖 Watch History
+    // Watch History
     @GET("/v/api/v1/user/watchhistory")
     Call<BaseResponse<WatchHistoryResponse>> getWatchHistory(
         @Header("Authorization") String token,
@@ -169,7 +169,7 @@ public interface ApiService {
         @Query("limit") int limit
     );
     
-    // 📖 Play List (继续观看 - Web 端使用此接口)
+    // Play List (继续观看 - Web 端使用此接口)
     @GET("/v/api/v1/play/list")
     Call<BaseResponse<java.util.List<PlayListResponse.PlayListItem>>> getPlayList(
         @Header("Authorization") String token,
@@ -183,7 +183,7 @@ public interface ApiService {
         @Body PlayRecordRequest request
     );
 
-    // ⭐ Favorites
+    // Favorites
     @GET("/v/api/v1/favorite/list")
     Call<BaseResponse<FavoriteListResponse>> getFavoriteList(
         @Header("Authorization") String token,
@@ -215,7 +215,7 @@ public interface ApiService {
         @Path("itemGuid") String itemGuid
     );
 
-    // 🎬 Danmaku (旧接口 - 保留兼容)
+    // Danmaku (旧接口 - 保留兼容)
     @GET("/v/api/v1/danmaku")
     Call<com.mynas.nastv.model.DanmakuListResponse> getDanmaku(
         @Header("Authorization") String token,
@@ -225,7 +225,7 @@ public interface ApiService {
         @Query("season") int season
     );
     
-    // 🎬 Danmaku (新接口 - 弹幕服务器 http://192.168.3.20:13401)
+    // Danmaku (新接口 - 弹幕服务器 http://192.168.3.20:13401)
     // 响应格式: { "1": [...], "2": [...] } - key 是集数
     // 参数: title, season_number, episode_number (guid/parent_guid 可选，用于缓存)
     // 注意：如果传入guid但数据库没有记录，会返回空数据，所以首次请求不传guid
@@ -236,7 +236,7 @@ public interface ApiService {
         @Query("episode_number") int episodeNumber
     );
     
-    // 📝 字幕下载
+    // 字幕下载
     @GET("/v/api/v1/subtitle/dl/{subtitleGuid}")
     Call<ResponseBody> downloadSubtitle(
         @Header("Authorization") String token,

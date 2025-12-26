@@ -28,10 +28,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 📝 ExoPlayer 内核
+ * ExoPlayer 内核
  * 用于播放带有内嵌字幕的视频
  * 支持 onCues 回调获取内嵌字幕
- * 🔑 支持 OkHttpProxyCacheManager 本地代理缓存
+ * 支持 OkHttpProxyCacheManager 本地代理缓存
  */
 public class ExoPlayerKernel implements Player.Listener {
     private static final String TAG = "ExoPlayerKernel";
@@ -50,7 +50,7 @@ public class ExoPlayerKernel implements Player.Listener {
     private int videoWidth = 0;
     private int videoHeight = 0;
     
-    // 🔑 缓存相关
+    // 缓存相关
     private boolean useProxyCache = false;
     private String originalUrl = null;
     
@@ -88,7 +88,7 @@ public class ExoPlayerKernel implements Player.Listener {
      * 初始化播放器
      */
     public void init(Map<String, String> headers) {
-        Log.i(TAG, "📝 初始化 ExoPlayer 内核");
+        Log.i(TAG, "初始化 ExoPlayer 内核");
         
         // 创建 DataSource.Factory
         DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory()
@@ -98,7 +98,7 @@ public class ExoPlayerKernel implements Player.Listener {
         
         if (headers != null && !headers.isEmpty()) {
             httpFactory.setDefaultRequestProperties(headers);
-            Log.i(TAG, "📝 设置请求头: " + headers.keySet());
+            Log.i(TAG, "设置请求头: " + headers.keySet());
         }
         
         DataSource.Factory dataSourceFactory = new DefaultDataSource.Factory(context, httpFactory);
@@ -126,7 +126,7 @@ public class ExoPlayerKernel implements Player.Listener {
         // 添加监听器
         exoPlayer.addListener(this);
         
-        Log.i(TAG, "📝 ExoPlayer 初始化完成");
+        Log.i(TAG, "ExoPlayer 初始化完成");
     }
 
     /**
@@ -154,11 +154,11 @@ public class ExoPlayerKernel implements Player.Listener {
      */
     public void play(String url) {
         if (exoPlayer == null) {
-            Log.e(TAG, "📝 ExoPlayer 未初始化");
+            Log.e(TAG, "ExoPlayer 未初始化");
             return;
         }
         
-        Log.i(TAG, "📝 播放视频: " + url.substring(0, Math.min(80, url.length())));
+        Log.i(TAG, "播放视频: " + url.substring(0, Math.min(80, url.length())));
         
         MediaItem mediaItem = MediaItem.fromUri(Uri.parse(url));
         exoPlayer.setMediaItem(mediaItem);
@@ -167,35 +167,35 @@ public class ExoPlayerKernel implements Player.Listener {
     }
     
     /**
-     * 🔑 使用代理缓存播放视频
+     * 使用代理缓存播放视频
      * @param originUrl 原始视频 URL
      * @param headers 请求头
      * @param cacheDir 缓存目录
      */
     public void playWithProxyCache(String originUrl, Map<String, String> headers, File cacheDir) {
         if (exoPlayer == null) {
-            Log.e(TAG, "📝 ExoPlayer 未初始化");
+            Log.e(TAG, "ExoPlayer 未初始化");
             return;
         }
         
         this.originalUrl = originUrl;
         this.useProxyCache = true;
         
-        // 🔑 设置 ExoPlayer 正在使用代理（防止 GSYVideoPlayer release 时停止代理）
+        // 设置 ExoPlayer 正在使用代理（防止 GSYVideoPlayer release 时停止代理）
         OkHttpProxyCacheManager.setExoPlayerUsingProxy(true);
         
-        // 🔑 设置 OkHttpProxyCacheManager 的 headers
+        // 设置 OkHttpProxyCacheManager 的 headers
         OkHttpProxyCacheManager.setCurrentHeaders(headers);
-        Log.i(TAG, "🔑 ExoPlayer: OkHttpProxyCacheManager headers set");
+        Log.i(TAG, "ExoPlayer: OkHttpProxyCacheManager headers set");
         
-        // 🔑 通过 OkHttpProxyCacheManager 获取代理 URL
+        // 通过 OkHttpProxyCacheManager 获取代理 URL
         OkHttpProxyCacheManager cacheManager = OkHttpProxyCacheManager.instance();
         String proxyUrl = cacheManager.getProxyUrl(context, originUrl, headers, cacheDir);
         
         if (proxyUrl != null && !proxyUrl.equals(originUrl)) {
-            Log.i(TAG, "🔑 ExoPlayer 使用代理缓存: " + proxyUrl);
+            Log.i(TAG, "ExoPlayer 使用代理缓存: " + proxyUrl);
         } else {
-            Log.i(TAG, "📝 ExoPlayer 直接播放（无代理）: " + originUrl.substring(0, Math.min(80, originUrl.length())));
+            Log.i(TAG, "ExoPlayer 直接播放（无代理）: " + originUrl.substring(0, Math.min(80, originUrl.length())));
             proxyUrl = originUrl;
         }
         
@@ -307,9 +307,9 @@ public class ExoPlayerKernel implements Player.Listener {
      * 释放资源
      */
     public void release() {
-        Log.i(TAG, "📝 释放 ExoPlayer");
+        Log.i(TAG, "释放 ExoPlayer");
         
-        // 🔑 清除 ExoPlayer 使用代理的标志
+        // 清除 ExoPlayer 使用代理的标志
         if (useProxyCache) {
             OkHttpProxyCacheManager.setExoPlayerUsingProxy(false);
         }
@@ -329,10 +329,10 @@ public class ExoPlayerKernel implements Player.Listener {
     }
     
     /**
-     * 🔑 重置播放器（用于切换视频）
+     * 重置播放器（用于切换视频）
      */
     public void reset() {
-        Log.i(TAG, "📝 重置 ExoPlayer");
+        Log.i(TAG, "重置 ExoPlayer");
         
         if (exoPlayer != null) {
             exoPlayer.stop();
@@ -354,7 +354,7 @@ public class ExoPlayerKernel implements Player.Listener {
             case Player.STATE_READY: stateName = "READY"; break;
             case Player.STATE_ENDED: stateName = "ENDED"; break;
         }
-        Log.i(TAG, "📝 播放状态: " + stateName);
+        Log.i(TAG, "播放状态: " + stateName);
         
         if (playbackState == Player.STATE_READY && !isPrepared) {
             isPrepared = true;
@@ -378,24 +378,24 @@ public class ExoPlayerKernel implements Player.Listener {
     
     @Override
     public void onPlayerError(PlaybackException error) {
-        Log.e(TAG, "📝 播放错误: " + error.getMessage(), error);
+        Log.e(TAG, "播放错误: " + error.getMessage(), error);
         
-        // 🔑 检查是否是可恢复的错误
+        // 检查是否是可恢复的错误
         if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW ||
             error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
             error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT) {
             // 网络相关错误，尝试重试
-            Log.i(TAG, "📝 网络错误，尝试重试...");
+            Log.i(TAG, "网络错误，尝试重试...");
             if (exoPlayer != null) {
                 exoPlayer.prepare();
             }
             return;
         }
         
-        // 🔑 MediaCodec 错误通常是解码器问题，可以尝试继续播放
+        // MediaCodec 错误通常是解码器问题，可以尝试继续播放
         if (error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
             error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED) {
-            Log.w(TAG, "📝 解码器错误，尝试继续播放...");
+            Log.w(TAG, "解码器错误，尝试继续播放...");
             // 不回调错误，让播放器尝试恢复
             return;
         }
@@ -409,7 +409,7 @@ public class ExoPlayerKernel implements Player.Listener {
     public void onVideoSizeChanged(VideoSize videoSize) {
         videoWidth = videoSize.width;
         videoHeight = videoSize.height;
-        Log.i(TAG, "📝 视频尺寸: " + videoWidth + "x" + videoHeight);
+        Log.i(TAG, "视频尺寸: " + videoWidth + "x" + videoHeight);
         if (playerCallback != null) {
             playerCallback.onVideoSizeChanged(videoWidth, videoHeight);
         }
@@ -417,11 +417,11 @@ public class ExoPlayerKernel implements Player.Listener {
     
     @Override
     public void onCues(CueGroup cueGroup) {
-        // 📝 关键：内嵌字幕回调
+        // 关键：内嵌字幕回调
         if (subtitleCallback != null && cueGroup != null && cueGroup.cues != null) {
             subtitleCallback.onSubtitleChanged(cueGroup.cues);
             if (!cueGroup.cues.isEmpty()) {
-                Log.d(TAG, "📝 字幕: " + cueGroup.cues.get(0).text);
+                Log.d(TAG, "字幕: " + cueGroup.cues.get(0).text);
             }
         }
     }

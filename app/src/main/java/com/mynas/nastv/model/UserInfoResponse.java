@@ -3,7 +3,7 @@ package com.mynas.nastv.model;
 import com.google.gson.annotations.SerializedName;
 
 /**
- * 👤 用户信息响应模型
+ * 用户信息响应模型
  */
 public class UserInfoResponse {
     private String username;

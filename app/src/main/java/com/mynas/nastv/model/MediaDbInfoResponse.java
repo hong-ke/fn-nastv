@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 📚 媒体库详细信息响应模型
+ * 媒体库详细信息响应模型
  */
 public class MediaDbInfoResponse {
     

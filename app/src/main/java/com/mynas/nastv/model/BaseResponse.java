@@ -3,7 +3,7 @@ package com.mynas.nastv.model;
 import com.google.gson.annotations.SerializedName;
 
 /**
- * 📊 API响应基础模型
+ * API响应基础模型
  * 所有API响应的通用结构
  */
 public class BaseResponse<T> {

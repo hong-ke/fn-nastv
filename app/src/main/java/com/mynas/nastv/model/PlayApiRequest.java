@@ -1,7 +1,7 @@
 package com.mynas.nastv.model;
 
 /**
- * 🎬 播放API请求模型
+ * 播放API请求模型
  * POST /fnos/v/api/v1/play/play
  */
 public class PlayApiRequest {
@@ -35,7 +35,7 @@ public class PlayApiRequest {
     }
 
     /**
-     * 🎬 构造函数：使用原始视频流信息（推荐，获取最高画质）
+     * 构造函数：使用原始视频流信息（推荐，获取最高画质）
      */
     public PlayApiRequest(String mediaGuid, String videoGuid, String audioGuid, 
                          String videoCodec, String originalResolution, long originalBitrate) {
@@ -43,7 +43,7 @@ public class PlayApiRequest {
         this.video_guid = videoGuid;
         this.audio_guid = audioGuid;
         
-        // 🎯 使用原始视频流参数（原画质量）
+        // 使用原始视频流参数（原画质量）
         this.video_encoder = videoCodec != null ? videoCodec : "h264";
         this.resolution = originalResolution != null ? originalResolution : "720";
         this.bitrate = (int) (originalBitrate > 0 ? originalBitrate : 2107398);

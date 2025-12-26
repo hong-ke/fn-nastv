@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 📺 横向剧集卡片适配器
+ * 横向剧集卡片适配器
  * 用于显示分组后的剧集列表，支持横向滚动
  */
 public class EpisodeCardAdapter extends RecyclerView.Adapter<EpisodeCardAdapter.EpisodeViewHolder> {
@@ -112,7 +112,7 @@ public class EpisodeCardAdapter extends RecyclerView.Adapter<EpisodeCardAdapter.
         }
 
         public void bind(EpisodeListResponse.Episode episode, boolean isCurrent) {
-            // 📱 加载缩略图
+            // 加载缩略图
             String stillPath = episode.getStillPath();
             if (stillPath != null && !stillPath.isEmpty()) {
                 String imageUrl = stillPath;
@@ -133,7 +133,7 @@ public class EpisodeCardAdapter extends RecyclerView.Adapter<EpisodeCardAdapter.
                 thumbnailImage.setImageResource(R.color.tv_card_background);
             }
 
-            // 📝 标题：第X集. 标题
+            // 标题：第X集. 标题
             String title = episode.getTitle();
             String displayTitle = "第" + episode.getEpisodeNumber() + "集";
             if (title != null && !title.isEmpty()) {
@@ -141,7 +141,7 @@ public class EpisodeCardAdapter extends RecyclerView.Adapter<EpisodeCardAdapter.
             }
             titleText.setText(displayTitle);
 
-            // 📝 简介
+            // 简介
             String overview = episode.getOverview();
             if (overview != null && !overview.isEmpty()) {
                 overviewText.setText(overview);
@@ -150,7 +150,7 @@ public class EpisodeCardAdapter extends RecyclerView.Adapter<EpisodeCardAdapter.
                 overviewText.setVisibility(View.GONE);
             }
 
-            // ⏱️ 时长 (格式化为 mm:ss)
+            // 时长 (格式化为 mm:ss)
             int runtime = episode.getRuntime();
             if (runtime > 0) {
                 int minutes = runtime;
@@ -161,7 +161,7 @@ public class EpisodeCardAdapter extends RecyclerView.Adapter<EpisodeCardAdapter.
                 durationText.setVisibility(View.GONE);
             }
 
-            // 🎯 当前播放指示器
+            // 当前播放指示器
             if (isCurrent) {
                 currentIndicator.setVisibility(View.VISIBLE);
                 itemView.setSelected(true);
@@ -170,7 +170,7 @@ public class EpisodeCardAdapter extends RecyclerView.Adapter<EpisodeCardAdapter.
                 itemView.setSelected(false);
             }
 
-            // 📺 清晰度标签
+            // 清晰度标签
             String resolution = episode.getResolution();
             if (resolution != null && !resolution.isEmpty()) {
                 resolutionText.setText(resolution);

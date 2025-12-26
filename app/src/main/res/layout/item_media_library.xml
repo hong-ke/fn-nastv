@@ -17,7 +17,7 @@
         android:layout_marginEnd="@dimen/tv_margin_small"
         android:contentDescription="媒体库图标" />
 
-    <!-- 📝 库名称 -->
+    <!-- 库名称 -->
     <TextView
         android:id="@+id/library_name"
         android:layout_width="0dp"

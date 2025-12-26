@@ -10,7 +10,7 @@
     android:clickable="true"
     android:layout_marginEnd="14dp">
 
-    <!-- 📱 剧集缩略图 (16:9) -->
+    <!-- 剧集缩略图 (16:9) -->
     <FrameLayout
         android:layout_width="260dp"
         android:layout_height="146dp">
@@ -24,7 +24,7 @@
             android:contentDescription="@string/poster_description"
             tools:src="@color/tv_card_background" />
 
-        <!-- 🎯 当前播放指示器 -->
+        <!-- 当前播放指示器 -->
         <TextView
             android:id="@+id/episode_current_indicator"
             android:layout_width="wrap_content"
@@ -40,7 +40,7 @@
             android:visibility="gone"
             tools:visibility="visible" />
 
-        <!-- 📺 清晰度标签 -->
+        <!-- 清晰度标签 -->
         <TextView
             android:id="@+id/episode_resolution"
             android:layout_width="wrap_content"
@@ -56,7 +56,7 @@
             tools:text="1080p"
             tools:visibility="visible" />
 
-        <!-- ⏱️ 时长标签（圆角） -->
+        <!-- 时长标签（圆角） -->
         <TextView
             android:id="@+id/episode_duration"
             android:layout_width="wrap_content"
@@ -72,7 +72,7 @@
 
     </FrameLayout>
 
-    <!-- 📝 剧集信息 -->
+    <!-- 剧集信息 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

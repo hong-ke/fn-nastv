@@ -4,13 +4,13 @@ import android.os.Parcel;
 import android.os.Parcelable;
 
 /**
- * ⚙️ 设置项数据模型
+ * ️ 设置项数据模型
  * 用于SettingsActivity的各种设置选项
  * 支持多种设置项类型：开关、滑块、选择器、输入框、动作等
  */
 public class SettingItem implements Parcelable {
     
-    // 🎯 设置项类型枚举
+    // 设置项类型枚举
     public enum Type {
         GROUP_HEADER,   // 分组标题
         SWITCH,         // 开关
@@ -20,43 +20,43 @@ public class SettingItem implements Parcelable {
         ACTION          // 动作按钮
     }
     
-    // 🆔 基本信息
+    // 基本信息
     private String key;             // 设置项键值
     private String title;           // 标题
     private String description;     // 描述
     private Type type;              // 类型
     private boolean isEnabled;      // 是否启用
     
-    // 📊 开关类型 (SWITCH)
+    // 开关类型 (SWITCH)
     private boolean switchValue;    // 开关状态
     
-    // 🎚️ 滑块类型 (SEEK_BAR)
+    // ️ 滑块类型 (SEEK_BAR)
     private int seekBarValue;       // 滑块当前值
     private int seekBarMin;         // 滑块最小值
     private int seekBarMax;         // 滑块最大值
     private String seekBarUnit;     // 滑块单位
     
-    // 📋 选择器类型 (SELECTOR)
+    // 选择器类型 (SELECTOR)
     private String[] selectorOptions; // 选择器选项列表
     private int selectedIndex;      // 当前选中的索引
     private String selectedValue;   // 当前选中的值
     
-    // 📝 输入框类型 (INPUT)
+    // 输入框类型 (INPUT)
     private String inputValue;      // 输入框内容
     private String inputHint;       // 输入框提示
     private String inputType;       // 输入类型 (text, number, email等)
     
-    // 🎨 UI相关
+    // UI相关
     private int iconResource;       // 图标资源ID
     private boolean showDivider;    // 是否显示分割线
     
-    // 🔧 构造函数
+    // 构造函数
     private SettingItem() {}
     
-    // 🏗️ 静态工厂方法
+    // ️ 静态工厂方法
     
     /**
-     * 📂 创建分组标题
+     * 创建分组标题
      */
     public static SettingItem createGroupHeader(String title) {
         SettingItem item = new SettingItem();
@@ -68,7 +68,7 @@ public class SettingItem implements Parcelable {
     }
     
     /**
-     * 🔘 创建开关设置项
+     * 创建开关设置项
      */
     public static SettingItem createSwitch(String key, String title, String description, boolean defaultValue) {
         SettingItem item = new SettingItem();
@@ -83,7 +83,7 @@ public class SettingItem implements Parcelable {
     }
     
     /**
-     * 🎚️ 创建滑块设置项
+     * ️ 创建滑块设置项
      */
     public static SettingItem createSeekBar(String key, String title, String description, 
                                           int currentValue, int minValue, int maxValue) {
@@ -101,7 +101,7 @@ public class SettingItem implements Parcelable {
     }
     
     /**
-     * 🎚️ 创建带单位的滑块设置项
+     * ️ 创建带单位的滑块设置项
      */
     public static SettingItem createSeekBar(String key, String title, String description, 
                                           int currentValue, int minValue, int maxValue, String unit) {
@@ -111,7 +111,7 @@ public class SettingItem implements Parcelable {
     }
     
     /**
-     * 📋 创建选择器设置项
+     * 创建选择器设置项
      */
     public static SettingItem createSelector(String key, String title, String description, 
                                            String currentValue, String[] options) {
@@ -139,7 +139,7 @@ public class SettingItem implements Parcelable {
     }
     
     /**
-     * 📝 创建输入框设置项
+     * 创建输入框设置项
      */
     public static SettingItem createInput(String key, String title, String description, String currentValue) {
         SettingItem item = new SettingItem();
@@ -155,7 +155,7 @@ public class SettingItem implements Parcelable {
     }
     
     /**
-     * 📝 创建指定类型的输入框设置项
+     * 创建指定类型的输入框设置项
      */
     public static SettingItem createInput(String key, String title, String description, 
                                         String currentValue, String inputType, String hint) {
@@ -166,7 +166,7 @@ public class SettingItem implements Parcelable {
     }
     
     /**
-     * 🎯 创建动作按钮设置项
+     * 创建动作按钮设置项
      */
     public static SettingItem createAction(String key, String title, String description) {
         SettingItem item = new SettingItem();
@@ -180,7 +180,7 @@ public class SettingItem implements Parcelable {
     }
     
     /**
-     * 🎯 创建带图标的动作按钮设置项
+     * 创建带图标的动作按钮设置项
      */
     public static SettingItem createAction(String key, String title, String description, int iconResource) {
         SettingItem item = createAction(key, title, description);
@@ -188,7 +188,7 @@ public class SettingItem implements Parcelable {
         return item;
     }
     
-    // 🔄 Parcelable实现
+    // Parcelable实现
     protected SettingItem(Parcel in) {
         key = in.readString();
         title = in.readString();
@@ -249,7 +249,7 @@ public class SettingItem implements Parcelable {
         dest.writeByte((byte) (showDivider ? 1 : 0));
     }
     
-    // 📖 Getter和Setter方法
+    // Getter和Setter方法
     public String getKey() { return key; }
     public void setKey(String key) { this.key = key; }
     
@@ -326,10 +326,10 @@ public class SettingItem implements Parcelable {
     public boolean isShowDivider() { return showDivider; }
     public void setShowDivider(boolean showDivider) { this.showDivider = showDivider; }
     
-    // 🔧 辅助方法
+    // 辅助方法
     
     /**
-     * 🎚️ 获取滑块显示文本
+     * ️ 获取滑块显示文本
      */
     public String getSeekBarDisplayText() {
         if (seekBarUnit != null && !seekBarUnit.isEmpty()) {
@@ -340,7 +340,7 @@ public class SettingItem implements Parcelable {
     }
     
     /**
-     * 📋 获取选择器显示文本
+     * 获取选择器显示文本
      */
     public String getSelectorDisplayText() {
         if (selectedValue != null && !selectedValue.isEmpty()) {
@@ -353,7 +353,7 @@ public class SettingItem implements Parcelable {
     }
     
     /**
-     * 📝 获取输入框显示文本
+     * 获取输入框显示文本
      */
     public String getInputDisplayText() {
         if (inputValue != null && !inputValue.isEmpty()) {
@@ -366,56 +366,56 @@ public class SettingItem implements Parcelable {
     }
     
     /**
-     * 🎯 是否为分组标题
+     * 是否为分组标题
      */
     public boolean isGroupHeader() {
         return type == Type.GROUP_HEADER;
     }
     
     /**
-     * 🔘 是否为开关类型
+     * 是否为开关类型
      */
     public boolean isSwitch() {
         return type == Type.SWITCH;
     }
     
     /**
-     * 🎚️ 是否为滑块类型
+     * ️ 是否为滑块类型
      */
     public boolean isSeekBar() {
         return type == Type.SEEK_BAR;
     }
     
     /**
-     * 📋 是否为选择器类型
+     * 是否为选择器类型
      */
     public boolean isSelector() {
         return type == Type.SELECTOR;
     }
     
     /**
-     * 📝 是否为输入框类型
+     * 是否为输入框类型
      */
     public boolean isInput() {
         return type == Type.INPUT;
     }
     
     /**
-     * 🎯 是否为动作按钮类型
+     * 是否为动作按钮类型
      */
     public boolean isAction() {
         return type == Type.ACTION;
     }
     
     /**
-     * 🔍 是否有图标
+     * 是否有图标
      */
     public boolean hasIcon() {
         return iconResource > 0;
     }
     
     /**
-     * 📱 获取滑块进度百分比
+     * 获取滑块进度百分比
      */
     public int getSeekBarProgressPercentage() {
         if (seekBarMax <= seekBarMin) {
@@ -425,7 +425,7 @@ public class SettingItem implements Parcelable {
     }
     
     /**
-     * 🔧 复制设置项
+     * 复制设置项
      */
     public SettingItem copy() {
         SettingItem copy = new SettingItem();

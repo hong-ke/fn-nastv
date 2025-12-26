@@ -7,7 +7,7 @@
     android:focusable="true"
     android:focusableInTouchMode="true">
 
-    <!-- 🖼️ 海报背景 (放在最底层) -->
+    <!-- 海报背景 (放在最底层) -->
     <ImageView
         android:id="@+id/poster_image"
         android:layout_width="match_parent"
@@ -16,7 +16,7 @@
         android:alpha="0.3"
         android:src="@drawable/ic_default_backdrop" />
 
-    <!-- 🎬 GSYVideoPlayer 播放器 (在海报之上) - 使用自定义无 loading 版本 -->
+    <!-- GSYVideoPlayer 播放器 (在海报之上) - 使用自定义无 loading 版本 -->
     <com.mynas.nastv.player.NoLoadingGSYVideoPlayer
         android:id="@+id/player_view"
         android:layout_width="match_parent"
@@ -51,7 +51,7 @@
 
     </LinearLayout>
 
-    <!-- ❌ 错误状态 -->
+    <!-- 错误状态 -->
     <LinearLayout
         android:id="@+id/error_layout"
         android:layout_width="wrap_content"
@@ -92,7 +92,7 @@
 
     </LinearLayout>
 
-    <!-- 🎬 弹幕容器层 - 透明背景，不遮挡播放器 -->
+    <!-- 弹幕容器层 - 透明背景，不遮挡播放器 -->
     <FrameLayout
         android:id="@+id/danmu_container"
         android:layout_width="match_parent"
@@ -106,7 +106,7 @@
         
     </FrameLayout>
     
-    <!-- 📝 字幕显示 TextView -->
+    <!-- 字幕显示 TextView -->
     <TextView
         android:id="@+id/subtitle_text_view"
         android:layout_width="match_parent"
@@ -124,7 +124,7 @@
         android:lineSpacingExtra="4dp"
         android:visibility="gone" />
 
-    <!-- ▶️ 中央播放/暂停图标 -->
+    <!-- 中央播放/暂停图标 -->
     <ImageView
         android:id="@+id/center_play_icon"
         android:layout_width="100dp"
@@ -137,7 +137,7 @@
         android:visibility="gone"
         android:background="@drawable/center_play_background" />
 
-    <!-- 🔄 缓冲指示器 - 播放中卡顿时显示（无背景） -->
+    <!-- 缓冲指示器 - 播放中卡顿时显示（无背景） -->
     <LinearLayout
         android:id="@+id/buffering_indicator"
         android:layout_width="wrap_content"

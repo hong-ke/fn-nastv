@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 📚 媒体库内容适配器
+ * 媒体库内容适配器
  * 用于显示每个媒体库的内容列表（水平滚动）
  */
 public class MediaLibraryContentAdapter extends RecyclerView.Adapter<MediaLibraryContentAdapter.MediaContentViewHolder> {
@@ -92,7 +92,7 @@ public class MediaLibraryContentAdapter extends RecyclerView.Adapter<MediaLibrar
         }
 
         public void bind(MediaItem item) {
-            // 🖼️ 加载海报图片
+            // 加载海报图片
             String posterUrl = item.getPosterUrl();
             if (posterUrl != null && !posterUrl.isEmpty()) {
                 Glide.with(posterImage.getContext())
@@ -117,7 +117,7 @@ public class MediaLibraryContentAdapter extends RecyclerView.Adapter<MediaLibrar
             }
             subtitleText.setText(subtitle);
 
-            // ⭐ 评分显示
+            // 评分显示
             double rating = item.getVoteAverage();
             if (rating > 0) {
                 String ratingStr = FormatUtils.formatRating(rating);

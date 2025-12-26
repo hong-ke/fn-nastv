@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 📚 媒体库列表适配器
+ * 媒体库列表适配器
  * 显示左侧导航栏的媒体库列表
  */
 public class MediaLibraryAdapter extends RecyclerView.Adapter<MediaLibraryAdapter.MediaLibraryViewHolder> {

@@ -3,7 +3,7 @@ package com.mynas.nastv.model;
 import com.google.gson.annotations.SerializedName;
 
 /**
- * 🎬 媒体详情响应数据模型
+ * 媒体详情响应数据模型
  */
 public class MediaDetailResponse {
     
@@ -25,14 +25,14 @@ public class MediaDetailResponse {
     @SerializedName("poster")   // 剧集详情API返回poster
     private String posterField;
     
-    @SerializedName("backdrops")  // 🚨 [修复] 实际字段名是backdrops不是backdrop
+    @SerializedName("backdrops")  // [修复] 实际字段名是backdrops不是backdrop
     private String backdrop;
     
     @SerializedName("stills")  // 剧集剧照
     private String still;
     
     @SerializedName("vote_average")
-    private String voteAverageStr;  // 🚨 [修复] vote_average是字符串，需要手动转换
+    private String voteAverageStr;  // [修复] vote_average是字符串，需要手动转换
     
     @SerializedName("vote_count")
     private int voteCount;
@@ -74,7 +74,7 @@ public class MediaDetailResponse {
     private String status;
     
     @SerializedName("genres")
-    private int[] genres;  // 🚨 [修复] genres是数字数组，不是字符串
+    private int[] genres;  // [修复] genres是数字数组，不是字符串
     
     @SerializedName("genres_str")
     private String genresStr;  // 类型标签字符串，如 "剧情 爱情"
@@ -89,7 +89,7 @@ public class MediaDetailResponse {
     private String productionCompanies;
     
     @SerializedName("production_countries")
-    private String[] productionCountries;  // 🚨 [修复] production_countries是字符串数组
+    private String[] productionCountries;  // [修复] production_countries是字符串数组
     
     @SerializedName("spoken_languages")
     private String spokenLanguages;

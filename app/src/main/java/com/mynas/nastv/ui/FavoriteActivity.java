@@ -20,7 +20,7 @@ import com.mynas.nastv.manager.MediaManager;
 import com.mynas.nastv.model.FavoriteListResponse;
 
 /**
- * ⭐ Favorite Activity
+ * Favorite Activity
  * 显示收藏列表页面
  * Web端URL格式: /v/favorite
  */

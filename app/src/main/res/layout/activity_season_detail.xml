@@ -12,7 +12,7 @@
         android:orientation="horizontal"
         android:padding="@dimen/tv_margin_large">
 
-        <!-- 📱 左侧海报 -->
+        <!-- 左侧海报 -->
         <ImageView
             android:id="@+id/season_poster"
             android:layout_width="@dimen/tv_poster_width"
@@ -22,7 +22,7 @@
             android:background="@drawable/bg_card"
             android:contentDescription="@string/poster_description" />
 
-        <!-- 📝 右侧内容 -->
+        <!-- 右侧内容 -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -76,7 +76,7 @@
                 android:ellipsize="end"
                 tools:text="剧集简介..." />
 
-            <!-- 📺 剧集列表区域 -->
+            <!-- 剧集列表区域 -->
             <LinearLayout
                 android:id="@+id/episode_container"
                 android:layout_width="match_parent"
@@ -110,7 +110,7 @@
 
                 </HorizontalScrollView>
 
-                <!-- 📺 横向剧集卡片列表 -->
+                <!-- 横向剧集卡片列表 -->
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/episode_recycler_view"
                     android:layout_width="match_parent"

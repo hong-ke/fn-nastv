@@ -3,7 +3,7 @@ package com.mynas.nastv.model;
 import com.google.gson.annotations.SerializedName;
 
 /**
- * 🔍 搜索请求模型
+ * 搜索请求模型
  */
 public class SearchRequest {
     private String keyword;

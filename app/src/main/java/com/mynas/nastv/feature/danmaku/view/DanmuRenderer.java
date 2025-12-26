@@ -40,28 +40,28 @@ public class DanmuRenderer {
     // 当前激活的弹幕列表
     private final List<DanmakuEntity> activeDanmakuList = new ArrayList<>();
     
-    // 🎬 优化：只使用2个轨道
+    // 优化：只使用2个轨道
     private static final int MAX_TRACKS = 2;
     
-    // 🎬 轨道状态：记录每个轨道最后一条弹幕的右边缘位置和速度
+    // 轨道状态：记录每个轨道最后一条弹幕的右边缘位置和速度
     private final float[] trackLastRightEdge = new float[MAX_TRACKS];
     private final float[] trackLastSpeed = new float[MAX_TRACKS];
     private final long[] trackLastStartTime = new long[MAX_TRACKS];
-    private final int[] trackLastTextLength = new int[MAX_TRACKS];  // 🎬 记录上一条弹幕的文字长度
+    private final int[] trackLastTextLength = new int[MAX_TRACKS];  // 记录上一条弹幕的文字长度
     
     // 性能参数
     private int viewWidth = 1920;
     private int viewHeight = 1080;
-    private static final int FIXED_FONT_SIZE = 56;  // 🎬 统一固定字体大小
+    private static final int FIXED_FONT_SIZE = 56;  // 统一固定字体大小
     private int fontSize = FIXED_FONT_SIZE;
     
-    // 🎬 弹幕间距（像素）- 增大间距防止重叠
+    // 弹幕间距（像素）- 增大间距防止重叠
     private static final int DANMAKU_GAP = 350;
     
-    // 🎬 长弹幕阈值（超过15个字符视为长弹幕）
+    // 长弹幕阈值（超过15个字符视为长弹幕）
     private static final int LONG_DANMAKU_THRESHOLD = 15;
     
-    // 🎬 弹幕滚动速度（像素/秒）- 减慢速度
+    // 弹幕滚动速度（像素/秒）- 减慢速度
     private static final float SCROLL_SPEED = 150f;
     
     public DanmuRenderer(Context context, DanmuConfig config) {
@@ -102,7 +102,7 @@ public class DanmuRenderer {
      * 计算自适应字体大小 - 统一固定字体
      */
     private void calculateAdaptiveFontSize() {
-        // 🎬 使用固定字体大小，不再根据屏幕变化
+        // 使用固定字体大小，不再根据屏幕变化
         fontSize = FIXED_FONT_SIZE;
         Log.d(TAG, "固定字体大小: " + fontSize + "px");
     }
@@ -176,8 +176,8 @@ public class DanmuRenderer {
     
     /**
      * 计算当前可见的弹幕列表（帧同步版本）
-     * 🎬 优化：连续滚动，不等待一屏结束
-     * 🎬 新增：清理已使用的弹幕，释放内存
+     * 优化：连续滚动，不等待一屏结束
+     * 新增：清理已使用的弹幕，释放内存
      */
     public List<DanmakuEntity> calculateVisibleDanmakuSmooth(long currentPositionMs, float deltaTimeMs) {
         List<DanmakuEntity> visibleList = new ArrayList<>();
@@ -201,7 +201,7 @@ public class DanmuRenderer {
                     trackLastRightEdge[entity.trackIndex] = rightEdge;
                 }
             } else {
-                // 🎬 弹幕已离开屏幕，回收到对象池
+                // 弹幕已离开屏幕，回收到对象池
                 entity.recycle();
             }
         }
@@ -217,7 +217,7 @@ public class DanmuRenderer {
             long timeWindowStart = currentPositionMs - 100;
             long timeWindowEnd = currentPositionMs + 100;
             
-            // 🎬 使用迭代器，支持在遍历时删除已使用的弹幕
+            // 使用迭代器，支持在遍历时删除已使用的弹幕
             Iterator<DanmakuEntity> iterator = bucketData.iterator();
             while (iterator.hasNext()) {
                 DanmakuEntity entity = iterator.next();
@@ -235,7 +235,7 @@ public class DanmuRenderer {
                         if (initializeDanmakuPositionSmooth(entity, topMargin, lineHeight)) {
                             activeDanmakuList.add(entity);
                             visibleList.add(entity);
-                            // 🎬 从缓存中移除已使用的弹幕，释放内存
+                            // 从缓存中移除已使用的弹幕，释放内存
                             iterator.remove();
                         }
                     }
@@ -243,14 +243,14 @@ public class DanmuRenderer {
             }
         }
         
-        // 🎬 清理已过期的时间桶（当前时间之前超过2分钟的桶）
+        // 清理已过期的时间桶（当前时间之前超过2分钟的桶）
         cleanupOldBuckets(currentPositionMs);
         
         return visibleList;
     }
     
     /**
-     * 🎬 清理已过期的时间桶，释放内存
+     * 清理已过期的时间桶，释放内存
      */
     private void cleanupOldBuckets(long currentPositionMs) {
         if (danmakuDataMap == null) return;
@@ -278,7 +278,7 @@ public class DanmuRenderer {
                             entities.clear();
                         }
                         iterator.remove();
-                        Log.d(TAG, "🗑️ 清理过期弹幕桶: " + key);
+                        Log.d(TAG, "清理过期弹幕桶: " + key);
                     }
                 }
             } catch (Exception e) {
@@ -290,7 +290,7 @@ public class DanmuRenderer {
     
     /**
      * 初始化弹幕位置（帧同步版本）
-     * 🎬 优化：智能轨道分配，确保不遮挡，连续滚动
+     * 优化：智能轨道分配，确保不遮挡，连续滚动
      */
     private boolean initializeDanmakuPositionSmooth(DanmakuEntity entity, int topMargin, int lineHeight) {
         entity.startTimeMs = System.currentTimeMillis();
@@ -298,10 +298,10 @@ public class DanmuRenderer {
         if (entity.isScrollType()) {
             float textWidth = entity.text.length() * fontSize * 0.55f;
             
-            // 🎬 使用固定的慢速度，不再有随机变化
+            // 使用固定的慢速度，不再有随机变化
             entity.speed = SCROLL_SPEED;
             
-            // 🎬 智能选择轨道
+            // 智能选择轨道
             int bestTrack = findBestTrack(textWidth, entity.speed);
             
             if (bestTrack < 0) {
@@ -310,7 +310,7 @@ public class DanmuRenderer {
             
             entity.trackIndex = bestTrack;
             
-            // 🎬 计算Y坐标：2行弹幕，可以有轻微的随机偏移
+            // 计算Y坐标：2行弹幕，可以有轻微的随机偏移
             int baseY = topMargin + (bestTrack + 1) * lineHeight;
             int randomOffset = random.nextInt(11) - 5;
             entity.currentY = baseY + randomOffset;
@@ -320,7 +320,7 @@ public class DanmuRenderer {
             trackLastRightEdge[bestTrack] = viewWidth + textWidth;
             trackLastSpeed[bestTrack] = entity.speed;
             trackLastStartTime[bestTrack] = System.currentTimeMillis();
-            trackLastTextLength[bestTrack] = entity.text.length();  // 🎬 记录弹幕长度
+            trackLastTextLength[bestTrack] = entity.text.length();  // 记录弹幕长度
             
         } else if (entity.isTopFixed()) {
             entity.currentX = viewWidth / 2.0f;
@@ -336,7 +336,7 @@ public class DanmuRenderer {
     }
     
     /**
-     * 🎬 智能选择最佳轨道
+     * 智能选择最佳轨道
      */
     private int findBestTrack(float newTextWidth, float newSpeed) {
         int startTrack = random.nextInt(MAX_TRACKS);
@@ -359,7 +359,7 @@ public class DanmuRenderer {
             }
         }
         
-        // 🎬 计算实际间距：如果上一条是长弹幕（>15字），使用2倍间距
+        // 计算实际间距：如果上一条是长弹幕（>15字），使用2倍间距
         if (bestTrack >= 0) {
             int lastLength = trackLastTextLength[bestTrack];
             int effectiveGap = (lastLength > LONG_DANMAKU_THRESHOLD) ? DANMAKU_GAP * 2 : DANMAKU_GAP;
@@ -373,9 +373,9 @@ public class DanmuRenderer {
     }
     
     /**
-     * 🎬 检查是否可以在指定轨道发射新弹幕
+     * 检查是否可以在指定轨道发射新弹幕
      * 增大间距要求，防止重叠
-     * 🎬 长弹幕（>15字）后的下一条弹幕需要2倍间隔
+     * 长弹幕（>15字）后的下一条弹幕需要2倍间隔
      */
     private boolean canLaunchOnTrack(int track, float newTextWidth, float newSpeed) {
         float lastRightEdge = trackLastRightEdge[track];
@@ -384,15 +384,15 @@ public class DanmuRenderer {
             return true;
         }
         
-        // 🎬 计算实际间距：如果上一条是长弹幕（>15字），使用2倍间距
+        // 计算实际间距：如果上一条是长弹幕（>15字），使用2倍间距
         int lastLength = trackLastTextLength[track];
         int effectiveGap = (lastLength > LONG_DANMAKU_THRESHOLD) ? DANMAKU_GAP * 2 : DANMAKU_GAP;
         
-        // 🎬 增大间距要求：最后一条弹幕的右边缘必须已经进入屏幕足够距离
+        // 增大间距要求：最后一条弹幕的右边缘必须已经进入屏幕足够距离
         if (lastRightEdge < viewWidth - effectiveGap) {
             float lastSpeed = trackLastSpeed[track];
             
-            // 🎬 更严格的追赶检测
+            // 更严格的追赶检测
             if (newSpeed > lastSpeed * 0.9f && lastSpeed > 0) {
                 // 计算新弹幕是否会在旧弹幕离开屏幕前追上
                 float speedDiff = newSpeed - lastSpeed;
@@ -430,7 +430,7 @@ public class DanmuRenderer {
                                               int topBoundary, int bottomBoundary) {
         if (entity.isScrollType()) {
             entity.currentX = viewWidth;
-            entity.speed = SCROLL_SPEED;  // 🎬 使用固定慢速度
+            entity.speed = SCROLL_SPEED;  // 使用固定慢速度
             
             int track = random.nextInt(MAX_TRACKS);
             entity.trackIndex = track;

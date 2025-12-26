@@ -3,7 +3,7 @@ package com.mynas.nastv.model;
 import com.google.gson.annotations.SerializedName;
 
 /**
- * 🎮 播放URL请求数据模型
+ * 播放URL请求数据模型
  */
 public class PlayUrlRequest {
     @SerializedName("item_guid")

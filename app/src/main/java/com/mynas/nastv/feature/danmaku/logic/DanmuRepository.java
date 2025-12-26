@@ -29,7 +29,7 @@ import retrofit2.Response;
 /**
  * 弹幕数据仓库 - 使用弹幕服务器 (http://192.168.3.20:13401)
  * 
- * 🎬 优化：
+ * 优化：
  * - 智能过滤弹幕，防止 OOM
  * - 优先丢弃重复弹幕
  * - 根据播放时长计算合理的弹幕密度
@@ -39,10 +39,10 @@ public class DanmuRepository {
     
     private static final String TAG = "DanmuRepository";
     
-    // 🎬 弹幕密度限制：每分钟最多显示的弹幕数量
+    // 弹幕密度限制：每分钟最多显示的弹幕数量
     private static final int MAX_DANMAKU_PER_MINUTE = 30;
     
-    // 🎬 总弹幕数量限制（防止 OOM）
+    // 总弹幕数量限制（防止 OOM）
     private static final int MAX_TOTAL_DANMAKU = 3000;
     
     private final Handler mainHandler;
@@ -157,7 +157,7 @@ public class DanmuRepository {
     /**
      * 处理弹幕 Map 响应
      * 
-     * 🎬 优化：
+     * 优化：
      * 1. 先去重（相同文本的弹幕只保留一个）
      * 2. 根据时间密度过滤（每分钟最多 MAX_DANMAKU_PER_MINUTE 条）
      * 3. 总数限制（最多 MAX_TOTAL_DANMAKU 条）
@@ -168,7 +168,7 @@ public class DanmuRepository {
         
         if (rawData == null) return result;
         
-        // 🎬 第一步：收集所有弹幕并去重
+        // 第一步：收集所有弹幕并去重
         List<DanmakuMapResponse.DanmakuItem> allItems = new ArrayList<>();
         Set<String> seenTexts = new HashSet<>();
         
@@ -180,7 +180,7 @@ public class DanmuRepository {
                 if (item.text == null || item.text.trim().isEmpty()) continue;
                 
                 String normalizedText = item.text.trim().toLowerCase();
-                // 🎬 去重：相同文本只保留第一个
+                // 去重：相同文本只保留第一个
                 if (!seenTexts.contains(normalizedText)) {
                     seenTexts.add(normalizedText);
                     allItems.add(item);
@@ -190,7 +190,7 @@ public class DanmuRepository {
         
         Log.d(TAG, "去重后弹幕数量: " + allItems.size() + " (去除 " + (seenTexts.size() > allItems.size() ? 0 : seenTexts.size() - allItems.size()) + " 条重复)");
         
-        // 🎬 第二步：按时间排序
+        // 第二步：按时间排序
         Collections.sort(allItems, new Comparator<DanmakuMapResponse.DanmakuItem>() {
             @Override
             public int compare(DanmakuMapResponse.DanmakuItem a, DanmakuMapResponse.DanmakuItem b) {
@@ -198,12 +198,12 @@ public class DanmuRepository {
             }
         });
         
-        // 🎬 第三步：按时间密度过滤
+        // 第三步：按时间密度过滤
         List<DanmakuMapResponse.DanmakuItem> filteredItems = filterByDensity(allItems);
         
         Log.d(TAG, "密度过滤后弹幕数量: " + filteredItems.size());
         
-        // 🎬 第四步：总数限制
+        // 第四步：总数限制
         if (filteredItems.size() > MAX_TOTAL_DANMAKU) {
             // 均匀采样
             List<DanmakuMapResponse.DanmakuItem> sampled = new ArrayList<>();
@@ -216,7 +216,7 @@ public class DanmuRepository {
             Log.d(TAG, "总数限制后弹幕数量: " + filteredItems.size());
         }
         
-        // 🎬 第五步：按60秒分桶
+        // 第五步：按60秒分桶
         for (DanmakuMapResponse.DanmakuItem item : filteredItems) {
             long timeMs = (long) (item.time * 1000);
             long bucketId = timeMs / 60000;
@@ -250,7 +250,7 @@ public class DanmuRepository {
     }
     
     /**
-     * 🎬 按时间密度过滤弹幕
+     * 按时间密度过滤弹幕
      * 每分钟最多保留 MAX_DANMAKU_PER_MINUTE 条弹幕
      */
     private List<DanmakuMapResponse.DanmakuItem> filterByDensity(List<DanmakuMapResponse.DanmakuItem> items) {

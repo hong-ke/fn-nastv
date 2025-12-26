@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 📺 增强版剧集列表适配器
+ * 增强版剧集列表适配器
  * 显示剧集缩略图、标题、简介、时长，支持当前剧集高亮
  */
 public class EpisodeEnhancedAdapter extends RecyclerView.Adapter<EpisodeEnhancedAdapter.EpisodeViewHolder> {
@@ -114,15 +114,15 @@ public class EpisodeEnhancedAdapter extends RecyclerView.Adapter<EpisodeEnhanced
         }
 
         public void bind(EpisodeListResponse.Episode episode, boolean isCurrent) {
-            // 📱 加载缩略图
+            // 加载缩略图
             String stillPath = episode.getStillPath();
-            android.util.Log.d("EpisodeAdapter", "📺 Episode " + episode.getEpisodeNumber() + " stillPath: " + stillPath);
+            android.util.Log.d("EpisodeAdapter", "Episode " + episode.getEpisodeNumber() + " stillPath: " + stillPath);
             if (stillPath != null && !stillPath.isEmpty()) {
                 String imageUrl = stillPath;
                 if (!imageUrl.startsWith("http")) {
                     imageUrl = SharedPreferencesManager.getServerBaseUrl() + "/v/api/v1/sys/img" + stillPath + "?w=320";
                 }
-                android.util.Log.d("EpisodeAdapter", "📺 Loading image: " + imageUrl);
+                android.util.Log.d("EpisodeAdapter", "Loading image: " + imageUrl);
                 Glide.with(thumbnailImage.getContext())
                         .load(imageUrl)
                         .diskCacheStrategy(DiskCacheStrategy.DATA)
@@ -131,11 +131,11 @@ public class EpisodeEnhancedAdapter extends RecyclerView.Adapter<EpisodeEnhanced
                         .centerCrop()
                         .into(thumbnailImage);
             } else {
-                android.util.Log.d("EpisodeAdapter", "📺 No stillPath for episode " + episode.getEpisodeNumber());
+                android.util.Log.d("EpisodeAdapter", "No stillPath for episode " + episode.getEpisodeNumber());
                 thumbnailImage.setImageResource(R.color.tv_card_background);
             }
 
-            // 📝 标题：第X集. 标题
+            // 标题：第X集. 标题
             String title = episode.getTitle();
             String displayTitle = "第" + episode.getEpisodeNumber() + "集";
             if (title != null && !title.isEmpty()) {
@@ -143,7 +143,7 @@ public class EpisodeEnhancedAdapter extends RecyclerView.Adapter<EpisodeEnhanced
             }
             titleText.setText(displayTitle);
 
-            // 📝 简介
+            // 简介
             String overview = episode.getOverview();
             if (overview != null && !overview.isEmpty()) {
                 overviewText.setText(overview);
@@ -152,7 +152,7 @@ public class EpisodeEnhancedAdapter extends RecyclerView.Adapter<EpisodeEnhanced
                 overviewText.setVisibility(View.GONE);
             }
 
-            // ⏱️ 时长
+            // 时长
             int runtime = episode.getRuntime();
             if (runtime > 0) {
                 // runtime 是分钟，转换为秒后格式化
@@ -163,7 +163,7 @@ public class EpisodeEnhancedAdapter extends RecyclerView.Adapter<EpisodeEnhanced
                 durationText.setVisibility(View.GONE);
             }
 
-            // 🎯 当前播放指示器
+            // 当前播放指示器
             if (isCurrent) {
                 currentIndicator.setVisibility(View.VISIBLE);
                 itemView.setSelected(true);

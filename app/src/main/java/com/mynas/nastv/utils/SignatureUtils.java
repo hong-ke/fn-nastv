@@ -14,7 +14,7 @@ import okhttp3.RequestBody;
 import okio.Buffer;
 
 /**
- * 🔑 API签名工具类
+ * API签名工具类
  * 完全复用Web项目(fntv-electron)的签名算法，生成authx头部
  * 
  * Web端签名算法 (request.ts):
@@ -25,7 +25,7 @@ import okio.Buffer;
 public class SignatureUtils {
     private static final String TAG = "SignatureUtils";
     
-    // 🔑 API密钥，与Web项目(fntv-electron)保持一致
+    // API密钥，与Web项目(fntv-electron)保持一致
     private static final String API_KEY = "NDzZTVxnRKP8Z0jXg1VAMonaG8akvh";      // api_key
     private static final String API_SECRET = "16CCEB3D-AB42-077D-36A1-F355324E4237"; // api_secret
     
@@ -43,7 +43,7 @@ public class SignatureUtils {
             
             return generateSignature(method, url, data, params);
         } catch (Exception e) {
-            Log.e(TAG, "❌ 签名生成失败", e);
+            Log.e(TAG, "签名生成失败", e);
             return null;
         }
     }
@@ -67,33 +67,33 @@ public class SignatureUtils {
      */
     public static String generateSignature(String method, String url, String data, Map<String, String> params) {
         try {
-            // 🔧 确保URL是正确的路径格式
+            // 确保URL是正确的路径格式
             String path = url;
             if (path.startsWith("http")) {
                 path = extractPath(path);
             }
             
-            // 🎲 生成随机数和时间戳 (与Web端一致)
+            // 生成随机数和时间戳 (与Web端一致)
             String nonce = String.format("%06d", (int)(Math.random() * 900000) + 100000);
             String timestamp = String.valueOf(System.currentTimeMillis());
             
-            // 📝 计算数据MD5 - 直接对JSON字符串计算MD5，与Web端一致
+            // 计算数据MD5 - 直接对JSON字符串计算MD5，与Web端一致
             // Web端: const dataJsonMd5 = getMd5(dataJson);
             // 其中 dataJson = data ? JSON.stringify(data) : ''
             String dataJson = (data != null && !data.isEmpty()) ? data : "";
             String dataJsonMd5 = md5(dataJson);
             
-            // 🔗 构建签名数组 (与Web端完全一致)
+            // 构建签名数组 (与Web端完全一致)
             // Web端: const signArray = [api_key, url, nonce, timestamp, dataJsonMd5, api_secret]
             String signStr = API_KEY + "_" + path + "_" + nonce + "_" + timestamp + "_" + dataJsonMd5 + "_" + API_SECRET;
             
-            // 🔐 生成最终签名
+            // 生成最终签名
             String sign = md5(signStr);
             
-            // 📋 构建最终返回格式: nonce=123456&timestamp=1696080000000&sign=md5hash
+            // 构建最终返回格式: nonce=123456&timestamp=1696080000000&sign=md5hash
             String finalSignature = "nonce=" + nonce + "&timestamp=" + timestamp + "&sign=" + sign;
             
-            Log.d(TAG, "🔑 签名生成成功:");
+            Log.d(TAG, "签名生成成功:");
             Log.d(TAG, "   路径: " + path);
             Log.d(TAG, "   数据JSON: " + (dataJson.length() > 100 ? dataJson.substring(0, 100) + "..." : dataJson));
             Log.d(TAG, "   数据MD5: " + dataJsonMd5);
@@ -103,7 +103,7 @@ public class SignatureUtils {
             return finalSignature;
             
         } catch (Exception e) {
-            Log.e(TAG, "❌ 签名生成异常", e);
+            Log.e(TAG, "签名生成异常", e);
             return null;
         }
     }
@@ -134,11 +134,11 @@ public class SignatureUtils {
                 path = path.substring(0, queryIndex);
             }
             
-            Log.d(TAG, "🔧 提取路径: " + fullUrl + " -> " + path);
+            Log.d(TAG, "提取路径: " + fullUrl + " -> " + path);
             return path;
             
         } catch (Exception e) {
-            Log.e(TAG, "❌ URL路径提取失败", e);
+            Log.e(TAG, "URL路径提取失败", e);
             return "";
         }
     }
@@ -161,7 +161,7 @@ public class SignatureUtils {
                 }
             }
         } catch (Exception e) {
-            Log.e(TAG, "❌ 查询参数提取失败", e);
+            Log.e(TAG, "查询参数提取失败", e);
         }
         return params;
     }
@@ -180,7 +180,7 @@ public class SignatureUtils {
             body.writeTo(buffer);
             return buffer.readUtf8();
         } catch (IOException e) {
-            Log.e(TAG, "❌ 请求体读取失败", e);
+            Log.e(TAG, "请求体读取失败", e);
             return "";
         }
     }
@@ -199,7 +199,7 @@ public class SignatureUtils {
             }
             return sb.toString();
         } catch (NoSuchAlgorithmException e) {
-            Log.e(TAG, "❌ MD5加密失败", e);
+            Log.e(TAG, "MD5加密失败", e);
             return "";
         }
     }

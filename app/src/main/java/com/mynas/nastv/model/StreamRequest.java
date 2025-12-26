@@ -7,7 +7,7 @@ import java.util.HashMap;
 import java.util.Arrays;
 
 /**
- * 🎬 流信息请求
+ * 流信息请求
  * 对应 POST /v/api/v1/stream 接口
  */
 public class StreamRequest {

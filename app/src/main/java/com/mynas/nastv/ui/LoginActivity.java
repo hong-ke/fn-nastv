@@ -31,7 +31,7 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 /**
- * 🔐 登录页Activity - 用户名密码登录
+ * 登录页Activity - 用户名密码登录
  * 参考 fntv-electron 实现
  */
 public class LoginActivity extends AppCompatActivity {
@@ -51,14 +51,14 @@ public class LoginActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
         
-        Log.d(TAG, "🔐 登录页Activity启动");
+        Log.d(TAG, "登录页Activity启动");
         
         initializeViews();
         loadSavedConfig();
     }
     
     /**
-     * 🔧 初始化视图组件
+     * 初始化视图组件
      */
     private void initializeViews() {
         serverEditText = findViewById(R.id.server_edit_text);
@@ -83,11 +83,11 @@ public class LoginActivity extends AppCompatActivity {
             return true;
         });
         
-        Log.d(TAG, "✅ 视图组件初始化完成");
+        Log.d(TAG, "视图组件初始化完成");
     }
     
     /**
-     * 📂 加载保存的配置
+     * 加载保存的配置
      */
     private void loadSavedConfig() {
         // 加载上次使用的服务器地址
@@ -106,7 +106,7 @@ public class LoginActivity extends AppCompatActivity {
     }
     
     /**
-     * 🔐 尝试登录
+     * 尝试登录
      */
     private void attemptLogin() {
         // 获取输入
@@ -156,10 +156,10 @@ public class LoginActivity extends AppCompatActivity {
     }
     
     /**
-     * 🌐 执行登录请求
+     * 执行登录请求
      */
     private void performLogin(String username, String password) {
-        Log.d(TAG, "🔐 开始登录: " + username);
+        Log.d(TAG, "开始登录: " + username);
         
         showLoading(true);
         updateStatus("正在登录...");
@@ -218,17 +218,17 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call<LoginResponse> call, Throwable t) {
                 showLoading(false);
-                Log.e(TAG, "❌ 登录请求失败", t);
+                Log.e(TAG, "登录请求失败", t);
                 onLoginError("网络连接失败: " + t.getMessage());
             }
         });
     }
     
     /**
-     * ✅ 登录成功处理
+     * 登录成功处理
      */
     private void onLoginSuccess(String token, String username) {
-        Log.d(TAG, "✅ 登录成功！");
+        Log.d(TAG, "登录成功！");
         
         // 保存认证信息
         SharedPreferencesManager.saveAuthToken(token);
@@ -248,10 +248,10 @@ public class LoginActivity extends AppCompatActivity {
     }
     
     /**
-     * ❌ 登录错误处理
+     * 登录错误处理
      */
     private void onLoginError(String errorMessage) {
-        Log.e(TAG, "❌ 登录失败: " + errorMessage);
+        Log.e(TAG, "登录失败: " + errorMessage);
         
         runOnUiThread(() -> {
             updateStatus("登录失败: " + errorMessage);
@@ -260,7 +260,7 @@ public class LoginActivity extends AppCompatActivity {
     }
     
     /**
-     * 🔄 显示/隐藏加载状态
+     * 显示/隐藏加载状态
      */
     private void showLoading(boolean show) {
         runOnUiThread(() -> {
@@ -273,17 +273,17 @@ public class LoginActivity extends AppCompatActivity {
     }
     
     /**
-     * 📝 更新状态文本
+     * 更新状态文本
      */
     private void updateStatus(String status) {
         runOnUiThread(() -> {
             statusTextView.setText(status);
-            Log.d(TAG, "📱 状态更新: " + status);
+            Log.d(TAG, "状态更新: " + status);
         });
     }
     
     /**
-     * 🎮 Android TV遥控器按键处理
+     * Android TV遥控器按键处理
      */
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {

@@ -2,7 +2,7 @@
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     
-    <!-- 🌊 底部渐变遮罩 - 从透明到黑色 -->
+    <!-- 底部渐变遮罩 - 从透明到黑色 -->
     <gradient
         android:angle="90"
         android:startColor="#00000000"

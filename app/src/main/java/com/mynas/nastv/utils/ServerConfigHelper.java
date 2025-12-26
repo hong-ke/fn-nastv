@@ -101,7 +101,7 @@ public class ServerConfigHelper {
     }
     
     /**
-     * ✅ 测试服务器连通性
+     * 测试服务器连通性
      * @param serverUrl 要测试的服务器地址
      * @param callback 测试结果回调
      */

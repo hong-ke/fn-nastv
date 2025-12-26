@@ -8,7 +8,7 @@ import java.util.Date;
 import java.util.Locale;
 
 /**
- * 📺 剧集数据模型
+ * 剧集数据模型
  * 对应Web项目中的单集信息
  * 用于VideoDetailActivity和VideoPlayerActivity
  */
@@ -21,29 +21,29 @@ public class Episode implements Parcelable {
     private String overview;        // 剧集简介
     private String plotSummary;     // 详细剧情
     
-    // 📅 时间信息
+    // 时间信息
     private String airDate;         // 播出日期
     private String airTime;         // 播出时间
     private String duration;        // 时长 (格式: "45:30")
     private int durationMinutes;    // 时长 (分钟)
     
-    // 🖼️ 图片信息
+    // 图片信息
     private String stillUrl;        // 剧照URL
     private String thumbnailUrl;    // 缩略图URL
     
-    // 📊 评分和统计
+    // 评分和统计
     private float rating;           // 剧集评分
     private int voteCount;          // 评分人数
     private long viewCount;         // 观看次数
     
-    // 📖 播放相关
+    // 播放相关
     private float watchedProgress;  // 观看进度 (0-100)
     private long watchedTimestamp;  // 观看位置 (秒)
     private long lastWatchedTime;   // 最后观看时间戳
     private boolean isWatched;      // 是否已观看
     private boolean isFavorite;     // 是否收藏
     
-    // 📱 技术信息
+    // 技术信息
     private String[] availableQualities; // 可用画质
     private String[] availableLanguages; // 可用语言
     private String[] availableSubtitles; // 可用字幕
@@ -51,18 +51,18 @@ public class Episode implements Parcelable {
     private boolean has4K;          // 是否支持4K
     private String codec;           // 主要编码格式
     
-    // 🎬 制作信息
+    // 制作信息
     private String director;        // 导演
     private String writer;          // 编剧
     private String[] guestStars;    // 客串演员
     
-    // 📱 状态信息
+    // 状态信息
     private String status;          // 状态 (available, upcoming, error等)
     private boolean isCurrentEpisode; // 是否为当前播放集
     private boolean isSelected;     // 是否选中状态
     private boolean isDownloaded;   // 是否已下载
     
-    // 🔧 构造函数
+    // 构造函数
     public Episode() {}
     
     public Episode(String id, int episodeNumber, String title, String duration) {
@@ -90,7 +90,7 @@ public class Episode implements Parcelable {
         this.isDownloaded = false;
     }
     
-    // 🔄 Parcelable实现
+    // Parcelable实现
     protected Episode(Parcel in) {
         id = in.readString();
         title = in.readString();
@@ -183,7 +183,7 @@ public class Episode implements Parcelable {
         dest.writeByte((byte) (isDownloaded ? 1 : 0));
     }
     
-    // 📖 Getter和Setter方法
+    // Getter和Setter方法
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     
@@ -293,10 +293,10 @@ public class Episode implements Parcelable {
     public boolean isDownloaded() { return isDownloaded; }
     public void setDownloaded(boolean downloaded) { isDownloaded = downloaded; }
     
-    // 🔧 辅助方法
+    // 辅助方法
     
     /**
-     * 📺 获取剧集显示标题
+     * 获取剧集显示标题
      */
     public String getDisplayTitle() {
         if (title != null && !title.isEmpty()) {
@@ -307,7 +307,7 @@ public class Episode implements Parcelable {
     }
     
     /**
-     * 📺 获取剧集编号文本
+     * 获取剧集编号文本
      */
     public String getEpisodeNumberText() {
         if (seasonNumber > 0) {
@@ -318,7 +318,7 @@ public class Episode implements Parcelable {
     }
     
     /**
-     * 📊 获取观看进度文本
+     * 获取观看进度文本
      */
     public String getProgressText() {
         if (watchedProgress <= 0) {
@@ -331,7 +331,7 @@ public class Episode implements Parcelable {
     }
     
     /**
-     * ⏱️ 获取观看位置文本
+     * 获取观看位置文本
      */
     public String getWatchedPositionText() {
         if (watchedTimestamp <= 0 || durationMinutes <= 0) {
@@ -347,7 +347,7 @@ public class Episode implements Parcelable {
     }
     
     /**
-     * 📊 获取格式化的评分文本
+     * 获取格式化的评分文本
      */
     public String getFormattedRating() {
         if (rating > 0) {
@@ -357,7 +357,7 @@ public class Episode implements Parcelable {
     }
     
     /**
-     * 📅 获取格式化的播出日期
+     * 获取格式化的播出日期
      */
     public String getFormattedAirDate() {
         if (airDate == null || airDate.isEmpty()) {
@@ -376,7 +376,7 @@ public class Episode implements Parcelable {
     }
     
     /**
-     * 🆕 是否为新剧集
+     * 是否为新剧集
      */
     public boolean isNewEpisode() {
         if (airDate == null) return false;
@@ -395,7 +395,7 @@ public class Episode implements Parcelable {
     }
     
     /**
-     * 📱 获取技术规格标签
+     * 获取技术规格标签
      */
     public String getTechSpecsText() {
         StringBuilder specs = new StringBuilder();
@@ -410,21 +410,21 @@ public class Episode implements Parcelable {
     }
     
     /**
-     * 📱 是否可以播放
+     * 是否可以播放
      */
     public boolean isPlayable() {
         return "available".equals(status) || status == null || status.isEmpty();
     }
     
     /**
-     * 📖 是否有观看进度
+     * 是否有观看进度
      */
     public boolean hasWatchProgress() {
         return watchedProgress > 0 && watchedProgress < 95;
     }
     
     /**
-     * ⏱️ 解析时长字符串到分钟数
+     * 解析时长字符串到分钟数
      */
     private int parseDurationToMinutes(String durationStr) {
         if (durationStr == null || durationStr.isEmpty()) {
@@ -458,7 +458,7 @@ public class Episode implements Parcelable {
     }
     
     /**
-     * ⏱️ 格式化时长（秒数）
+     * 格式化时长（秒数）
      */
     private String formatDuration(long seconds) {
         long hours = seconds / 3600;

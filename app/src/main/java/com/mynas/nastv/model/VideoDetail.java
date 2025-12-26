@@ -7,12 +7,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 🎬 视频详情数据模型
+ * 视频详情数据模型
  * 对应Web项目中的VideoData.vue详情页面
  * 包含完整的视频信息、剧集、演员等详细数据
  */
 public class VideoDetail implements Parcelable {
-    // 🆔 基本信息
+    // 基本信息
     private String id;                  // 视频ID (guid)
     private String title;               // 标题
     private String originalTitle;       // 原始标题
@@ -20,18 +20,18 @@ public class VideoDetail implements Parcelable {
     private String type;                // 类型 (movie, tv, anime)
     private String status;              // 状态 (ongoing, completed等)
     
-    // 🖼️ 图片信息
+    // 图片信息
     private String posterUrl;           // 海报URL
     private String backdropUrl;         // 背景图URL
     private List<String> screenshots;   // 剧照列表
     
-    // 📊 评分和统计
+    // 评分和统计
     private float rating;               // 评分
     private String ratingSource;        // 评分来源 (IMDb, 豆瓣等)
     private int voteCount;              // 评分人数
     private long viewCount;             // 观看次数
     
-    // 📝 描述信息
+    // 描述信息
     private String overview;            // 简介/描述
     private String plotSummary;         // 剧情简介
     private List<String> genres;        // 类型标签列表
@@ -39,7 +39,7 @@ public class VideoDetail implements Parcelable {
     private String language;            // 语言
     private String country;             // 制作国家/地区
     
-    // 🎬 制作信息
+    // 制作信息
     private String director;            // 导演
     private List<String> directors;     // 导演列表
     private List<String> writers;       // 编剧列表
@@ -47,31 +47,31 @@ public class VideoDetail implements Parcelable {
     private String studio;              // 制作公司
     private String network;             // 播出平台
     
-    // 📅 时间信息
+    // 时间信息
     private String releaseDate;         // 首播/上映日期
     private String lastAirDate;         // 最后播出日期
     private int runtime;                // 单集时长 (分钟)
     private int totalRuntime;           // 总时长 (分钟)
     
-    // 📺 剧集信息 (电视剧/动漫)
+    // 剧集信息 (电视剧/动漫)
     private int totalSeasons;           // 总季数
     private int totalEpisodes;          // 总集数
     private int currentSeason;          // 当前季
     private int currentEpisode;         // 当前集
     private List<Season> seasons;       // 季度列表
     
-    // 👥 演员信息
+    // 演员信息
     private List<Actor> cast;           // 演员列表
     private List<Actor> crew;           // 制作团队
     
-    // 📖 播放相关
+    // 播放相关
     private float watchedProgress;      // 观看进度
     private long lastWatchedTime;       // 最后观看时间
     private String lastWatchedEpisode;  // 最后观看的剧集
     private boolean isFavorite;         // 是否收藏
     private boolean isInWatchlist;      // 是否在观看列表中
     
-    // 📱 技术信息
+    // 技术信息
     private List<String> availableQualities; // 可用画质列表
     private List<String> availableLanguages; // 可用语言列表
     private List<String> availableSubtitles; // 可用字幕列表
@@ -80,7 +80,7 @@ public class VideoDetail implements Parcelable {
     private boolean hasDolbyVision;     // 是否支持杜比视界
     private boolean hasHDR;             // 是否支持HDR
     
-    // 🔧 构造函数
+    // 构造函数
     public VideoDetail() {
         this.screenshots = new ArrayList<>();
         this.genres = new ArrayList<>();
@@ -96,7 +96,7 @@ public class VideoDetail implements Parcelable {
         this.availableSubtitles = new ArrayList<>();
     }
     
-    // 🔄 Parcelable实现
+    // Parcelable实现
     protected VideoDetail(Parcel in) {
         id = in.readString();
         title = in.readString();
@@ -217,7 +217,7 @@ public class VideoDetail implements Parcelable {
         dest.writeByte((byte) (hasHDR ? 1 : 0));
     }
     
-    // 📖 Getter和Setter方法 (基本信息)
+    // Getter和Setter方法 (基本信息)
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     
@@ -236,7 +236,7 @@ public class VideoDetail implements Parcelable {
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     
-    // 📖 图片信息
+    // 图片信息
     public String getPosterUrl() { return posterUrl; }
     public void setPosterUrl(String posterUrl) { this.posterUrl = posterUrl; }
     
@@ -246,7 +246,7 @@ public class VideoDetail implements Parcelable {
     public List<String> getScreenshots() { return screenshots; }
     public void setScreenshots(List<String> screenshots) { this.screenshots = screenshots; }
     
-    // 📖 评分统计
+    // 评分统计
     public float getRating() { return rating; }
     public void setRating(float rating) { this.rating = rating; }
     
@@ -259,7 +259,7 @@ public class VideoDetail implements Parcelable {
     public long getViewCount() { return viewCount; }
     public void setViewCount(long viewCount) { this.viewCount = viewCount; }
     
-    // 📖 描述信息
+    // 描述信息
     public String getOverview() { return overview; }
     public void setOverview(String overview) { this.overview = overview; }
     
@@ -278,7 +278,7 @@ public class VideoDetail implements Parcelable {
     public String getCountry() { return country; }
     public void setCountry(String country) { this.country = country; }
     
-    // 📖 制作信息
+    // 制作信息
     public String getDirector() { return director; }
     public void setDirector(String director) { this.director = director; }
     
@@ -297,7 +297,7 @@ public class VideoDetail implements Parcelable {
     public String getNetwork() { return network; }
     public void setNetwork(String network) { this.network = network; }
     
-    // 📖 时间信息
+    // 时间信息
     public String getReleaseDate() { return releaseDate; }
     public void setReleaseDate(String releaseDate) { this.releaseDate = releaseDate; }
     
@@ -310,7 +310,7 @@ public class VideoDetail implements Parcelable {
     public int getTotalRuntime() { return totalRuntime; }
     public void setTotalRuntime(int totalRuntime) { this.totalRuntime = totalRuntime; }
     
-    // 📖 剧集信息
+    // 剧集信息
     public int getTotalSeasons() { return totalSeasons; }
     public void setTotalSeasons(int totalSeasons) { this.totalSeasons = totalSeasons; }
     
@@ -326,14 +326,14 @@ public class VideoDetail implements Parcelable {
     public List<Season> getSeasons() { return seasons; }
     public void setSeasons(List<Season> seasons) { this.seasons = seasons; }
     
-    // 📖 演员信息
+    // 演员信息
     public List<Actor> getCast() { return cast; }
     public void setCast(List<Actor> cast) { this.cast = cast; }
     
     public List<Actor> getCrew() { return crew; }
     public void setCrew(List<Actor> crew) { this.crew = crew; }
     
-    // 📖 播放相关
+    // 播放相关
     public float getWatchedProgress() { return watchedProgress; }
     public void setWatchedProgress(float watchedProgress) { this.watchedProgress = watchedProgress; }
     
@@ -349,7 +349,7 @@ public class VideoDetail implements Parcelable {
     public boolean isInWatchlist() { return isInWatchlist; }
     public void setInWatchlist(boolean inWatchlist) { isInWatchlist = inWatchlist; }
     
-    // 📖 技术信息
+    // 技术信息
     public List<String> getAvailableQualities() { return availableQualities; }
     public void setAvailableQualities(List<String> availableQualities) { this.availableQualities = availableQualities; }
     
@@ -371,24 +371,24 @@ public class VideoDetail implements Parcelable {
     public boolean hasHDR() { return hasHDR; }
     public void setHasHDR(boolean hasHDR) { this.hasHDR = hasHDR; }
     
-    // 🔧 辅助方法
+    // 辅助方法
     
     /**
-     * 📺 是否为电视剧类型
+     * 是否为电视剧类型
      */
     public boolean isTvSeries() {
         return "tv".equals(type) || "anime".equals(type) || totalEpisodes > 1;
     }
     
     /**
-     * 🎬 是否为电影类型
+     * 是否为电影类型
      */
     public boolean isMovie() {
         return "movie".equals(type) && totalEpisodes <= 1;
     }
     
     /**
-     * 📊 获取格式化的评分文本
+     * 获取格式化的评分文本
      */
     public String getFormattedRating() {
         if (rating > 0) {
@@ -398,7 +398,7 @@ public class VideoDetail implements Parcelable {
     }
     
     /**
-     * 🎭 获取格式化的类型文本
+     * 获取格式化的类型文本
      */
     public String getFormattedGenres() {
         if (genres != null && !genres.isEmpty()) {
@@ -408,14 +408,14 @@ public class VideoDetail implements Parcelable {
     }
     
     /**
-     * 🎭 获取类型字符串 (向后兼容方法)
+     * 获取类型字符串 (向后兼容方法)
      */
     public String getGenre() {
         return getFormattedGenres();
     }
     
     /**
-     * 🎭 设置类型字符串 (向后兼容方法)
+     * 设置类型字符串 (向后兼容方法)
      */
     public void setGenre(String genre) {
         if (genre != null && !genre.isEmpty()) {
@@ -428,7 +428,7 @@ public class VideoDetail implements Parcelable {
     }
     
     /**
-     * ⏱️ 获取格式化的时长文本
+     * 获取格式化的时长文本
      */
     public String getFormattedRuntime() {
         if (runtime > 0) {
@@ -444,7 +444,7 @@ public class VideoDetail implements Parcelable {
     }
     
     /**
-     * 📺 获取剧集信息文本
+     * 获取剧集信息文本
      */
     public String getEpisodeInfoText() {
         if (isTvSeries()) {
@@ -458,14 +458,14 @@ public class VideoDetail implements Parcelable {
     }
     
     /**
-     * 🔍 是否有观看进度
+     * 是否有观看进度
      */
     public boolean hasWatchProgress() {
         return watchedProgress > 0 && watchedProgress < 95;
     }
     
     /**
-     * 📱 获取技术规格文本
+     * 获取技术规格文本
      */
     public String getTechSpecsText() {
         List<String> specs = new ArrayList<>();

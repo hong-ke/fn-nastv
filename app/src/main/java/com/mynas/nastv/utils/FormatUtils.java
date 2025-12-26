@@ -5,7 +5,7 @@ import java.util.Date;
 import java.util.Locale;
 
 /**
- * 📊 FormatUtils - 格式化工具类
+ * FormatUtils - 格式化工具类
  * 提供评分、进度、文件大小、时长等格式化方法
  */
 public class FormatUtils {

@@ -94,12 +94,12 @@ public class DanmakuEntity implements Serializable {
     public transient int trackIndex;
     
     /**
-     * 🎬 弹幕开始显示的系统时间（用于帧同步滚动）
+     * 弹幕开始显示的系统时间（用于帧同步滚动）
      */
     public transient long startTimeMs;
     
     /**
-     * 🎬 弹幕滚动速度（像素/秒）
+     * 弹幕滚动速度（像素/秒）
      */
     public transient float speed;
     

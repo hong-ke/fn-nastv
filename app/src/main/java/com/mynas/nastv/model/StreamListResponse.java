@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName;
 import java.util.List;
 
 /**
- * 🎬 流列表响应模型
+ * 流列表响应模型
  */
 public class StreamListResponse {
     
@@ -43,7 +43,7 @@ public class StreamListResponse {
     }
     
     /**
-     * 📺 流数据
+     * 流数据
      */
     public static class StreamData {
         @SerializedName("video_streams")
@@ -93,7 +93,7 @@ public class StreamListResponse {
     }
     
     /**
-     * 📺 视频流
+     * 视频流
      */
     public static class VideoStream {
         @SerializedName("guid")
@@ -250,7 +250,7 @@ public class StreamListResponse {
     }
     
     /**
-     * 🎵 音频流
+     * 音频流
      */
     public static class AudioStream {
         @SerializedName("guid")
@@ -370,7 +370,7 @@ public class StreamListResponse {
     }
     
     /**
-     * 📝 字幕流（添加 index 字段）
+     * 字幕流（添加 index 字段）
      */
     public static class SubtitleStream {
         @SerializedName("guid")
@@ -464,7 +464,7 @@ public class StreamListResponse {
     }
     
     /**
-     * 📁 文件流
+     * 文件流
      */
     public static class FileStream {
         @SerializedName("guid")

@@ -3,7 +3,7 @@ package com.mynas.nastv.model;
 import com.google.gson.annotations.SerializedName;
 
 /**
- * 🔑 二维码登录响应数据模型
+ * 二维码登录响应数据模型
  */
 public class QrCodeResponse {
     private int code;

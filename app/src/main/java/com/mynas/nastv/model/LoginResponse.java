@@ -3,7 +3,7 @@ package com.mynas.nastv.model;
 import com.google.gson.annotations.SerializedName;
 
 /**
- * 🔐 登录响应数据模型
+ * 登录响应数据模型
  */
 public class LoginResponse {
     private int code;

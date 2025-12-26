@@ -8,7 +8,7 @@
     android:padding="48dp"
     android:descendantFocusability="afterDescendants">
 
-    <!-- 🎬 应用标题 -->
+    <!-- 应用标题 -->
     <TextView
         android:id="@+id/tv_title"
         android:layout_width="wrap_content"
@@ -28,7 +28,7 @@
         android:layout_marginBottom="32dp"
         android:focusable="false" />
 
-    <!-- 📝 登录表单 -->
+    <!-- 登录表单 -->
     <LinearLayout
         android:layout_width="400dp"
         android:layout_height="wrap_content"

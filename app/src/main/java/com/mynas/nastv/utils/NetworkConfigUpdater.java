@@ -38,36 +38,36 @@ public class NetworkConfigUpdater {
     }
     
     /**
-     * 🔧 强制使用本地服务器（用于开发测试）
+     * 强制使用本地服务器（用于开发测试）
      */
     public static void forceLocalhost(Context context) {
-        Log.d(TAG, "🔄 强制使用localhost");
+        Log.d(TAG, "强制使用localhost");
         ServerConfigHelper.QuickConfig.setLocalhost(context);
         
-        // 🚨 重要：强制重新创建ApiClient以使用新配置
+        // 重要：强制重新创建ApiClient以使用新配置
         com.mynas.nastv.network.ApiClient.initialize(context);
         
         logCurrentConfig();
     }
     
     /**
-     * 🔧 强制使用自定义IP
+     * 强制使用自定义IP
      */
     public static void forceCustomServer(Context context, String host, String port) {
-        Log.d(TAG, "🔄 强制使用自定义服务器: " + host + ":" + port);
+        Log.d(TAG, "强制使用自定义服务器: " + host + ":" + port);
         ServerConfigHelper.setServerAddress(context, host, port);
         
-        // 🚨 重要：强制重新创建ApiClient以使用新配置
+        // 重要：强制重新创建ApiClient以使用新配置
         com.mynas.nastv.network.ApiClient.initialize(context);
         
         logCurrentConfig();
     }
     
     /**
-     * 📊 记录当前配置信息
+     * 记录当前配置信息
      */
     private static void logCurrentConfig() {
-        Log.d(TAG, "📊 当前网络配置:");
+        Log.d(TAG, "当前网络配置:");
         Log.d(TAG, "  - API地址: " + SharedPreferencesManager.getApiBaseUrl());
         Log.d(TAG, "  - 图片服务: " + SharedPreferencesManager.getImageServiceUrl());
         Log.d(TAG, "  - 播放服务: " + SharedPreferencesManager.getPlayServiceUrl());

@@ -40,7 +40,7 @@ public class DanmuPresenter {
     private boolean isPlaying = false;
     private boolean isVisible = true;
     
-    // 🎬 帧同步滚动相关
+    // 帧同步滚动相关
     private long lastFrameTimeNanos = 0;
     private long lastRenderTimeNanos = 0;
     
@@ -51,7 +51,7 @@ public class DanmuPresenter {
     private boolean isCircuitBroken = false; // 熔断状态
 
     /**
-     * 🎬 帧同步回调 - 实现线性滚动
+     * 帧同步回调 - 实现线性滚动
      * 使用 Choreographer 确保每帧更新，避免卡顿
      */
     private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {
@@ -73,7 +73,7 @@ public class DanmuPresenter {
             long now = System.currentTimeMillis();
             if (now - lastFpsCalculationTimeMs >= 1000) {
                 float currentFps = frameCount * 1000f / (now - lastFpsCalculationTimeMs);
-                // Log.v(TAG, "📊 弹幕 FPS: " + currentFps);
+                // Log.v(TAG, "弹幕 FPS: " + currentFps);
                 checkCircuitBreaker(currentFps);
                 frameCount = 0;
                 lastFpsCalculationTimeMs = now;
@@ -117,7 +117,7 @@ public class DanmuPresenter {
     }
     
     /**
-     * 🎬 帧同步更新弹幕
+     * 帧同步更新弹幕
      * 
      * @param deltaTimeMs 距离上一帧的时间间隔（毫秒）
      */
@@ -130,9 +130,9 @@ public class DanmuPresenter {
             // 使用帧间隔时间计算可见弹幕（实现线性滚动）
             List<DanmakuEntity> visibleList = renderer.calculateVisibleDanmakuSmooth(currentPositionMs, deltaTimeMs);
             
-            // 🔧 调试日志：每秒打印一次
+            // 调试日志：每秒打印一次
             if (System.currentTimeMillis() % 1000 < 20) {
-                Log.d(TAG, "🎬 弹幕帧更新: position=" + currentPositionMs + "ms, visible=" + visibleList.size());
+                Log.d(TAG, "弹幕帧更新: position=" + currentPositionMs + "ms, visible=" + visibleList.size());
             }
             
             // 更新视图
@@ -224,7 +224,7 @@ public class DanmuPresenter {
             if (lowFpsStreak >= 3) { // 持续 3 秒低 FPS
                 if (!isCircuitBroken) {
                     isCircuitBroken = true;
-                    Log.w(TAG, "🚨 触发熔断：FPS 持续过低 (" + fps + ")，自动隐藏弹幕以保护性能");
+                    Log.w(TAG, "触发熔断：FPS 持续过低 (" + fps + ")，自动隐藏弹幕以保护性能");
                     mainHandler.post(() -> {
                         overlayView.clearDanmaku();
                     });
@@ -234,7 +234,7 @@ public class DanmuPresenter {
             lowFpsStreak = 0;
             if (isCircuitBroken && fps > 30) {
                 isCircuitBroken = false;
-                Log.i(TAG, "🛡️ 熔断恢复：性能已回升 (" + fps + ")");
+                Log.i(TAG, "️ 熔断恢复：性能已回升 (" + fps + ")");
             }
         }
     }

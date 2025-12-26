@@ -8,7 +8,7 @@
     android:background="@color/tv_background"
     tools:context=".ui.MainActivity">
 
-    <!-- 🎯 左侧导航栏 - 模仿飞牛影视风格 -->
+    <!-- 左侧导航栏 - 模仿飞牛影视风格 -->
     <LinearLayout
         android:layout_width="240dp"
         android:layout_height="match_parent"
@@ -18,7 +18,7 @@
         android:paddingBottom="16dp"
         android:paddingHorizontal="16dp">
 
-        <!-- 📱 应用Logo和标题 -->
+        <!-- 应用Logo和标题 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -43,7 +43,7 @@
                 android:layout_marginStart="8dp" />
         </LinearLayout>
 
-        <!-- 🏠 首页 -->
+        <!-- 首页 -->
         <TextView
             android:id="@+id/nav_home"
             android:layout_width="match_parent"
@@ -61,7 +61,7 @@
             android:drawableTint="@color/tv_accent"
             android:gravity="center_vertical" />
 
-        <!-- ⭐ 收藏 -->
+        <!-- 收藏 -->
         <LinearLayout
             android:id="@+id/nav_favorite_container"
             android:layout_width="match_parent"
@@ -120,7 +120,7 @@
 
     </LinearLayout>
 
-    <!-- 📺 主内容区域 -->
+    <!-- 主内容区域 -->
     <ScrollView
         android:id="@+id/main_scroll_view"
         android:layout_width="0dp"
@@ -140,7 +140,7 @@
             android:focusable="false"
             android:focusableInTouchMode="false">
 
-            <!-- 🔄 继续观看区域 -->
+            <!-- 继续观看区域 -->
             <TextView
                 android:id="@+id/continue_watching_title"
                 android:layout_width="match_parent"

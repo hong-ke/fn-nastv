@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName;
 import java.util.Map;
 
 /**
- * 🎬 播放信息响应数据模型
+ * 播放信息响应数据模型
  * 根据实际API响应结构定义
  */
 public class PlayInfoResponse {

@@ -3,7 +3,7 @@ package com.mynas.nastv.model;
 import com.google.gson.annotations.SerializedName;
 
 /**
- * ⚙️ 系统配置响应数据模型
+ * ️ 系统配置响应数据模型
  */
 public class ConfigResponse {
     @SerializedName("server_name")

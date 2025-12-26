@@ -4,7 +4,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 
 /**
- * 🎬 媒体项目数据模型
+ * 媒体项目数据模型
  * 对应Web项目中的媒体项目显示
  * 用于首页、列表页、搜索结果等场景
  */
@@ -17,7 +17,7 @@ public class MediaItem implements Parcelable {
     private String backdropUrl;     // 背景图片URL
     private int posterResource;     // 本地海报资源ID (备用)
     
-    // 📊 媒体信息
+    // 媒体信息
     private String year;            // 年份
     private String genre;           // 类型/标签
     private float rating;           // 评分
@@ -25,7 +25,7 @@ public class MediaItem implements Parcelable {
     private String resolution;      // 分辨率
     private String codec;           // 编码格式
     
-    // 📖 播放相关
+    // 播放相关
     private float watchedProgress;  // 观看进度 (0-100)
     private long lastWatchedTime;   // 最后观看时间戳
     private long watchedTs;         // 已观看时长（秒）
@@ -33,24 +33,24 @@ public class MediaItem implements Parcelable {
     private boolean isFavorite;     // 是否收藏
     private boolean isNew;          // 是否新增内容
     
-    // 🎬 剧集相关 (电视剧/动漫)
+    // 剧集相关 (电视剧/动漫)
     private int totalEpisodes;      // 总集数
     private int watchedEpisodes;    // 已观看集数
     private String currentEpisode;  // 当前集数信息
     
-    // 🔗 关联信息 (用于继续观看导航)
+    // 关联信息 (用于继续观看导航)
     private String parentGuid;      // 父级GUID (Episode -> Season)
     private String ancestorGuid;    // 祖先GUID (Episode -> TV)
     private String mediaGuid;       // 媒体文件GUID (用于直接播放)
     private String videoGuid;       // 视频流GUID (用于进度上报)
     
-    // 🎬 弹幕相关
+    // 弹幕相关
     private long doubanId;          // 豆瓣ID (用于获取弹幕)
     private int seasonNumber;       // 季数
     private int episodeNumber;      // 集数
     private String tvTitle;         // 电视剧标题（用于弹幕搜索）
     
-    // 📊 详情页扩展字段
+    // 详情页扩展字段
     private String genres;          // 类型标签，如 "剧情 爱情"
     private String originCountry;   // 制作地区，如 "中国大陆 中国香港"
     private String contentRating;   // 内容分级，如 "TV-PG"
@@ -58,7 +58,7 @@ public class MediaItem implements Parcelable {
     private String overview;        // 简介
     private double voteAverage;     // 评分 (0-10)，与 API vote_average 对应
     
-    // 🔧 构造函数
+    // 构造函数
     public MediaItem() {}
     
     public MediaItem(String id, String title, String subtitle, int posterResource) {
@@ -81,7 +81,7 @@ public class MediaItem implements Parcelable {
         this.isNew = false;
     }
     
-    // 🔄 Parcelable实现
+    // Parcelable实现
     protected MediaItem(Parcel in) {
         id = in.readString();
         title = in.readString();
@@ -178,7 +178,7 @@ public class MediaItem implements Parcelable {
         dest.writeDouble(voteAverage);
     }
     
-    // 📖 Getter和Setter方法
+    // Getter和Setter方法
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     
@@ -314,10 +314,10 @@ public class MediaItem implements Parcelable {
     public double getVoteAverage() { return voteAverage; }
     public void setVoteAverage(double voteAverage) { this.voteAverage = voteAverage; }
     
-    // 🔧 辅助方法
+    // 辅助方法
     
     /**
-     * 📊 获取格式化的进度文本
+     * 获取格式化的进度文本
      */
     public String getProgressText() {
         if (watchedProgress <= 0) {
@@ -330,7 +330,7 @@ public class MediaItem implements Parcelable {
     }
     
     /**
-     * 📺 获取剧集进度文本
+     * 获取剧集进度文本
      */
     public String getEpisodeProgressText() {
         if (totalEpisodes <= 1) {
@@ -341,21 +341,21 @@ public class MediaItem implements Parcelable {
     }
     
     /**
-     * 🎬 是否为电视剧类型
+     * 是否为电视剧类型
      */
     public boolean isTvSeries() {
         return "tv".equals(type) || "anime".equals(type) || totalEpisodes > 1;
     }
     
     /**
-     * 📖 是否有观看进度
+     * 是否有观看进度
      */
     public boolean hasWatchProgress() {
         return watchedProgress > 0 && watchedProgress < 95;
     }
     
     /**
-     * 🆕 是否应该显示"新"标签
+     * 是否应该显示"新"标签
      */
     public boolean shouldShowNewBadge() {
         return isNew || (System.currentTimeMillis() - lastWatchedTime) < 7 * 24 * 60 * 60 * 1000; // 7天内

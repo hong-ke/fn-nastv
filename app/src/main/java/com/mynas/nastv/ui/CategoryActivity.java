@@ -22,7 +22,7 @@ import com.mynas.nastv.model.MediaItem;
 import java.util.List;
 
 /**
- * 📂 Category Activity
+ * Category Activity
  * 显示分类列表页面
  * Web端URL格式: /v/list/{type}
  */

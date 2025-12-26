@@ -10,7 +10,7 @@
     android:clickable="true"
     android:layout_marginBottom="@dimen/tv_margin_small">
 
-    <!-- 📱 剧集缩略图 -->
+    <!-- 剧集缩略图 -->
     <ImageView
         android:id="@+id/episode_thumbnail"
         android:layout_width="160dp"
@@ -20,7 +20,7 @@
         android:contentDescription="@string/poster_description"
         tools:src="@color/tv_card_background" />
 
-    <!-- 📝 剧集信息 -->
+    <!-- 剧集信息 -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -66,7 +66,7 @@
 
     </LinearLayout>
 
-    <!-- 🎯 当前播放指示器 -->
+    <!-- 当前播放指示器 -->
     <TextView
         android:id="@+id/episode_current_indicator"
         android:layout_width="wrap_content"

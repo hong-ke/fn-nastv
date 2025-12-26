@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName;
 import java.util.List;
 
 /**
- * 📖 观看历史响应模型
+ * 观看历史响应模型
  */
 public class WatchHistoryResponse {
     private List<WatchHistoryItem> history;

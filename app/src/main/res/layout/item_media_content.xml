@@ -17,7 +17,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- 📱 海报图片容器（用于叠加评分） -->
+        <!-- 海报图片容器（用于叠加评分） -->
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -32,7 +32,7 @@
                 android:contentDescription="@string/poster_description"
                 tools:src="@color/tv_card_background" />
 
-            <!-- ⭐ 评分标签（右上角） -->
+            <!-- 评分标签（右上角） -->
             <TextView
                 android:id="@+id/media_rating"
                 android:layout_width="wrap_content"
@@ -51,7 +51,7 @@
 
         </FrameLayout>
 
-        <!-- 📝 文本信息 -->
+        <!-- 文本信息 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

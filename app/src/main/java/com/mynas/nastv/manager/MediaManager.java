@@ -37,7 +37,7 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 /**
- * 📚 Media Manager
+ * Media Manager
  * Responsible for fetching media data, matching the logic of fntv-electron.
  */
 public class MediaManager {
@@ -55,11 +55,11 @@ public class MediaManager {
     }
     
     /**
-     * 📚 Get Media DB List
+     * Get Media DB List
      * Matches web: GetMediaDbList
      */
     public void getMediaDbList(MediaCallback<List<MediaDbItem>> callback) {
-        Log.d(TAG, "🔍 [MediaManager] Getting media DB list...");
+        Log.d(TAG, "[MediaManager] Getting media DB list...");
         
         String token = SharedPreferencesManager.getAuthToken();
         if (token == null || token.isEmpty()) {
@@ -87,7 +87,7 @@ public class MediaManager {
                         MediaDbListResponse dbResponse = response.body();
                         if (dbResponse.getCode() == 0) {
                             mediaDbList = convertToMediaDbItems(dbResponse.getData());
-                            Log.d(TAG, "✅ Media DB list success: " + mediaDbList.size());
+                            Log.d(TAG, "Media DB list success: " + mediaDbList.size());
                             callback.onSuccess(mediaDbList);
                         } else {
                             callback.onError("API Error: " + dbResponse.getMessage());
@@ -109,7 +109,7 @@ public class MediaManager {
     }
     
     /**
-     * 📖 Get Item List (Folder content)
+     * Get Item List (Folder content)
      * Matches web: getItemList
      */
     public void getMediaDbInfos(String guid, MediaCallback<List<MediaItem>> callback) {
@@ -117,11 +117,11 @@ public class MediaManager {
     }
 
     /**
-     * 📖 Get Library Items with Limit
+     * Get Library Items with Limit
      * 使用与 Web 端一致的请求参数
      */
     public void getMediaLibraryItems(String guid, int limit, MediaCallback<List<MediaItem>> callback) {
-        Log.d(TAG, "🔍 [MediaManager] Getting item list for: " + guid + ", limit: " + limit);
+        Log.d(TAG, "[MediaManager] Getting item list for: " + guid + ", limit: " + limit);
         
         String token = SharedPreferencesManager.getAuthToken();
         if (token == null || token.isEmpty()) {
@@ -144,7 +144,7 @@ public class MediaManager {
             requestData.put("sort_column", "create_time");
             requestData.put("page_size", limit);  // Web 端使用 page_size
             
-            // 🔑 关键：Web端在POST请求时会添加nonce字段用于防重放
+            // 关键：Web端在POST请求时会添加nonce字段用于防重放
             String nonce = String.format("%06d", (int)(Math.random() * 900000) + 100000);
             requestData.put("nonce", nonce);
             
@@ -188,11 +188,11 @@ public class MediaManager {
     }
 
     /**
-     * 📖 Get Media List with pagination and type filter
+     * Get Media List with pagination and type filter
      * 支持分页和类型筛选的媒体列表获取
      */
     public void getMediaList(String libraryGuid, String type, int page, int pageSize, MediaCallback<List<MediaItem>> callback) {
-        Log.d(TAG, "🔍 [MediaManager] Getting media list: library=" + libraryGuid + ", type=" + type + ", page=" + page);
+        Log.d(TAG, "[MediaManager] Getting media list: library=" + libraryGuid + ", type=" + type + ", page=" + page);
         
         String token = SharedPreferencesManager.getAuthToken();
         if (token == null || token.isEmpty()) {
@@ -277,7 +277,7 @@ public class MediaManager {
     }
 
     /**
-     * 📖 Get Media DB Sum (Counts)
+     * Get Media DB Sum (Counts)
      */
     public void getMediaDbSum(MediaCallback<Map<String, Integer>> callback) {
         String token = SharedPreferencesManager.getAuthToken();
@@ -309,7 +309,7 @@ public class MediaManager {
     }
 
     /**
-     * 🕒 Get Watch History (Play List)
+     * Get Watch History (Play List)
      * 使用 Web 端的 /v/api/v1/play/list 接口
      */
     public void getPlayList(MediaCallback<List<MediaItem>> callback) {
@@ -355,18 +355,18 @@ public class MediaManager {
                                 mi.setWatchedTs(pItem.getTs());
                                 mi.setDuration(pItem.getDuration());
                                 
-                                // 🔗 设置关联信息 (用于继续观看导航)
+                                // 设置关联信息 (用于继续观看导航)
                                 mi.setParentGuid(pItem.getParentGuid());
                                 mi.setAncestorGuid(pItem.getAncestorGuid());
                                 mi.setMediaGuid(pItem.getMediaGuid());
                                 
-                                // 🎬 设置弹幕相关信息
+                                // 设置弹幕相关信息
                                 mi.setDoubanId(pItem.getDoubanId());
                                 mi.setSeasonNumber(pItem.getSeasonNumber());
                                 mi.setEpisodeNumber(pItem.getEpisodeNumber());
                                 mi.setTvTitle(pItem.getTvTitle()); // 电视剧标题用于弹幕搜索
                                 
-                                Log.d(TAG, "🎬 PlayList item: " + displayTitle + ", tvTitle=" + pItem.getTvTitle() + ", s" + pItem.getSeasonNumber() + "e" + pItem.getEpisodeNumber());
+                                Log.d(TAG, "PlayList item: " + displayTitle + ", tvTitle=" + pItem.getTvTitle() + ", s" + pItem.getSeasonNumber() + "e" + pItem.getEpisodeNumber());
                                 
                                 items.add(mi);
                             }
@@ -390,7 +390,7 @@ public class MediaManager {
     }
     
     /**
-     * 🕒 Fallback: Get Watch History
+     * Fallback: Get Watch History
      */
     private void getWatchHistoryFallback(MediaCallback<List<MediaItem>> callback) {
         String token = SharedPreferencesManager.getAuthToken();
@@ -442,11 +442,11 @@ public class MediaManager {
     }
 
     /**
-     * 🎬 Get Item Detail
+     * Get Item Detail
      * 使用 Web 端的 GET /v/api/v1/item/{guid} 接口
      */
     public void getItemDetail(String guid, MediaCallback<MediaDetailResponse> callback) {
-        Log.d(TAG, "🎬 [MediaManager] Getting item detail: " + guid);
+        Log.d(TAG, "[MediaManager] Getting item detail: " + guid);
         
         String token = SharedPreferencesManager.getAuthToken();
         if (token == null || token.isEmpty()) {
@@ -472,7 +472,7 @@ public class MediaManager {
                     if (response.isSuccessful() && response.body() != null) {
                         BaseResponse<MediaDetailResponse> res = response.body();
                         if (res.getCode() == 0 && res.getData() != null) {
-                            Log.d(TAG, "✅ Item detail success: " + res.getData().getTitle());
+                            Log.d(TAG, "Item detail success: " + res.getData().getTitle());
                             callback.onSuccess(res.getData());
                         } else {
                             // Fallback to play/info
@@ -497,7 +497,7 @@ public class MediaManager {
     }
     
     /**
-     * 🎬 Get Item Detail via Play Info (Fallback)
+     * Get Item Detail via Play Info (Fallback)
      */
     private void getItemDetailViaPlayInfo(String guid, MediaCallback<MediaDetailResponse> callback) {
         getPlayInfo(guid, new MediaCallback<PlayInfoResponse>() {
@@ -521,11 +521,11 @@ public class MediaManager {
     }
 
     /**
-     * 📺 Get Season List
+     * Get Season List
      * 使用 Web 端的 GET /v/api/v1/season/list/{tv_guid} 接口
      */
     public void getSeasonList(String tvGuid, MediaCallback<List<SeasonListResponse.Season>> callback) {
-        Log.d(TAG, "📺 [MediaManager] Getting season list: " + tvGuid);
+        Log.d(TAG, "[MediaManager] Getting season list: " + tvGuid);
         
         String token = SharedPreferencesManager.getAuthToken();
         if (token == null || token.isEmpty()) {
@@ -551,7 +551,7 @@ public class MediaManager {
                     if (response.isSuccessful() && response.body() != null) {
                         SeasonListResponse res = response.body();
                         if (res.getCode() == 0 && res.getData() != null) {
-                            Log.d(TAG, "✅ Season list success: " + res.getData().size() + " seasons");
+                            Log.d(TAG, "Season list success: " + res.getData().size() + " seasons");
                             callback.onSuccess(res.getData());
                         } else {
                             callback.onError(res.getMessage() != null ? res.getMessage() : "Failed to get seasons");
@@ -573,11 +573,11 @@ public class MediaManager {
     }
 
     /**
-     * 🎬 Get Play Info
+     * Get Play Info
      * Matches web: getPlayInfo
      */
     public void getPlayInfo(String itemGuid, MediaCallback<PlayInfoResponse> callback) {
-        Log.d(TAG, "🎬 [MediaManager] Getting play info: " + itemGuid);
+        Log.d(TAG, "[MediaManager] Getting play info: " + itemGuid);
         
         String token = SharedPreferencesManager.getAuthToken();
         if (token == null || token.isEmpty()) {
@@ -590,7 +590,7 @@ public class MediaManager {
             Map<String, Object> requestData = new HashMap<>();
             requestData.put("item_guid", itemGuid);
             
-            // 🔑 关键：Web端在POST请求时会添加nonce字段用于防重放
+            // 关键：Web端在POST请求时会添加nonce字段用于防重放
             String nonce = String.format("%06d", (int)(Math.random() * 900000) + 100000);
             requestData.put("nonce", nonce);
             
@@ -612,13 +612,13 @@ public class MediaManager {
                 public void onResponse(@NonNull Call<PlayInfoResponse> call, @NonNull Response<PlayInfoResponse> response) {
                     if (response.isSuccessful() && response.body() != null) {
                         PlayInfoResponse playInfo = response.body();
-                        Log.d(TAG, "🎬 Play info response code: " + playInfo.getCode() + ", msg: " + playInfo.getMessage());
+                        Log.d(TAG, "Play info response code: " + playInfo.getCode() + ", msg: " + playInfo.getMessage());
                         if (playInfo.getCode() == 0 && playInfo.getData() != null) {
-                            Log.d(TAG, "✅ Play info success, media_guid: " + playInfo.getData().getMediaGuid());
+                            Log.d(TAG, "Play info success, media_guid: " + playInfo.getData().getMediaGuid());
                             callback.onSuccess(playInfo);
                         } else {
                             String errorMsg = playInfo.getMessage() != null ? playInfo.getMessage() : "Unknown error";
-                            Log.e(TAG, "❌ Play info API error: " + errorMsg);
+                            Log.e(TAG, "Play info API error: " + errorMsg);
                             callback.onError("API Error: " + errorMsg);
                         }
                     } else {
@@ -630,26 +630,26 @@ public class MediaManager {
                         } catch (Exception e) {
                             errorBody = "Unable to read error body";
                         }
-                        Log.e(TAG, "❌ Play info request failed: " + response.code() + " - " + errorBody);
+                        Log.e(TAG, "Play info request failed: " + response.code() + " - " + errorBody);
                         callback.onError("Request failed: " + response.message());
                     }
                 }
                 
                 @Override
                 public void onFailure(@NonNull Call<PlayInfoResponse> call, @NonNull Throwable t) {
-                    Log.e(TAG, "❌ Play info network error: " + t.getMessage());
+                    Log.e(TAG, "Play info network error: " + t.getMessage());
                     callback.onError("Network error: " + t.getMessage());
                 }
             });
             
         } catch (Exception e) {
-            Log.e(TAG, "❌ Play info exception: " + e.getMessage());
+            Log.e(TAG, "Play info exception: " + e.getMessage());
             callback.onError("Exception: " + e.getMessage());
         }
     }
     
     /**
-     * 🎬 Get Play URL
+     * Get Play URL
      * Uses media_guid to construct the direct range URL, matching Web's format.
      * Web端使用: /v/api/v1/media/range/{mediaGuid}?direct_link_quality_index=0
      */
@@ -658,11 +658,11 @@ public class MediaManager {
     }
 
     /**
-     * 🎬 Start Playback logic (replaces startPlayEpisode)
+     * Start Playback logic (replaces startPlayEpisode)
      * 直接使用 Web 端的 URL 格式播放，不依赖 stream API
      */
     public void startPlay(String itemGuid, MediaCallback<String> callback) {
-        Log.d(TAG, "🎬 startPlay: " + itemGuid);
+        Log.d(TAG, "startPlay: " + itemGuid);
         
         getPlayInfo(itemGuid, new MediaCallback<PlayInfoResponse>() {
             @Override
@@ -671,14 +671,14 @@ public class MediaManager {
                     PlayInfoResponse.PlayInfoData data = playInfoResponse.getData();
                     String mediaGuid = data.getMediaGuid();
                     
-                    Log.d(TAG, "🎬 PlayInfo成功: mediaGuid=" + mediaGuid + ", type=" + data.getType());
+                    Log.d(TAG, "PlayInfo成功: mediaGuid=" + mediaGuid + ", type=" + data.getType());
                     
                     if (mediaGuid != null && !mediaGuid.isEmpty()) {
-                        // 🔥 直接使用 Web 端的 URL 格式
+                        // 直接使用 Web 端的 URL 格式
                         // Web端使用: http://server/v/api/v1/media/range/{mediaGuid}?direct_link_quality_index=0
                         String baseUrl = SharedPreferencesManager.getServerBaseUrl();
                         String playUrl = baseUrl + "/v/api/v1/media/range/" + mediaGuid + "?direct_link_quality_index=0";
-                        Log.d(TAG, "🎬 使用媒体URL: " + playUrl);
+                        Log.d(TAG, "使用媒体URL: " + playUrl);
                         callback.onSuccess(playUrl);
                     } else {
                         callback.onError("No media_guid found in play info");
@@ -696,11 +696,11 @@ public class MediaManager {
     }
     
     /**
-     * 🎬 Start Playback with full info (包含恢复播放位置)
+     * Start Playback with full info (包含恢复播放位置)
      * 返回 PlayStartInfo 包含 playUrl 和 ts（恢复位置）
      */
     public void startPlayWithInfo(String itemGuid, MediaCallback<com.mynas.nastv.model.PlayStartInfo> callback) {
-        Log.d(TAG, "🎬 startPlayWithInfo: " + itemGuid);
+        Log.d(TAG, "startPlayWithInfo: " + itemGuid);
         
         getPlayInfo(itemGuid, new MediaCallback<PlayInfoResponse>() {
             @Override
@@ -709,7 +709,7 @@ public class MediaManager {
                     PlayInfoResponse.PlayInfoData data = playInfoResponse.getData();
                     String mediaGuid = data.getMediaGuid();
                     
-                    Log.d(TAG, "🎬 PlayInfo成功: mediaGuid=" + mediaGuid + ", type=" + data.getType() + ", ts=" + data.getTs());
+                    Log.d(TAG, "PlayInfo成功: mediaGuid=" + mediaGuid + ", type=" + data.getType() + ", ts=" + data.getTs());
                     
                     if (mediaGuid != null && !mediaGuid.isEmpty()) {
                         String baseUrl = SharedPreferencesManager.getServerBaseUrl();
@@ -723,7 +723,7 @@ public class MediaManager {
                         playStartInfo.setAudioGuid(data.getAudioGuid());
                         playStartInfo.setSubtitleGuid(data.getSubtitleGuid());
                         
-                        Log.d(TAG, "🎬 PlayStartInfo: " + playStartInfo);
+                        Log.d(TAG, "PlayStartInfo: " + playStartInfo);
                         callback.onSuccess(playStartInfo);
                     } else {
                         callback.onError("No media_guid found in play info");
@@ -741,7 +741,7 @@ public class MediaManager {
     }
     
     /**
-     * 🎬 获取直连URL（优先原画）
+     * 获取直连URL（优先原画）
      * 调用 POST /v/api/v1/stream 获取 direct_link_qualities
      * 
      * Web端请求格式:
@@ -753,7 +753,7 @@ public class MediaManager {
      * }
      */
     public void getDirectLinkUrl(String mediaGuid, MediaCallback<String> callback) {
-        Log.d(TAG, "🎬 获取直连URL: " + mediaGuid);
+        Log.d(TAG, "获取直连URL: " + mediaGuid);
         
         String token = SharedPreferencesManager.getAuthToken();
         if (token == null || token.isEmpty()) {
@@ -776,7 +776,7 @@ public class MediaManager {
             
             requestData.put("level", 1);
             
-            // 🔑 注意：nonce 只在 authx 签名中使用，不放在请求体中
+            // 注意：nonce 只在 authx 签名中使用，不放在请求体中
             // 但签名计算时需要包含 nonce
             String nonce = String.format("%06d", (int)(Math.random() * 900000) + 100000);
             
@@ -792,13 +792,13 @@ public class MediaManager {
             // 实际发送的请求体不包含 nonce
             String data = gson.toJson(requestData);
             
-            Log.d(TAG, "🎬 Stream请求数据: " + data);
-            Log.d(TAG, "🎬 Stream签名数据: " + dataForSign);
+            Log.d(TAG, "Stream请求数据: " + data);
+            Log.d(TAG, "Stream签名数据: " + dataForSign);
             
             String authx = SignatureUtils.generateSignature(method, url, dataForSign, new HashMap<>());
             String authToken = token.startsWith("Bearer ") ? token.substring(7) : token;
             
-            Log.d(TAG, "🎬 Stream请求 authx: " + authx);
+            Log.d(TAG, "Stream请求 authx: " + authx);
             
             ApiService apiService = ApiClient.getApiService();
             Call<ResponseBody> call = apiService.getStream(authToken, authx, requestData);
@@ -809,8 +809,8 @@ public class MediaManager {
                     if (response.isSuccessful() && response.body() != null) {
                         try {
                             String responseBody = response.body().string();
-                            Log.d(TAG, "🎬 Stream响应长度: " + responseBody.length());
-                            Log.d(TAG, "🎬 Stream响应: " + responseBody.substring(0, Math.min(1000, responseBody.length())));
+                            Log.d(TAG, "Stream响应长度: " + responseBody.length());
+                            Log.d(TAG, "Stream响应: " + responseBody.substring(0, Math.min(1000, responseBody.length())));
                             
                             // 解析响应
                             com.mynas.nastv.model.StreamResponse streamResponse = 
@@ -819,20 +819,20 @@ public class MediaManager {
                             if (streamResponse != null && streamResponse.getCode() == 0 && streamResponse.getData() != null) {
                                 String directUrl = streamResponse.getData().getOriginalQualityUrl();
                                 if (directUrl != null && !directUrl.isEmpty()) {
-                                    Log.d(TAG, "✅ 获取到直连URL（原画）: " + directUrl.substring(0, Math.min(100, directUrl.length())));
+                                    Log.d(TAG, "获取到直连URL（原画）: " + directUrl.substring(0, Math.min(100, directUrl.length())));
                                     callback.onSuccess(directUrl);
                                 } else {
-                                    Log.w(TAG, "⚠️ 没有直连URL，尝试使用qualities");
+                                    Log.w(TAG, "没有直连URL，尝试使用qualities");
                                     callback.onError("No direct link available");
                                 }
                             } else {
                                 String msg = streamResponse != null ? streamResponse.getMessage() : "Unknown error";
                                 int code = streamResponse != null ? streamResponse.getCode() : -999;
-                                Log.e(TAG, "❌ Stream API error: code=" + code + ", msg=" + msg);
+                                Log.e(TAG, "Stream API error: code=" + code + ", msg=" + msg);
                                 callback.onError("Stream API error: " + msg);
                             }
                         } catch (Exception e) {
-                            Log.e(TAG, "❌ 解析Stream响应失败: " + e.getMessage(), e);
+                            Log.e(TAG, "解析Stream响应失败: " + e.getMessage(), e);
                             callback.onError("Parse error: " + e.getMessage());
                         }
                     } else {
@@ -844,29 +844,29 @@ public class MediaManager {
                         } catch (Exception e) {
                             errorBody = "Unable to read error body";
                         }
-                        Log.e(TAG, "❌ Stream请求失败: " + response.code() + " - " + errorBody);
+                        Log.e(TAG, "Stream请求失败: " + response.code() + " - " + errorBody);
                         callback.onError("Stream request failed: " + response.message());
                     }
                 }
                 
                 @Override
                 public void onFailure(@NonNull Call<ResponseBody> call, @NonNull Throwable t) {
-                    Log.e(TAG, "❌ Stream请求失败: " + t.getMessage());
+                    Log.e(TAG, "Stream请求失败: " + t.getMessage());
                     callback.onError("Network error: " + t.getMessage());
                 }
             });
             
         } catch (Exception e) {
-            Log.e(TAG, "❌ getDirectLinkUrl异常: " + e.getMessage());
+            Log.e(TAG, "getDirectLinkUrl异常: " + e.getMessage());
             callback.onError("Exception: " + e.getMessage());
         }
     }
 
     /**
-     * 🎬 Get Episode List
+     * Get Episode List
      */
     public void getEpisodeList(String seasonGuid, MediaCallback<List<EpisodeListResponse.Episode>> callback) {
-         Log.d(TAG, "🎬 Getting episode list: " + seasonGuid);
+         Log.d(TAG, "Getting episode list: " + seasonGuid);
          
          String token = SharedPreferencesManager.getAuthToken();
          // ... auth checks ...
@@ -889,9 +889,9 @@ public class MediaManager {
                      // 打印原始响应体
                      try {
                          String rawBody = response.raw().toString();
-                         Log.d(TAG, "📺 Episode API raw response: " + rawBody);
+                         Log.d(TAG, "Episode API raw response: " + rawBody);
                      } catch (Exception e) {
-                         Log.e(TAG, "📺 Failed to log raw response", e);
+                         Log.e(TAG, "Failed to log raw response", e);
                      }
                      
                      if (response.isSuccessful() && response.body() != null) {
@@ -902,7 +902,7 @@ public class MediaManager {
                              if (episodes != null && !episodes.isEmpty()) {
                                  for (int i = 0; i < Math.min(3, episodes.size()); i++) {
                                      EpisodeListResponse.Episode ep = episodes.get(i);
-                                     Log.d(TAG, "📺 Episode " + ep.getEpisodeNumber() + " stillPath: [" + ep.getStillPath() + "], title: " + ep.getTitle());
+                                     Log.d(TAG, "Episode " + ep.getEpisodeNumber() + " stillPath: [" + ep.getStillPath() + "], title: " + ep.getTitle());
                                  }
                              }
                              callback.onSuccess(episodes);
@@ -925,11 +925,11 @@ public class MediaManager {
     }
 
     /**
-     * 👥 Get Person List (演职人员列表)
+     * Get Person List (演职人员列表)
      * Web端使用: GET /v/api/v1/person/list/{item_guid}
      */
     public void getPersonList(String itemGuid, MediaCallback<List<PersonInfo>> callback) {
-        Log.d(TAG, "👥 Getting person list: " + itemGuid);
+        Log.d(TAG, "Getting person list: " + itemGuid);
         
         String token = SharedPreferencesManager.getAuthToken();
         if (token == null || token.isEmpty()) {
@@ -955,7 +955,7 @@ public class MediaManager {
                     if (response.isSuccessful() && response.body() != null) {
                         BaseResponse<List<PersonInfo>> res = response.body();
                         if (res.getCode() == 0 && res.getData() != null) {
-                            Log.d(TAG, "✅ Person list success: " + res.getData().size() + " persons");
+                            Log.d(TAG, "Person list success: " + res.getData().size() + " persons");
                             callback.onSuccess(res.getData());
                         } else {
                             callback.onError(res.getMessage() != null ? res.getMessage() : "Failed to get persons");
@@ -977,11 +977,11 @@ public class MediaManager {
     }
 
     /**
-     * 🎬 Get Stream List (流信息列表)
+     * Get Stream List (流信息列表)
      * Web端使用: GET /v/api/v1/stream/list/{item_guid}
      */
     public void getStreamList(String itemGuid, MediaCallback<StreamListResponse> callback) {
-        Log.d(TAG, "🎬 Getting stream list: " + itemGuid);
+        Log.d(TAG, "Getting stream list: " + itemGuid);
         
         String token = SharedPreferencesManager.getAuthToken();
         if (token == null || token.isEmpty()) {
@@ -1007,7 +1007,7 @@ public class MediaManager {
                     if (response.isSuccessful() && response.body() != null) {
                         StreamListResponse res = response.body();
                         if (res.getCode() == 0) {
-                            Log.d(TAG, "✅ Stream list success");
+                            Log.d(TAG, "Stream list success");
                             callback.onSuccess(res);
                         } else {
                             callback.onError(res.getMessage() != null ? res.getMessage() : "Failed to get streams");
@@ -1029,14 +1029,14 @@ public class MediaManager {
     }
 
     /**
-     * ⭐ Get Favorite List (收藏列表)
+     * Get Favorite List (收藏列表)
      * Web端使用: GET /v/api/v1/favorite/list
      * @param type 类型: all/movie/tv/episode
      * @param page 页码
      * @param pageSize 每页数量
      */
     public void getFavoriteList(String type, int page, int pageSize, MediaCallback<FavoriteListResponse> callback) {
-        Log.d(TAG, "⭐ Getting favorite list: type=" + type + ", page=" + page);
+        Log.d(TAG, "Getting favorite list: type=" + type + ", page=" + page);
         
         String token = SharedPreferencesManager.getAuthToken();
         if (token == null || token.isEmpty()) {
@@ -1065,7 +1065,7 @@ public class MediaManager {
                     if (response.isSuccessful() && response.body() != null) {
                         BaseResponse<FavoriteListResponse> res = response.body();
                         if (res.getCode() == 0 && res.getData() != null) {
-                            Log.d(TAG, "✅ Favorite list success: " + res.getData().getTotal() + " items");
+                            Log.d(TAG, "Favorite list success: " + res.getData().getTotal() + " items");
                             callback.onSuccess(res.getData());
                         } else {
                             callback.onError(res.getMessage() != null ? res.getMessage() : "Failed to get favorites");
@@ -1087,10 +1087,10 @@ public class MediaManager {
     }
 
     /**
-     * ⭐ Add to Favorites (添加收藏)
+     * Add to Favorites (添加收藏)
      */
     public void addFavorite(String itemGuid, MediaCallback<Boolean> callback) {
-        Log.d(TAG, "⭐ Adding to favorites: " + itemGuid);
+        Log.d(TAG, "Adding to favorites: " + itemGuid);
         
         String token = SharedPreferencesManager.getAuthToken();
         if (token == null || token.isEmpty()) {
@@ -1119,7 +1119,7 @@ public class MediaManager {
                     if (response.isSuccessful() && response.body() != null) {
                         BaseResponse<Object> res = response.body();
                         if (res.getCode() == 0) {
-                            Log.d(TAG, "✅ Added to favorites");
+                            Log.d(TAG, "Added to favorites");
                             callback.onSuccess(true);
                         } else {
                             callback.onError(res.getMessage() != null ? res.getMessage() : "Failed to add favorite");
@@ -1141,10 +1141,10 @@ public class MediaManager {
     }
 
     /**
-     * ⭐ Remove from Favorites (取消收藏)
+     * Remove from Favorites (取消收藏)
      */
     public void removeFavorite(String itemGuid, MediaCallback<Boolean> callback) {
-        Log.d(TAG, "⭐ Removing from favorites: " + itemGuid);
+        Log.d(TAG, "Removing from favorites: " + itemGuid);
         
         String token = SharedPreferencesManager.getAuthToken();
         if (token == null || token.isEmpty()) {
@@ -1170,7 +1170,7 @@ public class MediaManager {
                     if (response.isSuccessful() && response.body() != null) {
                         BaseResponse<Object> res = response.body();
                         if (res.getCode() == 0) {
-                            Log.d(TAG, "✅ Removed from favorites");
+                            Log.d(TAG, "Removed from favorites");
                             callback.onSuccess(true);
                         } else {
                             callback.onError(res.getMessage() != null ? res.getMessage() : "Failed to remove favorite");
@@ -1225,7 +1225,7 @@ public class MediaManager {
                      mediaItem.setDuration(item.getRuntime() * 60L); // runtime 是分钟，转换为秒
                  }
                  
-                 // ⭐ 设置评分
+                 // 设置评分
                  String voteAvgStr = item.getVoteAverage();
                  if (voteAvgStr != null && !voteAvgStr.isEmpty()) {
                      try {

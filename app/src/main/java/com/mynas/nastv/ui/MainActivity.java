@@ -109,10 +109,8 @@ public class MainActivity extends AppCompatActivity {
      * 初始化视图
      */
     private void initializeViews() {
-        Log.d(TAG, "[调试] 开始初始化视图组件");
         
         // 绑定UI组件
-        Log.d(TAG, "[调试] 绑定UI组件");
         navHome = findViewById(R.id.nav_home);
         mediaLibraryList = findViewById(R.id.media_library_list);
         continueWatchingTitle = findViewById(R.id.continue_watching_title);
@@ -124,33 +122,26 @@ public class MainActivity extends AppCompatActivity {
         View navFavoriteContainer = findViewById(R.id.nav_favorite_container);
         
         // 初始化数据管理器
-        Log.d(TAG, "[调试] 初始化数据管理器");
         mediaManager = new MediaManager(this);
         
         // 设置媒体库列表
-        Log.d(TAG, "[调试] 设置媒体库列表");
         setupMediaLibraryList();
         
         // 设置继续观看列表
-        Log.d(TAG, "[调试] 设置继续观看列表");
         setupContinueWatchingList();
         
         // 设置事件监听器
-        Log.d(TAG, "[调试] 设置事件监听器");
         setupEventListeners();
         
         // 初始化导航状态
-        Log.d(TAG, "[调试] 初始化导航状态");
         setupNavigationState();
         
         // [新增] 配置ScrollView
         setupScrollView();
         
         // 加载媒体库数据
-        Log.d(TAG, "[调试] 加载媒体库数据");
         loadMediaLibraries();
         
-        Log.d(TAG, "[调试] 视图组件初始化完成");
     }
     
     /**
@@ -174,15 +165,7 @@ public class MainActivity extends AppCompatActivity {
             Log.e(TAG, "ScrollView未找到，滚动功能不可用");
         }
     }
-    
-    /**
-     * 设置用户信息显示 - 新布局中已移除
-     */
-    private void setupUserInfo() {
-        // 新布局中没有用户信息显示区域
-        Log.d(TAG, "新布局中已移除用户信息显示");
-    }
-    
+
     /**
      * 设置事件监听器
      */
@@ -224,13 +207,11 @@ public class MainActivity extends AppCompatActivity {
      * 设置继续观看列表
      */
     private void setupContinueWatchingList() {
-        Log.d(TAG, "[调试] 开始设置继续观看列表");
         continueWatchingAdapter = new ContinueWatchingAdapter(this::onContinueWatchingItemClick);
         LinearLayoutManager layoutManager = new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false);
         continueWatchingList.setLayoutManager(layoutManager);
         continueWatchingList.setAdapter(continueWatchingAdapter);
         
-        Log.d(TAG, "[调试] 继续观看列表设置完成，开始加载数据");
         // 加载示例的继续观看数据
         loadContinueWatchingData();
     }
@@ -248,43 +229,34 @@ public class MainActivity extends AppCompatActivity {
      * 加载继续观看数据
      */
     private void loadContinueWatchingData() {
-        Log.d(TAG, "[调试] 开始加载继续观看数据");
         
         // 从API获取真实的观看记录
-        Log.d(TAG, "[调试] 调用MediaManager.getPlayList()");
         mediaManager.getPlayList(new MediaManager.MediaCallback<List<MediaItem>>() {
             @Override
             public void onSuccess(List<MediaItem> watchedItems) {
-                Log.d(TAG, "[调试] 继续观看API调用成功，返回 " + watchedItems.size() + " 项");
                 runOnUiThread(() -> {
                     if (watchedItems.isEmpty()) {
-                        Log.d(TAG, "[调试] 暂无继续观看记录，隐藏继续观看区域");
                         // 隐藏继续观看标题和列表
                         continueWatchingTitle.setVisibility(View.GONE);
                         continueWatchingList.setVisibility(View.GONE);
                     } else {
-                        Log.d(TAG, "[调试] 继续观看数据加载完成，共 " + watchedItems.size() + " 项，显示UI");
                         // 显示继续观看标题和列表
                         continueWatchingTitle.setVisibility(View.VISIBLE);
                         continueWatchingList.setVisibility(View.VISIBLE);
                         continueWatchingAdapter.updateItems(watchedItems);
-                        Log.d(TAG, "[调试] 继续观看UI更新完成");
                     }
                 });
             }
             
             @Override
             public void onError(String error) {
-                Log.e(TAG, "[调试] 继续观看数据加载失败: " + error);
                 runOnUiThread(() -> {
                     // 发生错误时也隐藏继续观看区域
-                    Log.d(TAG, "[调试] 隐藏继续观看区域（错误处理）");
                     continueWatchingTitle.setVisibility(View.GONE);
                     continueWatchingList.setVisibility(View.GONE);
                 });
             }
         });
-        Log.d(TAG, "[调试] getPlayList()调用已发起");
     }
     
     /**
@@ -300,8 +272,7 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     mediaLibraryAdapter.updateLibraries(libraries);
                     if (!libraries.isEmpty()) {
-                        // [修复] 先获取统计数据，再创建预览内容，确保数量显示正确
-                        Log.d(TAG, "[修复] 先获取统计数据，再创建预览内容");
+                        // 先获取统计数据，再创建预览内容，确保数量显示正确
                         loadLibraryItemCountsAndPreview(libraries);
                         
                         // 不设置默认选中项，保持主页为纯粹的预览状态
@@ -373,23 +344,14 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
-    
-    /**
-     * 获取媒体库统计数据（旧版本，保留用于兼容）
-     */
-    private void loadLibraryItemCounts(List<MediaManager.MediaDbItem> libraries) {
-        Log.d(TAG, "[兼容] 调用旧版本统计方法，建议使用loadLibraryItemCountsAndPreview");
-        loadLibraryItemCountsAndPreview(libraries);
-    }
-    
+
     /**
      * 媒体库点击事件
      */
     private void onLibraryClick(MediaManager.MediaDbItem library, int position) {
         Log.d(TAG, "用户点击媒体库: " + library.getName());
         
-        // [修复] 在当前Activity显示媒体库完整内容，而不是跳转
-        Log.d(TAG, "[修复] 在当前Activity显示媒体库内容: " + library.getName());
+        // 在当前Activity显示媒体库完整内容，而不是跳转
         
         // 设置选中状态
         mediaLibraryAdapter.setSelectedPosition(position);
@@ -399,127 +361,10 @@ public class MainActivity extends AppCompatActivity {
         // 显示该媒体库的完整内容
         showLibraryFullContent(library);
         
-        // [修复] 更新导航状态 - 取消主页选中，选中媒体库
+        // 更新导航状态 - 取消主页选中，选中媒体库
         updateNavigationState();
     }
-    
-    /**
-     * 设置分类卡片监听器 - 已废弃
-     */
-    private void setupCategoryCardListeners() {
-        // 新UI设计中移除了固定的分类卡片，改用动态媒体库列表
-        Log.d(TAG, "旧版分类卡片代码已废弃");
-        /* 
-        // 旧代码已注释，新布局中不再使用固定的分类卡片
-        movieCategoryCard.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Log.d(TAG, "用户点击电影分类");
-                navigateToCategory("movie", "电影");
-            }
-        });
-        
-        tvCategoryCard.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Log.d(TAG, "用户点击电视剧分类");
-                navigateToCategory("tv", "电视剧");
-            }
-        });
-        
-        animeCategoryCard.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Log.d(TAG, "用户点击动漫分类");
-                navigateToCategory("anime", "动漫");
-            }
-        });
-        
-        setupCategoryFocusListeners();
-        */
-    }
-    
-    /**
-     * 设置分类卡片焦点监听器 - 已废弃
-     */
-    private void setupCategoryFocusListeners() {
-        // 新UI设计中移除了固定的分类卡片，改用动态媒体库列表
-        Log.d(TAG, "旧版焦点监听器代码已废弃");
-        /*
-        View.OnFocusChangeListener focusListener = new View.OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (hasFocus) {
-                    // 获得焦点时轻微放大
-                    v.animate().scaleX(1.1f).scaleY(1.1f).setDuration(150).start();
-                } else {
-                    // 失去焦点时恢复大小
-                    v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(150).start();
-                }
-            }
-        };
-        
-        movieCategoryCard.setOnFocusChangeListener(focusListener);
-        tvCategoryCard.setOnFocusChangeListener(focusListener);
-        animeCategoryCard.setOnFocusChangeListener(focusListener);
-        */
-    }
-    
-    /**
-     * 导航到分类页面（旧版本，兼容性）
-     */
-    private void navigateToCategory(String categoryType, String categoryName) {
-        navigateToCategory(categoryType, categoryName, null);
-    }
-    
-    /**
-     * 导航到分类页面（新版本，包含GUID）
-     */
-    private void navigateToCategory(String categoryType, String categoryName, String categoryGuid) {
-        Log.d(TAG, "导航到分类: " + categoryName + " (" + categoryType + "), GUID: " + categoryGuid);
-        
-        try {
-            // 实际导航到VideoListActivity
-            Intent intent = new Intent(this, VideoListActivity.class);
-            intent.putExtra("category_type", categoryType);
-            intent.putExtra("category_name", categoryName);
-            if (categoryGuid != null && !categoryGuid.isEmpty()) {
-                intent.putExtra("category_guid", categoryGuid);
-            }
-            startActivity(intent);
-            
-            Log.d(TAG, "成功导航到 " + categoryName + " 分类");
-        } catch (Exception e) {
-            Log.e(TAG, "导航失败: " + e.getMessage());
-            ToastUtils.show(this, "打开 " + categoryName + " 分类失败，请重试");
-        }
-    }
-    
-    /**
-     * 更新状态信息 - 新UI中已移除状态文本
-     */
-    private void updateStatus(String status) {
-        // 新UI设计中没有statusText组件
-        Log.d(TAG, "状态更新: " + status);
-        // ToastUtils.show(this, status); // 可选：用Toast显示状态
-    }
-    
-    /**
-     * 执行登出操作
-     */
-    private void performLogout() {
-        Log.d(TAG, "开始执行登出...");
-        
-        // 清除认证信息
-        SharedPreferencesManager.clearAuthInfo();
-        
-        // 显示退出消息
-        ToastUtils.show(this, "已退出登录");
-        
-        // 跳转到登录页
-        navigateToLogin();
-    }
-    
+
     /**
      * 获取FnOS服务器地址
      */
@@ -575,15 +420,7 @@ public class MainActivity extends AppCompatActivity {
             createMediaLibraryPreviewSection(library, 20);  // 增加到20个项目支持横向滑动
         }
     }
-    
-    /**
-     * 加载所有媒体库的内容展示（已废弃，改用预览模式）
-     */
-    private void loadAllMediaLibrariesContent(List<MediaManager.MediaDbItem> libraries) {
-        Log.d(TAG, "[废弃] loadAllMediaLibrariesContent已改用loadMediaLibrariesPreview");
-        loadMediaLibrariesPreview(libraries);
-    }
-    
+
     /**
      * 为单个媒体库创建预览区域（主页用）
      */
@@ -680,15 +517,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
-    
-    /**
-     * 为单个媒体库创建内容展示区域（已废弃，改用预览模式）
-     */
-    private void createMediaLibraryContentSection(MediaManager.MediaDbItem library) {
-        Log.d(TAG, "[废弃] createMediaLibraryContentSection已改用createMediaLibraryPreviewSection");
-        createMediaLibraryPreviewSection(library, 6);
-    }
-    
+
     /**
      * 显示媒体库完整内容
      */
@@ -972,46 +801,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
-    
-    /**
-     * 更新预览区域标题
-     */
-    private void updatePreviewSectionTitles(List<MediaManager.MediaDbItem> libraries) {
-        Log.d(TAG, "开始更新预览区域标题");
-        
-        // 遍历媒体内容容器的子视图，找到标题TextView并更新
-        for (int i = 0; i < mediaContentContainer.getChildCount(); i++) {
-            View sectionView = mediaContentContainer.getChildAt(i);
-            if (sectionView instanceof LinearLayout) {
-                LinearLayout sectionLayout = (LinearLayout) sectionView;
-                
-                // 查找第一个子视图（应该是标题）
-                if (sectionLayout.getChildCount() > 0) {
-                    View firstChild = sectionLayout.getChildAt(0);
-                    if (firstChild instanceof TextView) {
-                        TextView titleView = (TextView) firstChild;
-                        String currentTitle = titleView.getText().toString();
-                        
-                        // 从当前标题中提取媒体库名称（去掉数量部分）
-                        String libraryName = currentTitle.replaceAll("\\s*\\(\\d+\\)\\s*$", "");
-                        
-                        // 找到对应的媒体库并更新标题
-                        for (MediaManager.MediaDbItem library : libraries) {
-                            if (library.getName().equals(libraryName)) {
-                                String newTitle = library.getName() + " (" + library.getItemCount() + ")";
-                                titleView.setText(newTitle);
-                                Log.d(TAG, "更新标题: " + currentTitle + " -> " + newTitle);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        Log.d(TAG, "预览区域标题更新完成");
-    }
-    
+
     /**
      * 处理按键事件
      */

@@ -88,7 +88,7 @@ public class ExoPlayerKernel implements Player.Listener {
      * 初始化播放器
      */
     public void init(Map<String, String> headers) {
-        Log.i(TAG, "初始化 ExoPlayer 内核");
+        Log.d(TAG, "初始化 ExoPlayer 内核");
         
         // 创建 DataSource.Factory
         DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory()
@@ -98,7 +98,7 @@ public class ExoPlayerKernel implements Player.Listener {
         
         if (headers != null && !headers.isEmpty()) {
             httpFactory.setDefaultRequestProperties(headers);
-            Log.i(TAG, "设置请求头: " + headers.keySet());
+            Log.d(TAG, "设置请求头: " + headers.keySet());
         }
         
         DataSource.Factory dataSourceFactory = new DefaultDataSource.Factory(context, httpFactory);
@@ -126,7 +126,7 @@ public class ExoPlayerKernel implements Player.Listener {
         // 添加监听器
         exoPlayer.addListener(this);
         
-        Log.i(TAG, "ExoPlayer 初始化完成");
+        Log.d(TAG, "ExoPlayer 初始化完成");
     }
 
     /**
@@ -158,7 +158,7 @@ public class ExoPlayerKernel implements Player.Listener {
             return;
         }
         
-        Log.i(TAG, "播放视频: " + url.substring(0, Math.min(80, url.length())));
+        Log.d(TAG, "播放视频: " + url.substring(0, Math.min(80, url.length())));
         
         MediaItem mediaItem = MediaItem.fromUri(Uri.parse(url));
         exoPlayer.setMediaItem(mediaItem);
@@ -186,16 +186,16 @@ public class ExoPlayerKernel implements Player.Listener {
         
         // 设置 OkHttpProxyCacheManager 的 headers
         OkHttpProxyCacheManager.setCurrentHeaders(headers);
-        Log.i(TAG, "ExoPlayer: OkHttpProxyCacheManager headers set");
+        Log.d(TAG, "ExoPlayer: OkHttpProxyCacheManager headers set");
         
         // 通过 OkHttpProxyCacheManager 获取代理 URL
         OkHttpProxyCacheManager cacheManager = OkHttpProxyCacheManager.instance();
         String proxyUrl = cacheManager.getProxyUrl(context, originUrl, headers, cacheDir);
         
         if (proxyUrl != null && !proxyUrl.equals(originUrl)) {
-            Log.i(TAG, "ExoPlayer 使用代理缓存: " + proxyUrl);
+            Log.d(TAG, "ExoPlayer 使用代理缓存: " + proxyUrl);
         } else {
-            Log.i(TAG, "ExoPlayer 直接播放（无代理）: " + originUrl.substring(0, Math.min(80, originUrl.length())));
+            Log.d(TAG, "ExoPlayer 直接播放（无代理）: " + originUrl.substring(0, Math.min(80, originUrl.length())));
             proxyUrl = originUrl;
         }
         
@@ -307,7 +307,7 @@ public class ExoPlayerKernel implements Player.Listener {
      * 释放资源
      */
     public void release() {
-        Log.i(TAG, "释放 ExoPlayer");
+        Log.d(TAG, "释放 ExoPlayer");
         
         // 清除 ExoPlayer 使用代理的标志
         if (useProxyCache) {
@@ -332,7 +332,7 @@ public class ExoPlayerKernel implements Player.Listener {
      * 重置播放器（用于切换视频）
      */
     public void reset() {
-        Log.i(TAG, "重置 ExoPlayer");
+        Log.d(TAG, "重置 ExoPlayer");
         
         if (exoPlayer != null) {
             exoPlayer.stop();
@@ -354,7 +354,7 @@ public class ExoPlayerKernel implements Player.Listener {
             case Player.STATE_READY: stateName = "READY"; break;
             case Player.STATE_ENDED: stateName = "ENDED"; break;
         }
-        Log.i(TAG, "播放状态: " + stateName);
+        Log.d(TAG, "播放状态: " + stateName);
         
         if (playbackState == Player.STATE_READY && !isPrepared) {
             isPrepared = true;
@@ -385,7 +385,7 @@ public class ExoPlayerKernel implements Player.Listener {
             error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
             error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT) {
             // 网络相关错误，尝试重试
-            Log.i(TAG, "网络错误，尝试重试...");
+            Log.d(TAG, "网络错误，尝试重试...");
             if (exoPlayer != null) {
                 exoPlayer.prepare();
             }
@@ -409,7 +409,7 @@ public class ExoPlayerKernel implements Player.Listener {
     public void onVideoSizeChanged(VideoSize videoSize) {
         videoWidth = videoSize.width;
         videoHeight = videoSize.height;
-        Log.i(TAG, "视频尺寸: " + videoWidth + "x" + videoHeight);
+        Log.d(TAG, "视频尺寸: " + videoWidth + "x" + videoHeight);
         if (playerCallback != null) {
             playerCallback.onVideoSizeChanged(videoWidth, videoHeight);
         }

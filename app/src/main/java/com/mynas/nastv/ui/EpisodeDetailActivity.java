@@ -185,14 +185,14 @@ public class EpisodeDetailActivity extends AppCompatActivity {
         
         // 加载缩略图 - 使用poster，需要拼接服务地址
         String posterPath = detail.getPoster();
-        Log.i(TAG, "剧集详情 poster字段值: " + posterPath);
-        Log.i(TAG, "剧集详情 still字段值: " + detail.getStill());
+        Log.d(TAG, "剧集详情 poster字段值: " + posterPath);
+        Log.d(TAG, "剧集详情 still字段值: " + detail.getStill());
         if (posterPath != null && !posterPath.isEmpty()) {
             String imageUrl = posterPath;
             if (!imageUrl.startsWith("http")) {
                 imageUrl = SharedPreferencesManager.getImageServiceUrl() + posterPath + "?w=640";
             }
-            Log.i(TAG, "加载剧集缩略图: " + imageUrl);
+            Log.d(TAG, "加载剧集缩略图: " + imageUrl);
             // 使用asBitmap()强制作为图片解码，避免webp被误识别为视频
             Glide.with(this)
                 .asBitmap()
@@ -200,14 +200,14 @@ public class EpisodeDetailActivity extends AppCompatActivity {
                 .placeholder(R.drawable.bg_card)
                 .into(episodeThumbnail);
         } else {
-            Log.i(TAG, "poster为空，尝试使用still");
+            Log.d(TAG, "poster为空，尝试使用still");
             String stillPath = detail.getStill();
             if (stillPath != null && !stillPath.isEmpty()) {
                 String imageUrl = stillPath;
                 if (!imageUrl.startsWith("http")) {
                     imageUrl = SharedPreferencesManager.getImageServiceUrl() + stillPath + "?w=640";
                 }
-                Log.i(TAG, "加载剧集剧照: " + imageUrl);
+                Log.d(TAG, "加载剧集剧照: " + imageUrl);
                 Glide.with(this)
                     .asBitmap()
                     .load(imageUrl)

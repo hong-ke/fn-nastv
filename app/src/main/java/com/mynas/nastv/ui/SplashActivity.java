@@ -42,7 +42,7 @@ public class SplashActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_splash);
         
-        Log.i(TAG, "NasTV启动页加载");
+        Log.d(TAG, "NasTV启动页加载");
         
         // 初始化视图
         ivLogo = findViewById(R.id.iv_logo);
@@ -100,7 +100,7 @@ public class SplashActivity extends AppCompatActivity {
     private void checkLoginAndNavigate() {
         boolean isLoggedIn = SharedPreferencesManager.isLoggedIn();
         
-        Log.i(TAG, "用户登录状态: " + (isLoggedIn ? "已登录" : "未登录"));
+        Log.d(TAG, "用户登录状态: " + (isLoggedIn ? "已登录" : "未登录"));
         
         Intent intent;
         if (isLoggedIn) {

@@ -214,14 +214,14 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                         if (deleteDirectory(dir)) {
                             deletedCount++;
                             deletedSize += size;
-                            Log.i(TAG, "Cleanup: deleted " + dir.getName() + " (age=" + (age / 60000) + "min)");
+                            Log.d(TAG, "Cleanup: deleted " + dir.getName() + " (age=" + (age / 60000) + "min)");
                         }
                     }
                 }
             }
             
             if (deletedCount > 0) {
-                Log.i(TAG, "Cleanup: deleted " + deletedCount + " dirs, freed " + (deletedSize / 1024 / 1024) + "MB");
+                Log.d(TAG, "Cleanup: deleted " + deletedCount + " dirs, freed " + (deletedSize / 1024 / 1024) + "MB");
             }
         } catch (Exception e) {
             Log.e(TAG, "Cleanup error: " + e.getMessage());
@@ -248,13 +248,13 @@ public class OkHttpProxyCacheManager implements ICacheManager {
                     if (deleteDirectory(dir)) {
                         deletedCount++;
                         deletedSize += size;
-                        Log.i(TAG, "删除其他视频缓存: " + dir.getName() + " (" + (size / 1024 / 1024) + "MB)");
+                        Log.d(TAG, "删除其他视频缓存: " + dir.getName() + " (" + (size / 1024 / 1024) + "MB)");
                     }
                 }
             }
             
             if (deletedCount > 0) {
-                Log.i(TAG, "清理完成: 删除 " + deletedCount + " 个视频目录, 释放 " + (deletedSize / 1024 / 1024) + "MB");
+                Log.d(TAG, "清理完成: 删除 " + deletedCount + " 个视频目录, 释放 " + (deletedSize / 1024 / 1024) + "MB");
             }
         } catch (Exception e) {
             Log.e(TAG, "清理其他视频缓存失败: " + e.getMessage());
@@ -339,9 +339,9 @@ public class OkHttpProxyCacheManager implements ICacheManager {
         if (isDirectLink && originUrl.startsWith("http") && !originUrl.contains(".m3u8")) {
             String newVideoId = md5(originUrl);
             
-            Log.i(TAG, "========== 切换视频 ==========");
-            Log.i(TAG, "上一个视频ID: " + (currentVideoId != null ? currentVideoId : "null"));
-            Log.i(TAG, "新视频ID: " + newVideoId);
+            Log.d(TAG, "========== 切换视频 ==========");
+            Log.d(TAG, "上一个视频ID: " + (currentVideoId != null ? currentVideoId : "null"));
+            Log.d(TAG, "新视频ID: " + newVideoId);
             
             // 列出缓存目录
             listCacheDirectory(context);
@@ -370,7 +370,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
             // 扫描已存在的 chunk 文件（断点续传支持）
             scanExistingChunks();
             
-            Log.i(TAG, "视频缓存目录: " + currentVideoDir.getAbsolutePath());
+            Log.d(TAG, "视频缓存目录: " + currentVideoDir.getAbsolutePath());
             
             startProxyServer();
             
@@ -439,31 +439,31 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     private void listCacheDirectory(Context context) {
         try {
             File cacheDir = new File(context.getCacheDir(), CACHE_DIR);
-            Log.i(TAG, "缓存根目录: " + cacheDir.getAbsolutePath());
+            Log.d(TAG, "缓存根目录: " + cacheDir.getAbsolutePath());
             
             if (!cacheDir.exists()) {
-                Log.i(TAG, "缓存目录不存在");
+                Log.d(TAG, "缓存目录不存在");
                 return;
             }
             
             File[] dirs = cacheDir.listFiles();
             if (dirs == null || dirs.length == 0) {
-                Log.i(TAG, "缓存目录为空");
+                Log.d(TAG, "缓存目录为空");
                 return;
             }
             
             long totalSize = 0;
-            Log.i(TAG, "视频缓存目录列表 (" + dirs.length + " 个):");
+            Log.d(TAG, "视频缓存目录列表 (" + dirs.length + " 个):");
             for (File dir : dirs) {
                 if (dir.isDirectory()) {
                     long size = getDirectorySize(dir);
                     totalSize += size;
                     int chunkCount = countChunkFiles(dir);
                     String marker = dir.getName().equals(currentVideoId) ? " ← 当前" : "";
-                    Log.i(TAG, "  - " + dir.getName() + " (" + chunkCount + " chunks, " + (size / 1024 / 1024) + "MB)" + marker);
+                    Log.d(TAG, "  - " + dir.getName() + " (" + chunkCount + " chunks, " + (size / 1024 / 1024) + "MB)" + marker);
                 }
             }
-            Log.i(TAG, "缓存总大小: " + (totalSize / 1024 / 1024) + "MB");
+            Log.d(TAG, "缓存总大小: " + (totalSize / 1024 / 1024) + "MB");
         } catch (Exception e) {
             Log.e(TAG, "列出缓存目录失败: " + e.getMessage());
         }
@@ -981,12 +981,12 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     
     @Override
     public void release() {
-        Log.i(TAG, "========== release() 被调用 ==========");
-        Log.i(TAG, "exoPlayerUsingProxy=" + exoPlayerUsingProxy);
-        Log.i(TAG, "当前视频ID: " + (currentVideoId != null ? currentVideoId : "null"));
+        Log.d(TAG, "========== release() 被调用 ==========");
+        Log.d(TAG, "exoPlayerUsingProxy=" + exoPlayerUsingProxy);
+        Log.d(TAG, "当前视频ID: " + (currentVideoId != null ? currentVideoId : "null"));
         
         if (exoPlayerUsingProxy) {
-            Log.i(TAG, "ExoPlayer 正在使用代理，跳过释放");
+            Log.d(TAG, "ExoPlayer 正在使用代理，跳过释放");
             return;
         }
         
@@ -1003,7 +1003,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
             long size = getDirectorySize(currentVideoDir);
             String dirName = currentVideoDir.getName();
             if (deleteDirectory(currentVideoDir)) {
-                Log.i(TAG, "release() 删除缓存目录: " + dirName + " (" + (size / 1024 / 1024) + "MB)");
+                Log.d(TAG, "release() 删除缓存目录: " + dirName + " (" + (size / 1024 / 1024) + "MB)");
             } else {
                 Log.e(TAG, "release() 删除缓存目录失败: " + dirName);
             }
@@ -1019,7 +1019,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
         currentContentLength = -1;
         cachedChunks.clear();
         
-        Log.i(TAG, "========== release() 完成 ==========");
+        Log.d(TAG, "========== release() 完成 ==========");
     }
     
     /**
@@ -1073,9 +1073,9 @@ public class OkHttpProxyCacheManager implements ICacheManager {
         if (isDirectLink && originUrl.startsWith("http") && !originUrl.contains(".m3u8")) {
             String newVideoId = md5(originUrl);
             
-            Log.i(TAG, "========== ExoPlayer 切换视频 ==========");
-            Log.i(TAG, "上一个视频ID: " + (currentVideoId != null ? currentVideoId : "null"));
-            Log.i(TAG, "新视频ID: " + newVideoId);
+            Log.d(TAG, "========== ExoPlayer 切换视频 ==========");
+            Log.d(TAG, "上一个视频ID: " + (currentVideoId != null ? currentVideoId : "null"));
+            Log.d(TAG, "新视频ID: " + newVideoId);
             
             listCacheDirectory(context);
             
@@ -1101,7 +1101,7 @@ public class OkHttpProxyCacheManager implements ICacheManager {
             
             scanExistingChunks();
             
-            Log.i(TAG, "ExoPlayer 视频缓存目录: " + currentVideoDir.getAbsolutePath());
+            Log.d(TAG, "ExoPlayer 视频缓存目录: " + currentVideoDir.getAbsolutePath());
             
             startProxyServer();
             

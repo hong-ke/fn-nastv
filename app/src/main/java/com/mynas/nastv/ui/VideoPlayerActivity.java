@@ -262,14 +262,14 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
             // 设置播放器初始化成功监听器，用于检测实际使用的解码器和设置字幕监听
             com.shuyu.gsyvideoplayer.GSYVideoManager.instance().setPlayerInitSuccessListener((player, model) -> {
-                Log.i(TAG, "播放器初始化成功，类型: " + player.getClass().getSimpleName());
+                Log.d(TAG, "播放器初始化成功，类型: " + player.getClass().getSimpleName());
 
                 // 保存播放器引用，用于后续检测
                 if (player instanceof tv.danmaku.ijk.media.player.IjkMediaPlayer) {
                     currentIjkPlayer = (tv.danmaku.ijk.media.player.IjkMediaPlayer) player;
 
                     // 设置字幕监听器 - 在播放器初始化成功后立即设置
-                    Log.i(TAG, "设置 IJKPlayer OnTimedTextListener");
+                    Log.d(TAG, "设置 IJKPlayer OnTimedTextListener");
                     currentIjkPlayer.setOnTimedTextListener((mp, text) -> {
                         runOnUiThread(() -> {
                             if (text != null && text.getText() != null) {
@@ -1053,7 +1053,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     // 如果是内嵌字幕且下载失败（404），尝试通过 IJKPlayer 轨道选择
                     final int subtitleIndex = index;
                     if (response.code() == 404 && !subtitle.isExternal()) {
-                        Log.i(TAG, "内嵌字幕下载失败，尝试通过 IJKPlayer 轨道选择");
+                        Log.d(TAG, "内嵌字幕下载失败，尝试通过 IJKPlayer 轨道选择");
                         runOnUiThread(() -> selectIjkSubtitleTrack(subtitleIndex));
                     } else {
                         runOnUiThread(() -> ToastUtils.show(this, "字幕下载失败: " + response.code()));
@@ -1351,7 +1351,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
      * 并设置 OnTimedTextListener 来接收字幕文本
      */
     private void enableInternalSubtitle(int index) {
-        Log.i(TAG, "启用内嵌字幕，索引: " + index);
+        Log.d(TAG, "启用内嵌字幕，索引: " + index);
 
         if (subtitleStreams == null || index < 0 || index >= subtitleStreams.size()) {
             Log.e(TAG, "无效的字幕索引: " + index);
@@ -1391,7 +1391,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 // 获取轨道信息
                 tv.danmaku.ijk.media.player.misc.IjkTrackInfo[] trackInfos = ijkManager.getTrackInfo();
                 if (trackInfos != null && trackInfos.length > 0) {
-                    Log.i(TAG, "IJKPlayer 轨道数量: " + trackInfos.length);
+                    Log.d(TAG, "IJKPlayer 轨道数量: " + trackInfos.length);
 
                     int textTrackCount = 0;
                     for (int i = 0; i < trackInfos.length; i++) {
@@ -1418,17 +1418,17 @@ public class VideoPlayerActivity extends AppCompatActivity {
                                 break;
                         }
 
-                        Log.i(TAG, "轨道 " + i + ": type=" + trackType + " (" + trackTypeName + "), lang=" + track.getLanguage());
+                        Log.d(TAG, "轨道 " + i + ": type=" + trackType + " (" + trackTypeName + "), lang=" + track.getLanguage());
 
                         // MEDIA_TRACK_TYPE_TIMEDTEXT = 3 或 MEDIA_TRACK_TYPE_SUBTITLE = 4
                         if (trackType == 3 || trackType == 4) {
-                            Log.i(TAG, "找到字幕轨道 " + textTrackCount + " (index=" + i + "): " + track.getLanguage());
+                            Log.d(TAG, "找到字幕轨道 " + textTrackCount + " (index=" + i + "): " + track.getLanguage());
 
                             if (textTrackCount == subtitleIndex) {
                                 // 选择这个字幕轨道
                                 ijkManager.selectTrack(i);
                                 currentSubtitleIndex = subtitleIndex;
-                                Log.i(TAG, "已选择 IJKPlayer 字幕轨道: " + i);
+                                Log.d(TAG, "已选择 IJKPlayer 字幕轨道: " + i);
 
                                 // 设置 TimedText 监听器
                                 setupTimedTextListener();
@@ -1495,7 +1495,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         });
                     });
 
-                    Log.i(TAG, "IJKPlayer TimedText 监听器已设置");
+                    Log.d(TAG, "IJKPlayer TimedText 监听器已设置");
                 }
             }
         } catch (Exception e) {
@@ -1508,7 +1508,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
      * 当检测到只有内嵌字幕时调用此方法
      */
     private void switchToExoPlayerForInternalSubtitle() {
-        Log.i(TAG, "切换到 ExoPlayer 内核以支持内嵌字幕");
+        Log.d(TAG, "切换到 ExoPlayer 内核以支持内嵌字幕");
 
         if (currentVideoUrl == null || currentVideoUrl.isEmpty()) {
             Log.e(TAG, "无法切换：视频 URL 为空");
@@ -1523,7 +1523,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         // 如果 GSYVideoPlayer 还没开始播放，使用历史恢复位置
         if (currentPosition <= 0 && resumePositionSeconds > 0) {
             currentPosition = resumePositionSeconds * 1000;
-            Log.i(TAG, "使用历史恢复位置: " + resumePositionSeconds + "s");
+            Log.d(TAG, "使用历史恢复位置: " + resumePositionSeconds + "s");
         }
         final long savedPosition = currentPosition;
 
@@ -1549,7 +1549,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         android.widget.RelativeLayout.LayoutParams.MATCH_PARENT
                 );
                 mainLayout.addView(exoTextureView, 1, params);
-                Log.i(TAG, "ExoPlayer TextureView 已添加到主布局");
+                Log.d(TAG, "ExoPlayer TextureView 已添加到主布局");
             }
         }
         exoTextureView.setVisibility(View.VISIBLE);
@@ -1587,7 +1587,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         exoPlayerKernel.setPlayerCallback(new com.mynas.nastv.player.ExoPlayerKernel.PlayerCallback() {
             @Override
             public void onPrepared() {
-                Log.i(TAG, "ExoPlayer 准备完成");
+                Log.d(TAG, "ExoPlayer 准备完成");
                 runOnUiThread(() -> {
                     isPlayerReady = true;
                     showPlayer();
@@ -1596,7 +1596,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     // 恢复播放位置
                     if (savedPosition > 0) {
                         exoPlayerKernel.seekTo(savedPosition);
-                        Log.i(TAG, "恢复播放位置: " + (savedPosition / 1000) + "s");
+                        Log.d(TAG, "恢复播放位置: " + (savedPosition / 1000) + "s");
                     }
 
                     // 启动弹幕
@@ -1617,7 +1617,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
             @Override
             public void onCompletion() {
-                Log.i(TAG, "ExoPlayer 播放完成");
+                Log.d(TAG, "ExoPlayer 播放完成");
                 runOnUiThread(() -> {
                     if (SharedPreferencesManager.isAutoPlayNext() && episodeList != null && !episodeList.isEmpty()) {
                         playNextEpisodeAuto();
@@ -1640,7 +1640,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
             @Override
             public void onVideoSizeChanged(int width, int height) {
-                Log.i(TAG, "ExoPlayer 视频尺寸: " + width + "x" + height);
+                Log.d(TAG, "ExoPlayer 视频尺寸: " + width + "x" + height);
             }
         });
 
@@ -1660,7 +1660,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         exoTextureView.setSurfaceTextureListener(new android.view.TextureView.SurfaceTextureListener() {
             @Override
             public void onSurfaceTextureAvailable(android.graphics.SurfaceTexture surface, int width, int height) {
-                Log.i(TAG, "ExoPlayer Surface 可用");
+                Log.d(TAG, "ExoPlayer Surface 可用");
                 android.view.Surface videoSurface = new android.view.Surface(surface);
                 exoPlayerKernel.setSurface(videoSurface);
                 // 使用代理缓存播放（与 IJKPlayer 相同的缓存机制）
@@ -1689,7 +1689,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             exoPlayerKernel.playWithProxyCache(currentVideoUrl, headers, cacheDir);
         }
 
-        Log.i(TAG, "ExoPlayer 内核切换完成");
+        Log.d(TAG, "ExoPlayer 内核切换完成");
     }
 
     /**
@@ -1742,18 +1742,18 @@ public class VideoPlayerActivity extends AppCompatActivity {
         if (useSoftware) {
             // 软解模式
             GSYVideoType.disableMediaCodec();
-            Log.i(TAG, "解码器配置: 软解模式");
+            Log.d(TAG, "解码器配置: 软解模式");
         } else {
             // 硬解模式
             GSYVideoType.enableMediaCodec();
             GSYVideoType.enableMediaCodecTexture();
-            Log.i(TAG, "解码器配置: 硬解模式");
+            Log.d(TAG, "解码器配置: 硬解模式");
         }
 
         // 配置 IJKPlayer 高级选项
         try {
             com.shuyu.gsyvideoplayer.GSYVideoManager.instance().setOptionModelList(getIjkOptions(useSoftware));
-            Log.i(TAG, "IJKPlayer 选项已配置");
+            Log.d(TAG, "IJKPlayer 选项已配置");
         } catch (Exception e) {
             Log.e(TAG, "配置 IJKPlayer 选项失败", e);
         }
@@ -1768,7 +1768,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         boolean configuredHardware = !SharedPreferencesManager.useSoftwareDecoder() && !forceUseSoftwareDecoder;
 
         if (!configuredHardware) {
-            Log.i(TAG, "已配置软解，无需检测");
+            Log.d(TAG, "已配置软解，无需检测");
             return;
         }
 
@@ -1788,7 +1788,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         String name = codecInfo.getName();
                         if (!name.startsWith("OMX.google.")) {
                             hasHevcHardwareDecoder = true;
-                            Log.i(TAG, "找到 HEVC 硬件解码器: " + name);
+                            Log.d(TAG, "找到 HEVC 硬件解码器: " + name);
                             break;
                         }
                     }
@@ -1803,9 +1803,9 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     ToastUtils.show(VideoPlayerActivity.this, "硬解不支持，已自动切换软解");
                 });
-                Log.i(TAG, "设备无 HEVC 硬件解码器，已自动切换到软解");
+                Log.d(TAG, "设备无 HEVC 硬件解码器，已自动切换到软解");
             } else {
-                Log.i(TAG, "设备支持 HEVC 硬解");
+                Log.d(TAG, "设备支持 HEVC 硬解");
             }
         } catch (Exception e) {
             Log.w(TAG, "检测解码器失败: " + e.getMessage());
@@ -1821,7 +1821,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         boolean configuredHardware = !SharedPreferencesManager.useSoftwareDecoder() && !forceUseSoftwareDecoder;
         boolean mediaCodecEnabled = GSYVideoType.isMediaCodec();
 
-        Log.i(TAG, "检测解码器状态: configuredHardware=" + configuredHardware + ", mediaCodecEnabled=" + mediaCodecEnabled);
+        Log.d(TAG, "检测解码器状态: configuredHardware=" + configuredHardware + ", mediaCodecEnabled=" + mediaCodecEnabled);
     }
 
     /**
@@ -1841,17 +1841,17 @@ public class VideoPlayerActivity extends AppCompatActivity {
             options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec-auto-rotate", 1));
             options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec-handle-resolution-change", 1));
             options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec-hevc", 1));
-            Log.i(TAG, "IJKPlayer: 启用硬解 + HEVC 硬解");
+            Log.d(TAG, "IJKPlayer: 启用硬解 + HEVC 硬解");
         } else {
             // 软解模式配置
             options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec", 0));
             options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec-hevc", 0));
-            Log.i(TAG, "IJKPlayer: 使用软解");
+            Log.d(TAG, "IJKPlayer: 使用软解");
         }
 
         // 字幕选项 - 启用内嵌字幕解码
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "subtitle", 1));
-        Log.i(TAG, "IJKPlayer: 启用字幕解码");
+        Log.d(TAG, "IJKPlayer: 启用字幕解码");
 
         // 通用优化选项
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "framedrop", 1));
@@ -2219,7 +2219,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             if (duration > 0) {
                                 long newPosition = (duration * seekBar.getProgress()) / 100;
                                 exoPlayerKernel.seekTo(newPosition);
-                                Log.i(TAG, "ExoPlayer seekTo: " + (newPosition / 1000) + "s");
+                                Log.d(TAG, "ExoPlayer seekTo: " + (newPosition / 1000) + "s");
                             }
                         } else if (playerView != null) {
                             duration = playerView.getDuration();

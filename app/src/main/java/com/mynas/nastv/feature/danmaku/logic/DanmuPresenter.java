@@ -234,7 +234,7 @@ public class DanmuPresenter {
             lowFpsStreak = 0;
             if (isCircuitBroken && fps > 30) {
                 isCircuitBroken = false;
-                Log.i(TAG, "️ 熔断恢复：性能已回升 (" + fps + ")");
+                Log.d(TAG, "️ 熔断恢复：性能已回升 (" + fps + ")");
             }
         }
     }

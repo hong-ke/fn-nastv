@@ -89,7 +89,6 @@ public class ContinueWatchingAdapter extends RecyclerView.Adapter<ContinueWatchi
         public void bind(MediaItem item) {
             // 加载海报图片
             String posterUrl = item.getPosterUrl();
-            android.util.Log.d("ContinueWatching", "[调试] 加载海报: " + item.getTitle() + " -> " + posterUrl);
             
             if (posterUrl != null && !posterUrl.isEmpty()) {
                 Glide.with(posterImage.getContext())
@@ -100,28 +99,8 @@ public class ContinueWatchingAdapter extends RecyclerView.Adapter<ContinueWatchi
                         .error(R.color.tv_card_background)
                         .centerCrop()
                         .format(com.bumptech.glide.load.DecodeFormat.PREFER_RGB_565)
-                        .listener(new com.bumptech.glide.request.RequestListener<android.graphics.Bitmap>() {
-                            @Override
-                            public boolean onLoadFailed(com.bumptech.glide.load.engine.GlideException e, Object model, 
-                                    com.bumptech.glide.request.target.Target<android.graphics.Bitmap> target, 
-                                    boolean isFirstResource) {
-                                android.util.Log.e("ContinueWatching", "[调试] 海报加载失败: " + posterUrl);
-                                if (e != null) {
-                                    android.util.Log.e("ContinueWatching", "[调试] 详细错误: " + e.getCause());
-                                }
-                                return false;
-                            }
-                            @Override
-                            public boolean onResourceReady(android.graphics.Bitmap resource, Object model, 
-                                    com.bumptech.glide.request.target.Target<android.graphics.Bitmap> target, 
-                                    com.bumptech.glide.load.DataSource dataSource, boolean isFirstResource) {
-                                android.util.Log.d("ContinueWatching", "[调试] 海报加载成功: " + posterUrl);
-                                return false;
-                            }
-                        })
                         .into(posterImage);
             } else {
-                android.util.Log.w("ContinueWatching", "[调试] 海报URL为空: " + item.getTitle());
                 posterImage.setImageResource(R.color.tv_card_background);
             }
             

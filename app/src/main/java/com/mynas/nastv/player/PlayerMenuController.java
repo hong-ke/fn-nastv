@@ -34,7 +34,7 @@ public class PlayerMenuController {
     // 菜单组件
     private LinearLayout bottomMenuContainer;
     private LinearLayout topInfoContainer;
-    private TextView menuNextEpisode, menuSpeed, menuEpisode, menuQuality, menuSubtitle, menuDanmaku, menuSettings;
+    private TextView menuNextEpisode, menuSpeed, menuEpisode, menuQuality, menuSubtitle, menuAudio, menuDanmaku, menuSettings;
 
     // 进度条组件
     private TextView progressCurrentTime, progressTotalTime, bufferInfoText;
@@ -63,6 +63,7 @@ public class PlayerMenuController {
         void onEpisodeSelected(EpisodeListResponse.Episode episode);
         void onNextEpisode();
         void onSubtitleMenuRequested();
+        void onAudioMenuRequested();
         void onDanmakuToggled(boolean enabled);
         void onSeekTo(long position);
         void onSettingsRequested();
@@ -103,6 +104,7 @@ public class PlayerMenuController {
         menuEpisode = rootView.findViewById(R.id.menu_episode);
         menuQuality = rootView.findViewById(R.id.menu_quality);
         menuSubtitle = rootView.findViewById(R.id.menu_subtitle);
+        menuAudio = rootView.findViewById(R.id.menu_audio);
         menuDanmaku = rootView.findViewById(R.id.menu_danmaku);
         menuSettings = rootView.findViewById(R.id.menu_settings);
 
@@ -138,6 +140,11 @@ public class PlayerMenuController {
         if (menuSubtitle != null) {
             menuSubtitle.setOnClickListener(v -> {
                 if (callback != null) callback.onSubtitleMenuRequested();
+            });
+        }
+        if (menuAudio != null) {
+            menuAudio.setOnClickListener(v -> {
+                if (callback != null) callback.onAudioMenuRequested();
             });
         }
         if (menuDanmaku != null) {

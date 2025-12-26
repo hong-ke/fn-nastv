@@ -283,6 +283,12 @@ public class StreamListResponse {
         @SerializedName("is_default")
         private int isDefault;
         
+        @SerializedName("index")
+        private int index;
+        
+        @SerializedName("audio_type")
+        private String audioType;  // Stereo/DolbyAtmos/DTS等
+        
         // Getters and setters
         public String getGuid() {
             return guid;
@@ -366,6 +372,22 @@ public class StreamListResponse {
         
         public void setIsDefault(int isDefault) {
             this.isDefault = isDefault;
+        }
+        
+        public int getIndex() {
+            return index;
+        }
+        
+        public void setIndex(int index) {
+            this.index = index;
+        }
+        
+        public String getAudioType() {
+            return audioType;
+        }
+        
+        public void setAudioType(String audioType) {
+            this.audioType = audioType;
         }
     }
     

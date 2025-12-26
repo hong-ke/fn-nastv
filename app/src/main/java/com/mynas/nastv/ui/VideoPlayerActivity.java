@@ -99,6 +99,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private String currentVideoUrl;
     private boolean isDirectLinkMode = false;
 
+    // 音频流相关
+    private List<com.mynas.nastv.model.StreamListResponse.AudioStream> audioStreams;
+    private int currentAudioIndex = -1;
+    private int preferredAudioIndex = -1;  // 用户选择的音频轨道索引
+
     // Manager
     private MediaManager mediaManager;
     private ProgressRecorder progressRecorder;
@@ -398,6 +403,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 showSubtitleMenu();
             }
             @Override
+            public void onAudioMenuRequested() {
+                showAudioMenu();
+            }
+            @Override
             public void onDanmakuToggled(boolean enabled) {
                 if (danmuController != null) {
                     if (enabled) {
@@ -613,10 +622,14 @@ public class VideoPlayerActivity extends AppCompatActivity {
                                 }
                             }
 
-                            // 延迟检测解码器类型（等待视频开始解码）
+                            // 延迟检测解码器类型和自动选择音频轨道（等待视频开始解码）
                             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                                 if (currentIjkPlayer != null) {
                                     checkDecoderAndShowToast(currentIjkPlayer);
+                                    // 自动选择可用的音频轨道（如果当前音频无声）
+                                    autoSelectAudioTrack();
+                                    // 自动选择内嵌字幕轨道
+                                    autoSelectSubtitleTrack();
                                 }
                             }, 1000);
                         }
@@ -1093,16 +1106,16 @@ public class VideoPlayerActivity extends AppCompatActivity {
     }
 
     /**
-     * 加载字幕列表
+     * 加载流列表（音频流和字幕流）
      */
     private void loadSubtitleList() {
         String itemGuid = episodeGuid != null ? episodeGuid : mediaGuid;
         if (itemGuid == null || itemGuid.isEmpty()) {
-            Log.e(TAG, "No item guid for subtitle loading");
+            Log.e(TAG, "No item guid for stream loading");
             return;
         }
 
-        Log.e(TAG, "Loading subtitle list for item: " + itemGuid);
+        Log.e(TAG, "Loading stream list for item: " + itemGuid);
 
         new Thread(() -> {
             try {
@@ -1121,6 +1134,34 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
                 if (response.isSuccessful() && response.body() != null) {
                     com.mynas.nastv.model.StreamListResponse.StreamData data = response.body().getData();
+                    
+                    // 处理音频流
+                    if (data != null && data.getAudioStreams() != null) {
+                        audioStreams = data.getAudioStreams();
+                        Log.e(TAG, "Found " + audioStreams.size() + " audio streams");
+                        
+                        // 打印所有音频信息并选择最佳音频轨道
+                        int aacIndex = -1;
+                        for (int i = 0; i < audioStreams.size(); i++) {
+                            com.mynas.nastv.model.StreamListResponse.AudioStream audio = audioStreams.get(i);
+                            String codec = audio.getCodecName();
+                            Log.e(TAG, "Audio " + i + ": " + audio.getAudioType() + " (" + codec + ") " + 
+                                    audio.getChannels() + "ch, index=" + audio.getIndex());
+                            
+                            // 优先选择 AAC 格式
+                            if (aacIndex == -1 && codec != null && codec.toLowerCase().equals("aac")) {
+                                aacIndex = i;
+                            }
+                        }
+                        
+                        // 如果找到 AAC 音频，设置为首选
+                        if (aacIndex >= 0) {
+                            preferredAudioIndex = audioStreams.get(aacIndex).getIndex();
+                            Log.e(TAG, "Preferred AAC audio track index: " + preferredAudioIndex);
+                        }
+                    }
+                    
+                    // 处理字幕流
                     if (data != null && data.getSubtitleStreams() != null) {
                         subtitleStreams = data.getSubtitleStreams();
                         Log.e(TAG, "Found " + subtitleStreams.size() + " subtitle streams");
@@ -1131,10 +1172,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             Log.e(TAG, "Subtitle " + i + ": " + sub.getTitle() + " (" + sub.getLanguage() + ") external=" + sub.isExternal() + " guid=" + sub.getGuid());
                         }
 
-                        // 查找字幕 - 优先使用外挂字幕（IJKPlayer 不支持内嵌字幕）
+                        // 查找字幕 - 根据字幕类型和格式决定使用哪个播放器
                         int firstSubtitleIndex = -1;
                         int firstExternalIndex = -1;
                         int firstInternalIndex = -1;
+                        String internalSubtitleFormat = null;
 
                         for (int i = 0; i < subtitleStreams.size(); i++) {
                             com.mynas.nastv.model.StreamListResponse.SubtitleStream sub = subtitleStreams.get(i);
@@ -1143,33 +1185,43 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             }
                             if (!sub.isExternal() && firstInternalIndex == -1) {
                                 firstInternalIndex = i;
+                                // 获取内嵌字幕格式
+                                internalSubtitleFormat = sub.getFormat();
+                                if (internalSubtitleFormat == null || internalSubtitleFormat.isEmpty()) {
+                                    internalSubtitleFormat = sub.getCodecName();
+                                }
                             }
                         }
 
-                        // 优先使用外挂字幕（IJKPlayer 不支持内嵌字幕的回调）
+                        // 策略：
+                        // 1. 有外挂字幕 → 使用 IJKPlayer + 下载外挂字幕
+                        // 2. 内嵌字幕格式可被 IJKPlayer 正常加载（ASS/SSA）→ 使用 IJKPlayer
+                        // 3. 内嵌字幕格式不支持（subrip/SRT 等）→ 切换到 ExoPlayer
+                        
                         if (firstExternalIndex >= 0) {
+                            // 有外挂字幕，使用 IJKPlayer 下载并加载
                             firstSubtitleIndex = firstExternalIndex;
                             Log.e(TAG, "Will use external subtitle at index " + firstSubtitleIndex);
-                        } else if (firstInternalIndex >= 0) {
-                            // 只有内嵌字幕时，切换到 ExoPlayer 内核
-                            firstSubtitleIndex = firstInternalIndex;
-                            Log.e(TAG, "Only internal subtitle available, switching to ExoPlayer kernel");
-                            runOnUiThread(() -> switchToExoPlayerForInternalSubtitle());
-                            return; // ExoPlayer 会自动处理内嵌字幕
-                        }
-
-                        if (firstSubtitleIndex >= 0) {
                             final int index = firstSubtitleIndex;
-                            final boolean isInternal = !subtitleStreams.get(index).isExternal();
-
-                            if (isInternal) {
-                                // 内嵌字幕：切换到 ExoPlayer
-                                Log.e(TAG, "Internal subtitle, switching to ExoPlayer");
-                                runOnUiThread(() -> switchToExoPlayerForInternalSubtitle());
+                            runOnUiThread(() -> loadSubtitle(index));
+                        } else if (firstInternalIndex >= 0) {
+                            // 只有内嵌字幕，根据格式决定
+                            final String format = internalSubtitleFormat != null ? internalSubtitleFormat.toLowerCase() : "";
+                            Log.e(TAG, "Internal subtitle format: " + format);
+                            
+                            // IJKPlayer 支持的内嵌字幕格式（通过 OnTimedTextListener 回调）
+                            // 注意：IJKPlayer 对 subrip/srt 格式的 OnTimedTextListener 回调支持有限
+                            boolean ijkSupportsFormat = format.equals("ass") || format.equals("ssa");
+                            
+                            if (ijkSupportsFormat) {
+                                // ASS/SSA 格式，IJKPlayer 可以处理
+                                Log.e(TAG, "Internal subtitle format supported by IJKPlayer: " + format);
+                                // 内嵌字幕会在 autoSelectSubtitleTrack() 中自动选择
                             } else {
-                                // 外挂字幕：下载并加载
-                                Log.e(TAG, "Auto-loading external subtitle at index " + index);
-                                runOnUiThread(() -> loadSubtitle(index));
+                                // subrip/srt 等格式，IJKPlayer 的 OnTimedTextListener 不会触发
+                                // 切换到 ExoPlayer 以支持内嵌字幕
+                                Log.e(TAG, "Internal subtitle format NOT supported by IJKPlayer: " + format + ", switching to ExoPlayer");
+                                runOnUiThread(() -> switchToExoPlayerForInternalSubtitle());
                             }
                         } else {
                             Log.e(TAG, "No subtitles found");
@@ -1178,13 +1230,13 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         Log.e(TAG, "No subtitle streams found in response");
                     }
                 } else {
-                    Log.e(TAG, "Failed to load subtitle list: " + response.code());
+                    Log.e(TAG, "Failed to load stream list: " + response.code());
                     if (response.errorBody() != null) {
                         Log.e(TAG, "Error body: " + response.errorBody().string());
                     }
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Error loading subtitle list", e);
+                Log.e(TAG, "Error loading stream list", e);
             }
         }).start();
     }
@@ -2032,6 +2084,159 @@ public class VideoPlayerActivity extends AppCompatActivity {
     }
 
     /**
+     * 自动选择可用的音频轨道
+     * 如果当前选择的音频轨道是 DTS/EAC3 等不支持的格式，自动切换到 AAC 轨道
+     */
+    private void autoSelectAudioTrack() {
+        try {
+            com.shuyu.gsyvideoplayer.player.IPlayerManager playerManager =
+                    com.shuyu.gsyvideoplayer.GSYVideoManager.instance().getPlayer();
+
+            if (!(playerManager instanceof com.shuyu.gsyvideoplayer.player.IjkPlayerManager)) {
+                return;
+            }
+
+            com.shuyu.gsyvideoplayer.player.IjkPlayerManager ijkManager =
+                    (com.shuyu.gsyvideoplayer.player.IjkPlayerManager) playerManager;
+
+            tv.danmaku.ijk.media.player.misc.IjkTrackInfo[] trackInfos = ijkManager.getTrackInfo();
+            if (trackInfos == null || trackInfos.length == 0) {
+                Log.w(TAG, "无法获取轨道信息");
+                return;
+            }
+
+            // 查找所有音频轨道，并记录 AAC 轨道
+            java.util.List<Integer> audioTrackIndices = new java.util.ArrayList<>();
+            java.util.List<Integer> aacTrackIndices = new java.util.ArrayList<>();
+            int currentAudioTrack = ijkManager.getSelectedTrack(2); // MEDIA_TRACK_TYPE_AUDIO = 2
+
+            Log.d(TAG, "当前选择的音频轨道索引: " + currentAudioTrack);
+            Log.d(TAG, "首选音频轨道索引 (from API): " + preferredAudioIndex);
+
+            for (int i = 0; i < trackInfos.length; i++) {
+                tv.danmaku.ijk.media.player.misc.IjkTrackInfo track = trackInfos[i];
+                if (track.getTrackType() == 2) { // MEDIA_TRACK_TYPE_AUDIO = 2
+                    audioTrackIndices.add(i);
+                    tv.danmaku.ijk.media.player.misc.IMediaFormat mediaFormat = track.getFormat();
+                    String formatStr = mediaFormat != null ? mediaFormat.toString() : "";
+                    Log.d(TAG, "音频轨道 " + i + ": " + track.getLanguage() + ", format=" + formatStr);
+                    
+                    // 检查是否是 AAC 格式（IJKPlayer 支持的格式）
+                    if (formatStr.toLowerCase().contains("aac")) {
+                        aacTrackIndices.add(i);
+                        Log.d(TAG, "找到 AAC 音频轨道: " + i);
+                    }
+                }
+            }
+
+            // 如果有首选音频轨道（从 API 获取的 AAC 轨道索引），直接使用
+            if (preferredAudioIndex >= 0) {
+                // 在 IJKPlayer 轨道列表中查找对应的轨道
+                for (int i = 0; i < trackInfos.length; i++) {
+                    tv.danmaku.ijk.media.player.misc.IjkTrackInfo track = trackInfos[i];
+                    if (track.getTrackType() == 2) {
+                        // IJKPlayer 的轨道索引可能与服务端返回的 index 不同
+                        // 尝试匹配 AAC 格式的轨道
+                        tv.danmaku.ijk.media.player.misc.IMediaFormat mediaFormat = track.getFormat();
+                        String formatStr = mediaFormat != null ? mediaFormat.toString() : "";
+                        if (formatStr.toLowerCase().contains("aac")) {
+                            if (currentAudioTrack != i) {
+                                Log.d(TAG, "切换到首选 AAC 音频轨道: " + i);
+                                ijkManager.selectTrack(i);
+                                currentAudioIndex = i;
+                                runOnUiThread(() -> {
+                                    ToastUtils.show(VideoPlayerActivity.this, "已自动切换到 AAC 音频");
+                                });
+                            }
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // 如果没有首选轨道，优先选择 AAC 轨道
+            if (!aacTrackIndices.isEmpty()) {
+                int aacTrack = aacTrackIndices.get(0);
+                if (currentAudioTrack != aacTrack) {
+                    Log.d(TAG, "切换到 AAC 音频轨道: " + aacTrack);
+                    ijkManager.selectTrack(aacTrack);
+                    currentAudioIndex = aacTrack;
+                    runOnUiThread(() -> {
+                        ToastUtils.show(VideoPlayerActivity.this, "已自动切换到 AAC 音频");
+                    });
+                }
+            } else if (audioTrackIndices.size() > 1) {
+                // 没有找到 AAC 轨道，尝试选择最后一个音频轨道（通常是兼容性更好的格式）
+                int lastAudioTrack = audioTrackIndices.get(audioTrackIndices.size() - 1);
+                Log.d(TAG, "未找到 AAC 轨道，尝试选择最后一个音频轨道: " + lastAudioTrack);
+                ijkManager.selectTrack(lastAudioTrack);
+                currentAudioIndex = lastAudioTrack;
+                runOnUiThread(() -> {
+                    ToastUtils.show(VideoPlayerActivity.this, "已自动切换音频轨道");
+                });
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "自动选择音频轨道失败", e);
+        }
+    }
+
+    /**
+     * 自动选择内嵌字幕轨道
+     * 如果服务端没有返回字幕流，但视频内嵌有字幕，自动启用
+     */
+    private void autoSelectSubtitleTrack() {
+        try {
+            // 如果已经有外挂字幕，不需要自动选择内嵌字幕
+            if (subtitleStreams != null && !subtitleStreams.isEmpty()) {
+                Log.d(TAG, "已有外挂字幕，跳过内嵌字幕自动选择");
+                return;
+            }
+
+            com.shuyu.gsyvideoplayer.player.IPlayerManager playerManager =
+                    com.shuyu.gsyvideoplayer.GSYVideoManager.instance().getPlayer();
+
+            if (!(playerManager instanceof com.shuyu.gsyvideoplayer.player.IjkPlayerManager)) {
+                return;
+            }
+
+            com.shuyu.gsyvideoplayer.player.IjkPlayerManager ijkManager =
+                    (com.shuyu.gsyvideoplayer.player.IjkPlayerManager) playerManager;
+
+            tv.danmaku.ijk.media.player.misc.IjkTrackInfo[] trackInfos = ijkManager.getTrackInfo();
+            if (trackInfos == null || trackInfos.length == 0) {
+                return;
+            }
+
+            // 查找字幕轨道
+            for (int i = 0; i < trackInfos.length; i++) {
+                tv.danmaku.ijk.media.player.misc.IjkTrackInfo track = trackInfos[i];
+                int trackType = track.getTrackType();
+                
+                // MEDIA_TRACK_TYPE_TIMEDTEXT = 3 或 MEDIA_TRACK_TYPE_SUBTITLE = 4
+                if (trackType == 3 || trackType == 4) {
+                    Log.d(TAG, "找到内嵌字幕轨道 " + i + ": " + track.getLanguage());
+                    
+                    // 选择第一个字幕轨道
+                    ijkManager.selectTrack(i);
+                    Log.d(TAG, "已自动选择内嵌字幕轨道: " + i);
+                    
+                    // 设置 TimedText 监听器
+                    setupTimedTextListener();
+                    
+                    runOnUiThread(() -> {
+                        ToastUtils.show(VideoPlayerActivity.this, "已启用内嵌字幕");
+                    });
+                    return;
+                }
+            }
+            
+            Log.d(TAG, "未找到内嵌字幕轨道");
+        } catch (Exception e) {
+            Log.e(TAG, "自动选择字幕轨道失败", e);
+        }
+    }
+
+    /**
      * 检查并显示解码器切换提示（备用方案）
      */
     private void checkAndShowDecoderToast() {
@@ -2759,6 +2964,115 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
         // GSYVideoPlayer + IJKPlayer 不支持字幕轨道控制
         Log.e(TAG, "Subtitle disabled (GSYVideoPlayer + IJKPlayer 不支持字幕轨道控制)");
+    }
+
+    /**
+     * 显示音频选择菜单
+     */
+    private void showAudioMenu() {
+        // 构建音频选项列表
+        java.util.List<String> options = new java.util.ArrayList<>();
+
+        if (audioStreams == null || audioStreams.isEmpty()) {
+            ToastUtils.show(this, "没有可用的音频轨道");
+            return;
+        }
+
+        for (int i = 0; i < audioStreams.size(); i++) {
+            com.mynas.nastv.model.StreamListResponse.AudioStream audio = audioStreams.get(i);
+            StringBuilder label = new StringBuilder();
+            
+            // 音频标题或语言
+            String title = audio.getTitle();
+            String language = audio.getLanguage();
+            if (title != null && !title.isEmpty()) {
+                label.append(title);
+            } else if (language != null && !language.isEmpty()) {
+                label.append(language);
+            } else {
+                label.append("音频 ").append(i + 1);
+            }
+            
+            // 音频格式
+            String audioType = audio.getAudioType();
+            if (audioType != null && !audioType.isEmpty()) {
+                label.append(" (").append(audioType.toUpperCase()).append(")");
+                // 标记不支持的格式
+                String lowerType = audioType.toLowerCase();
+                if (lowerType.contains("dts") || lowerType.contains("eac3") || lowerType.contains("truehd")) {
+                    label.append(" ⚠️");
+                }
+            }
+            
+            options.add(label.toString());
+        }
+
+        String[] audioOptions = options.toArray(new String[0]);
+        int checkedItem = currentAudioIndex >= 0 ? currentAudioIndex : 0;
+
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("音频选择")
+                .setSingleChoiceItems(audioOptions, checkedItem, (dialog, which) -> {
+                    selectAudioTrack(which);
+                    dialog.dismiss();
+                })
+                .show();
+    }
+
+    /**
+     * 选择音频轨道
+     */
+    private void selectAudioTrack(int index) {
+        if (audioStreams == null || index < 0 || index >= audioStreams.size()) {
+            return;
+        }
+
+        try {
+            com.shuyu.gsyvideoplayer.player.IPlayerManager playerManager =
+                    com.shuyu.gsyvideoplayer.GSYVideoManager.instance().getPlayer();
+
+            if (!(playerManager instanceof com.shuyu.gsyvideoplayer.player.IjkPlayerManager)) {
+                ToastUtils.show(this, "当前播放器不支持音频切换");
+                return;
+            }
+
+            com.shuyu.gsyvideoplayer.player.IjkPlayerManager ijkManager =
+                    (com.shuyu.gsyvideoplayer.player.IjkPlayerManager) playerManager;
+
+            tv.danmaku.ijk.media.player.misc.IjkTrackInfo[] trackInfos = ijkManager.getTrackInfo();
+            if (trackInfos == null || trackInfos.length == 0) {
+                ToastUtils.show(this, "无法获取轨道信息");
+                return;
+            }
+
+            // 查找所有音频轨道
+            java.util.List<Integer> audioTrackIndices = new java.util.ArrayList<>();
+            for (int i = 0; i < trackInfos.length; i++) {
+                if (trackInfos[i].getTrackType() == 2) { // MEDIA_TRACK_TYPE_AUDIO = 2
+                    audioTrackIndices.add(i);
+                }
+            }
+
+            if (index < audioTrackIndices.size()) {
+                int trackIndex = audioTrackIndices.get(index);
+                ijkManager.selectTrack(trackIndex);
+                currentAudioIndex = index;
+                
+                com.mynas.nastv.model.StreamListResponse.AudioStream audio = audioStreams.get(index);
+                String audioType = audio.getAudioType();
+                String msg = "已切换到: " + (audio.getTitle() != null ? audio.getTitle() : "音频 " + (index + 1));
+                if (audioType != null) {
+                    msg += " (" + audioType.toUpperCase() + ")";
+                }
+                ToastUtils.show(this, msg);
+                Log.d(TAG, "切换音频轨道: index=" + index + ", trackIndex=" + trackIndex);
+            } else {
+                ToastUtils.show(this, "音频轨道索引无效");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "切换音频轨道失败: " + e.getMessage());
+            ToastUtils.show(this, "切换音频失败");
+        }
     }
 
     private boolean isDanmakuEnabled = true;

@@ -548,9 +548,9 @@ public class OkHttpProxyCacheManager implements ICacheManager {
 
     /**
      * 智能预缓存：根据播放位置提前缓存
+     * 修复：当播放位置远离当前预缓存范围时，中断并重新开始
      */
     private void triggerSmartPrefetch(int playbackChunk) {
-        if (isPrefetching.get()) return;
         if (currentContentLength <= 0) return;
         
         int totalChunks = (int) Math.ceil((double) currentContentLength / CHUNK_SIZE);
@@ -566,9 +566,24 @@ public class OkHttpProxyCacheManager implements ICacheManager {
         if (cachedAhead < PREFETCH_TRIGGER_CHUNKS) {
             int newTarget = Math.min(playbackChunk + PREFETCH_AHEAD_CHUNKS, totalChunks);
             if (newTarget > playbackChunk) {
-                Log.d(TAG, "Smart prefetch triggered: playback=" + playbackChunk + 
-                      ", cachedAhead=" + cachedAhead + ", target=" + newTarget);
-                startSmartPrefetch(playbackChunk, newTarget);
+                // 如果当前正在预缓存，检查是否需要中断
+                // 如果播放位置远离当前预缓存目标（超过 PREFETCH_AHEAD_CHUNKS），则中断并重新开始
+                int currentTarget = prefetchTargetChunk.get();
+                boolean needInterrupt = isPrefetching.get() && 
+                    (playbackChunk > currentTarget || playbackChunk < currentTarget - PREFETCH_AHEAD_CHUNKS * 2);
+                
+                if (needInterrupt) {
+                    Log.d(TAG, "Smart prefetch interrupted: playback=" + playbackChunk + 
+                          ", currentTarget=" + currentTarget + ", newTarget=" + newTarget);
+                    // 强制重置预缓存状态，让新的预缓存可以开始
+                    isPrefetching.set(false);
+                }
+                
+                if (!isPrefetching.get()) {
+                    Log.d(TAG, "Smart prefetch triggered: playback=" + playbackChunk + 
+                          ", cachedAhead=" + cachedAhead + ", target=" + newTarget);
+                    startSmartPrefetch(playbackChunk, newTarget);
+                }
             }
         }
     }
@@ -578,11 +593,22 @@ public class OkHttpProxyCacheManager implements ICacheManager {
      */
     private void startSmartPrefetch(int startChunk, int endChunk) {
         if (isPrefetching.compareAndSet(false, true)) {
+            // 更新预缓存目标，用于判断是否需要中断
+            prefetchTargetChunk.set(endChunk);
+            
             proxyExecutor.submit(() -> {
                 try {
                     int downloaded = 0;
+                    int currentTarget = prefetchTargetChunk.get();
                     
                     for (int i = startChunk; i < endChunk && isProxyRunning.get(); i++) {
+                        // 检查预缓存目标是否已改变（被中断）
+                        if (prefetchTargetChunk.get() != currentTarget) {
+                            Log.d(TAG, "Smart prefetch aborted: target changed from " + 
+                                  currentTarget + " to " + prefetchTargetChunk.get());
+                            break;
+                        }
+                        
                         if (!cachedChunks.containsKey(i)) {
                             if (!checkDiskSpaceForChunk()) {
                                 Log.w(TAG, "磁盘空间不足，停止智能预缓存");

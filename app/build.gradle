@@ -78,12 +78,13 @@ dependencies {
         exclude group: 'com.github.CarGuo.GSYVideoPlayer', module: 'gsyvideoplayer-ex_so'
     }
     
-    // 📝 Media3 ExoPlayer（用于内嵌字幕支持）
-    implementation 'androidx.media3:media3-exoplayer:1.2.1'
-    implementation 'androidx.media3:media3-exoplayer-dash:1.2.1'
-    implementation 'androidx.media3:media3-exoplayer-hls:1.2.1'
-    implementation 'androidx.media3:media3-datasource-okhttp:1.2.1'
-    implementation 'androidx.media3:media3-common:1.2.1'
+    // 📝 Media3 ExoPlayer（用于内嵌字幕和 HDR 支持）
+    // 升级到 1.3.1 以获得更好的 HDR 色调映射支持，修复偏黄问题
+    implementation 'androidx.media3:media3-exoplayer:1.3.1'
+    implementation 'androidx.media3:media3-exoplayer-dash:1.3.1'
+    implementation 'androidx.media3:media3-exoplayer-hls:1.3.1'
+    implementation 'androidx.media3:media3-datasource-okhttp:1.3.1'
+    implementation 'androidx.media3:media3-common:1.3.1'
     
     // 🔗 网络请求
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'

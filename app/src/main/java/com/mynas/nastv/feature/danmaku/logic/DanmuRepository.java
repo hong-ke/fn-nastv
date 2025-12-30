@@ -64,10 +64,12 @@ public class DanmuRepository {
      * 如果传入 guid 但数据库没有记录，服务器会返回空数据
      */
     public void fetchDanmaku(String title, int episode, int season, String guid, String parentGuid, RepositoryCallback callback) {
-        Log.d(TAG, "Fetching danmaku for title=" + title + ", s" + season + "e" + episode);
+        // 清理标题：去除前后空格，避免匹配失败
+        String cleanTitle = title != null ? title.trim() : "";
+        Log.d(TAG, "Fetching danmaku for title=[" + cleanTitle + "] (original=[" + title + "]), s" + season + "e" + episode + ", guid=" + guid + ", parentGuid=" + parentGuid);
         
-        if (title == null || title.isEmpty()) {
-            Log.w(TAG, "title is empty, skipping danmaku fetch");
+        if (cleanTitle == null || cleanTitle.isEmpty()) {
+            Log.w(TAG, "title is empty after trim, skipping danmaku fetch. Original title=[" + title + "]");
             notifyError(callback, new IllegalArgumentException("title is empty"));
             return;
         }
@@ -75,8 +77,11 @@ public class DanmuRepository {
         try {
             // 使用弹幕专用 API 服务 (独立的弹幕服务器)
             // 不传 guid/parent_guid，直接用 title 搜索弹幕
+            // 使用清理后的标题
             Call<Map<String, List<DanmakuMapResponse.DanmakuItem>>> call = 
-                ApiClient.getDanmuApiService().getDanmakuMap(title, season, episode);
+                ApiClient.getDanmuApiService().getDanmakuMap(cleanTitle, season, episode);
+            
+            Log.d(TAG, "API Request: title=[" + cleanTitle + "], season=" + season + ", episode=" + episode);
             
             call.enqueue(new Callback<Map<String, List<DanmakuMapResponse.DanmakuItem>>>() {
                 @Override
@@ -91,7 +96,13 @@ public class DanmuRepository {
                             if (list != null) rawCount += list.size();
                         }
                         final int finalRawCount = rawCount;
-                        Log.d(TAG, "Danmaku API success, got " + rawCount + " raw danmaku items");
+                        Log.d(TAG, "Danmaku API success for title=[" + cleanTitle + "], got " + rawCount + " raw danmaku items");
+                        
+                        // 如果返回 0 条弹幕，记录警告
+                        if (rawCount == 0) {
+                            Log.w(TAG, "No danmaku found for title=[" + cleanTitle + "], season=" + season + ", episode=" + episode + 
+                                  ". Possible reasons: 1) Title mismatch, 2) No danmaku data for this video, 3) Server-side issue");
+                        }
                         
                         // Process in background
                         backgroundExecutor.execute(() -> {

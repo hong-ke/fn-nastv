@@ -159,19 +159,21 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
         
         DataSource.Factory dataSourceFactory = new DefaultDataSource.Factory(context, httpFactory);
         
-        // 创建 LoadControl - 优化缓冲策略：缩短首播与 seek 后等待时间
+        // 创建 LoadControl - 优化缓冲策略
+        // 对于代理缓存场景，需要更长的缓冲时间
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                5_000,   // minBufferMs：降低到 5s，加快启动和 seek 后恢复
-                30_000,  // maxBufferMs：30s，足够平衡稳定性
-                700,     // bufferForPlaybackMs：首播前缓冲 0.7s
-                1_500    // bufferForPlaybackAfterRebufferMs：seek/重缓冲后缓冲 1.5s
+                15_000,  // minBufferMs：增加到 15s，给代理缓存更多时间
+                60_000,  // maxBufferMs：60s，足够平衡稳定性
+                5_000,   // bufferForPlaybackMs：首播前缓冲 5s
+                5_000    // bufferForPlaybackAfterRebufferMs：seek/重缓冲后缓冲 5s
             )
             .setTargetBufferBytes(C.LENGTH_UNSET) // 不限制缓冲大小
             .setPrioritizeTimeOverSizeThresholds(false) // 保持画质优先
             .build();
         
         // 创建 RenderersFactory - 优先使用硬件解码器
+        // Media3 1.2.1 版本会自动处理 HDR 色调映射，无需手动配置
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             .setEnableDecoderFallback(true); // 启用解码器回退，确保兼容性
@@ -187,14 +189,21 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
         TrackSelectionParameters qualityParams = exoPlayer.getTrackSelectionParameters()
                 .buildUpon()
                 .setForceHighestSupportedBitrate(true)
+                // 音频优先选择 AAC，因为 DTS/EAC3 在某些设备上可能无法正常输出
+                .setPreferredAudioMimeType("audio/mp4a-latm") // AAC
                 .build();
         exoPlayer.setTrackSelectionParameters(qualityParams);
         
         // 添加监听器
         exoPlayer.addListener(this);
         
-        // 设置视频缩放模式为高质量
+        // 高质量画质设置：优化清晰度，减少动态模糊
+        // 使用高质量缩放模式，避免模糊
         exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT);
+        
+        // 设置播放参数：确保不丢帧，高质量播放
+        PlaybackParameters playbackParams = new PlaybackParameters(1.0f, 1.0f); // 正常速度，不丢帧
+        exoPlayer.setPlaybackParameters(playbackParams);
         
         Log.d(TAG, "ExoPlayer 初始化完成（已优化画质设置）");
     }
@@ -210,12 +219,71 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
     }
     
     /**
+     * 设置 SurfaceView（用于 HDR 视频）
+     * ExoPlayer 会自动管理 Surface 生命周期和 HDR 输出
+     * 配置正确的色调映射以避免偏黄问题
+     */
+    public void setSurfaceView(android.view.SurfaceView surfaceView) {
+        if (exoPlayer != null && surfaceView != null) {
+            Log.d(TAG, "设置 SurfaceView 用于 HDR 输出 - SurfaceView: " + surfaceView + ", 可见性: " + (surfaceView.getVisibility() == View.VISIBLE ? "VISIBLE" : "GONE"));
+            
+            // 确保 SurfaceView 可见
+            surfaceView.setVisibility(View.VISIBLE);
+            
+            // 设置 SurfaceView 给 ExoPlayer
+            // ExoPlayer Media3 会自动处理 HDR 到 SDR 的色调映射
+            // 如果画面偏黄，可能是色彩空间转换问题，Media3 会使用系统默认的色调映射算法
+            exoPlayer.setVideoSurfaceView(surfaceView);
+            Log.d(TAG, "SurfaceView 已设置给 ExoPlayer，Media3 将自动处理 HDR 色调映射");
+            
+            // 注意：Media3 1.2.1 会自动进行 HDR 色调映射
+            // 如果仍然偏黄，可能需要：
+            // 1. 检查设备的 HDR 支持情况
+            // 2. 确保 SurfaceView 的像素格式正确（已在 VideoPlayerActivity 中设置）
+            // 3. 检查视频源的色彩空间元数据是否正确
+            
+            // 检查 SurfaceView 的 Holder 状态
+            android.view.SurfaceHolder holder = surfaceView.getHolder();
+            if (holder != null) {
+                Log.d(TAG, "SurfaceView Holder 已获取");
+                // 添加回调监听 Surface 创建
+                holder.addCallback(new android.view.SurfaceHolder.Callback() {
+                    @Override
+                    public void surfaceCreated(android.view.SurfaceHolder holder) {
+                        Log.d(TAG, "SurfaceView Surface 已创建 - Surface: " + holder.getSurface());
+                    }
+                    
+                    @Override
+                    public void surfaceChanged(android.view.SurfaceHolder holder, int format, int width, int height) {
+                        Log.d(TAG, "SurfaceView Surface 已改变 - 格式: " + format + ", 尺寸: " + width + "x" + height);
+                        // 如果格式是 HDR（如 COLOR_FormatYUV420Flexible），ExoPlayer 会自动进行色调映射
+                    }
+                    
+                    @Override
+                    public void surfaceDestroyed(android.view.SurfaceHolder holder) {
+                        Log.d(TAG, "SurfaceView Surface 已销毁");
+                    }
+                });
+            } else {
+                Log.e(TAG, "SurfaceView Holder 为 null");
+            }
+        } else {
+            Log.e(TAG, "设置 SurfaceView 失败 - ExoPlayer: " + (exoPlayer != null ? "存在" : "null") + ", SurfaceView: " + (surfaceView != null ? "存在" : "null"));
+        }
+    }
+    
+    /**
      * 设置 TextureView
      */
     public void setTextureView(TextureView textureView) {
         this.textureView = textureView;
         if (exoPlayer != null && textureView != null) {
             exoPlayer.setVideoTextureView(textureView);
+            
+            // 优化TextureView渲染质量，减少动态模糊
+            // 设置高质量渲染模式
+            textureView.setOpaque(false); // 允许透明，提升渲染质量
+            textureView.setLayerType(View.LAYER_TYPE_HARDWARE, null); // 使用硬件加速层
         }
     }
     

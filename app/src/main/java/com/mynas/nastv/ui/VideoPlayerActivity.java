@@ -128,6 +128,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private com.mynas.nastv.player.ExoPlayerKernel exoPlayerKernel;
     private boolean useExoPlayerForSubtitle = false;
     private android.view.TextureView exoTextureView;
+    private android.view.SurfaceView exoSurfaceView; // HDR 视频使用 SurfaceView
+    private boolean isHdrMode = false; // 标记是否为 HDR 模式
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -215,9 +217,43 @@ public class VideoPlayerActivity extends AppCompatActivity {
         streamListManager.setCallback(new StreamListManager.StreamListCallback() {
             @Override
             public void onStreamListLoaded(com.mynas.nastv.model.StreamListResponse.StreamData data) {
-                // 处理音频流
+                // 先处理音频流（无论是否切换播放器都需要）
                 if (data != null && data.getAudioStreams() != null) {
+                    audioStreams = data.getAudioStreams();
                     audioTrackManager.loadAudioStreams(episodeGuid != null ? episodeGuid : mediaGuid);
+                }
+                
+                // 检测 HDR 视频，如果是 HDR 则切换到 ExoPlayer
+                // 必须在处理字幕流之前检测，因为切换播放器会重新加载视频
+                if (data != null && !useExoPlayerForSubtitle) {
+                    boolean isHdr = false;
+                    
+                    // 方法1：从视频流信息检测 HDR
+                    if (data.getVideoStreams() != null) {
+                        for (com.mynas.nastv.model.StreamListResponse.VideoStream video : data.getVideoStreams()) {
+                            if (isHdrVideo(video)) {
+                                isHdr = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // 方法2：从文件名检测 HDR（当服务端未正确解析视频元数据时）
+                    if (!isHdr && data.getFiles() != null) {
+                        for (com.mynas.nastv.model.StreamListResponse.FileStream file : data.getFiles()) {
+                            if (isHdrFromFileName(file.getPath())) {
+                                Log.d(TAG, "从文件名检测到 HDR 视频: " + file.getPath());
+                                isHdr = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (isHdr) {
+                        Log.d(TAG, "检测到 HDR 视频，切换到 ExoPlayer");
+                        switchToExoPlayerForHdr();
+                        return; // 切换播放器后不需要处理字幕流
+                    }
                 }
                 
                 // 处理字幕流
@@ -269,6 +305,12 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
         Log.d(TAG, "Data Initialized: " + mediaTitle + ", URL: " + videoUrl);
         Log.d(TAG, "Danmaku Params: title=" + tvTitle + ", s" + seasonNumber + "e" + episodeNumber + ", guid=" + episodeGuid + ", parentGuid=" + parentGuid);
+        Log.d(TAG, "Danmaku Params Detail: tvTitle=" + (tvTitle != null ? tvTitle : "NULL") + 
+              ", mediaTitle=" + (mediaTitle != null ? mediaTitle : "NULL") +
+              ", episodeNumber=" + episodeNumber + 
+              ", seasonNumber=" + seasonNumber +
+              ", episodeGuid=" + (episodeGuid != null ? episodeGuid : "NULL") +
+              ", parentGuid=" + (parentGuid != null ? parentGuid : "NULL"));
     }
 
     /**
@@ -284,6 +326,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
             // 更新当前剧集信息
             episodeNumber = episode.getEpisodeNumber();
+            seasonNumber = episode.getSeasonNumber(); // 更新季号
             episodeGuid = episode.getGuid();
             videoGuid = playInfo.getVideoGuid();
             audioGuid = playInfo.getAudioGuid();
@@ -292,6 +335,20 @@ public class VideoPlayerActivity extends AppCompatActivity {
             // 更新标题
             String newTitle = episode.getTitle() != null ? episode.getTitle() : "第" + episode.getEpisodeNumber() + "集";
             mediaTitle = newTitle;
+            
+            // 重要：确保 tvTitle 不为空，如果为空则使用 mediaTitle 作为后备
+            // tvTitle 是弹幕搜索的关键参数，必须有效
+            if (tvTitle == null || tvTitle.isEmpty()) {
+                Log.w(TAG, "handleEpisodeLoaded: tvTitle is empty, using mediaTitle as fallback");
+                tvTitle = mediaTitle;
+            }
+            
+            Log.d(TAG, "handleEpisodeLoaded: Updated params - tvTitle=" + tvTitle + 
+                  ", mediaTitle=" + mediaTitle + 
+                  ", s" + seasonNumber + "e" + episodeNumber + 
+                  ", episodeGuid=" + episodeGuid + 
+                  ", parentGuid=" + parentGuid);
+            
             updateTitleDisplay();
 
             // 重置恢复位置
@@ -333,16 +390,16 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     isPlayerReady = false;
                 }
 
-                // 重新初始化播放器
-                if (playerView != null) {
-                    playerView.setVisibility(View.VISIBLE);
-                }
-                initializePlayer();
+            // 重新初始化播放器
+            if (playerView != null) {
+                playerView.setVisibility(View.VISIBLE);
+            }
+            initializePlayer();
 
-                // 播放新视频
-                showLoading("加载中...");
-                videoUrl = playInfo.getPlayUrl();
-                playMedia(videoUrl);
+            // 播放新视频
+            showLoading("加载中...");
+            videoUrl = playInfo.getPlayUrl();
+            playMedia(videoUrl);
             }
 
             hideSettingsMenu();
@@ -372,9 +429,15 @@ public class VideoPlayerActivity extends AppCompatActivity {
         }
         
         // 加载弹幕
-        if (danmuController != null && tvTitle != null && !tvTitle.isEmpty()) {
-            Log.d(TAG, "Loading danmaku for ExoPlayer: title=" + tvTitle + ", s" + seasonNumber + "e" + episodeNumber);
-            danmuController.loadDanmaku(tvTitle, episodeNumber, seasonNumber, episodeGuid, parentGuid);
+        if (danmuController != null) {
+            if (tvTitle != null && !tvTitle.isEmpty()) {
+                Log.d(TAG, "Loading danmaku for ExoPlayer: title=" + tvTitle + ", s" + seasonNumber + "e" + episodeNumber + ", guid=" + episodeGuid + ", parentGuid=" + parentGuid);
+                danmuController.loadDanmaku(tvTitle, episodeNumber, seasonNumber, episodeGuid, parentGuid);
+            } else {
+                Log.w(TAG, "Cannot load danmaku: tvTitle is empty or null. tvTitle=" + tvTitle + ", mediaTitle=" + mediaTitle);
+            }
+        } else {
+            Log.w(TAG, "Cannot load danmaku: danmuController is null");
         }
         
         // 加载流列表（音频流和字幕流）
@@ -386,6 +449,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
     private void initializeViews() {
         playerView = findViewById(R.id.player_view);
+        // IJK 播放器渲染视图：启用硬件加速层，提升清晰度，减少动态模糊
+        if (playerView != null) {
+            playerView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        }
         posterImageView = findViewById(R.id.poster_image);
         topInfoContainer = findViewById(R.id.top_info_container);
         titleText = findViewById(R.id.title_text);
@@ -398,7 +465,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
         // 为 GSYVideoPlayer 应用饱和度增强滤镜
         if (playerView != null) {
-            applySaturationFilter(playerView, 1.05f); // 增加5%饱和度，轻微增强颜色
+            applySaturationFilter(playerView, 1.0f); // 饱和度100%，不调整
         }
 
         // 初始化辅助类
@@ -612,7 +679,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             if (ijkSupportsFormat) {
                 // ASS/SSA 格式，IJKPlayer 可以处理
                 Log.e(TAG, "Internal subtitle format supported by IJKPlayer: " + format);
-            } else {
+                            } else {
                 // subrip/srt 等格式，切换到 ExoPlayer
                 Log.e(TAG, "Internal subtitle format NOT supported by IJKPlayer: " + format + ", switching to ExoPlayer");
                 switchToExoPlayerForInternalSubtitle();
@@ -622,63 +689,284 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
     private void initializePlayer() {
         try {
-            // 初始化 IJKPlayer 内核
-            Log.d(TAG, "Initializing IJKPlayer kernel");
+            // ==================== 默认使用 ExoPlayer ====================
+            // 初始化 ExoPlayer 内核（默认播放器）
+            Log.d(TAG, "Initializing ExoPlayer kernel (default player)");
+            
+            // 标记使用 ExoPlayer
+            useExoPlayerForSubtitle = true;
+            
+            // 创建 ExoPlayer 的 TextureView
+            if (exoTextureView == null) {
+                exoTextureView = new android.view.TextureView(this);
+                
+                // 应用饱和度增强滤镜
+                applySaturationFilter(exoTextureView, 1.0f); // 饱和度100%，不调整
+                
+                // 优化TextureView渲染质量
+                exoTextureView.setOpaque(false);
+                exoTextureView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+                
+                // 添加到根布局
+                android.view.ViewGroup rootView = (android.view.ViewGroup) findViewById(android.R.id.content);
+                if (rootView != null && rootView.getChildCount() > 0) {
+                    android.view.ViewGroup mainLayout = (android.view.ViewGroup) rootView.getChildAt(0);
+                    
+                    // 找到 playerView 的索引位置
+                    int playerViewIndex = -1;
+                    for (int i = 0; i < mainLayout.getChildCount(); i++) {
+                        if (mainLayout.getChildAt(i) == playerView) {
+                            playerViewIndex = i;
+                            break;
+                        }
+                    }
+                    
+                    android.widget.RelativeLayout.LayoutParams params = new android.widget.RelativeLayout.LayoutParams(
+                            android.widget.RelativeLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.RelativeLayout.LayoutParams.MATCH_PARENT
+                    );
+                    
+                    if (playerViewIndex >= 0) {
+                        mainLayout.addView(exoTextureView, playerViewIndex, params);
+                    } else {
+                        mainLayout.addView(exoTextureView, 1, params);
+                    }
+                    Log.d(TAG, "ExoPlayer TextureView 已添加到主布局（索引=" + playerViewIndex + "）");
+                }
+            }
+            exoTextureView.setVisibility(View.VISIBLE);
+            
+            // 隐藏 GSYVideoPlayer（IJKPlayer 的容器）
+            if (playerView != null) {
+                playerView.setVisibility(View.GONE);
+            }
+            
+            // 初始化 ExoPlayer 内核
+            if (exoPlayerKernel == null) {
+                exoPlayerKernel = new com.mynas.nastv.player.ExoPlayerKernel(this);
+                currentPlayerKernel = exoPlayerKernel;
+                Log.d(TAG, "currentPlayerKernel 已设置为 ExoPlayerKernel（默认播放器）");
+                
+                // 设置字幕回调
+                exoPlayerKernel.setSubtitleCallback(cues -> {
+                    runOnUiThread(() -> {
+                        if (subtitleTextView != null) {
+                            if (cues != null && !cues.isEmpty()) {
+                                StringBuilder sb = new StringBuilder();
+                                for (androidx.media3.common.text.Cue cue : cues) {
+                                    if (cue.text != null) {
+                                        String cueText = cue.text.toString();
+                                        if (isAssDrawingCommand(cueText)) {
+                                            continue;
+                                        }
+                                        if (sb.length() > 0) sb.append("\n");
+                                        sb.append(cueText);
+                                    }
+                                }
+                                String text = sb.toString();
+                                if (!text.isEmpty()) {
+                                    subtitleTextView.setText(text);
+                                    subtitleTextView.setVisibility(View.VISIBLE);
+                                } else {
+                                    subtitleTextView.setVisibility(View.GONE);
+                                }
+                            } else {
+                                subtitleTextView.setVisibility(View.GONE);
+                            }
+                        }
+                    });
+                });
+                
+                // 设置播放器回调
+                exoPlayerKernel.setPlayerCallback(new com.mynas.nastv.player.ExoPlayerKernel.PlayerCallback() {
+                    @Override
+                    public void onPrepared() {
+                        Log.d(TAG, "ExoPlayer onPrepared");
+                        runOnUiThread(() -> {
+                            isPlayerReady = true;
+                            showPlayer();
+                            hideBufferingIndicator();
+                            
+                            // 启动弹幕
+                            if (danmuController != null) {
+                                danmuController.startPlayback();
+                                startPositionUpdateForExo();
+                            }
+                            
+                            // 启动播放进度记录
+                            if (progressRecorder != null && !progressRecorder.isRecording()) {
+                                String itemGuid = episodeGuid != null ? episodeGuid : mediaGuid;
+                                progressRecorder.startRecording(itemGuid, mediaGuid);
+                                progressRecorder.setStreamGuids(videoGuid, audioGuid, null);
+                            }
+                            
+                            // 恢复播放位置
+                            if (resumePositionSeconds > 0) {
+                                long resumePositionMs = resumePositionSeconds * 1000;
+                                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                    if (exoPlayerKernel != null) {
+                                        exoPlayerKernel.seekTo(resumePositionMs);
+                                    }
+                                }, 500);
+                                resumePositionSeconds = 0;
+                            } else {
+                                // 跳过片头
+                                int skipIntro = SharedPreferencesManager.getSkipIntro();
+                                if (skipIntro > 0 && !hasSkippedIntro) {
+                                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                        if (exoPlayerKernel != null) {
+                                            exoPlayerKernel.seekTo(skipIntro * 1000L);
+                                        }
+                                    }, 500);
+                                    hasSkippedIntro = true;
+                                }
+                            }
+                            
+                            // 延迟自动选择音频轨道
+                            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                if (exoPlayerKernel != null && audioTrackManager != null) {
+                                    audioTrackManager.autoSelectAudioTrack(exoPlayerKernel);
+                                }
+                            }, 1000);
+                        });
+                    }
+                    
+                    @Override
+                    public void onError(String error) {
+                        Log.e(TAG, "ExoPlayer error: " + error);
+                        runOnUiThread(() -> showError("播放错误: " + error));
+                    }
+                    
+                    @Override
+                    public void onCompletion() {
+                        Log.d(TAG, "ExoPlayer onCompletion");
+                        runOnUiThread(() -> {
+                            if (SharedPreferencesManager.isAutoPlayNext() && episodeController != null && episodeController.hasEpisodeList()) {
+                                episodeController.playNextEpisodeAuto();
+                            } else {
+                                finish();
+                            }
+                        });
+                    }
+                    
+                    @Override
+                    public void onBuffering(boolean isBuffering) {
+                        runOnUiThread(() -> {
+                            if (isBuffering && isPlayerReady) {
+                                showBufferingIndicator();
+                            } else {
+                                hideBufferingIndicator();
+                            }
+                        });
+                    }
+                    
+                    @Override
+                    public void onVideoSizeChanged(int width, int height) {
+                        Log.d(TAG, "ExoPlayer video size: " + width + "x" + height);
+                        runOnUiThread(() -> adjustTextureViewAspectRatio(width, height));
+                    }
+                });
+            }
+            
+            // 初始化播放器
+            Map<String, String> headers = new HashMap<>();
+            exoPlayerKernel.init(headers);
+            
+            // 设置 TextureView 的 SurfaceTextureListener
+            if (exoTextureView.getSurfaceTextureListener() == null) {
+                exoTextureView.setSurfaceTextureListener(new android.view.TextureView.SurfaceTextureListener() {
+                    @Override
+                    public void onSurfaceTextureAvailable(android.graphics.SurfaceTexture surface, int width, int height) {
+                        Log.d(TAG, "ExoPlayer Surface 可用");
+                        android.view.Surface videoSurface = new android.view.Surface(surface);
+                        exoPlayerKernel.setSurface(videoSurface);
+                    }
+                    
+                    @Override
+                    public void onSurfaceTextureSizeChanged(android.graphics.SurfaceTexture surface, int width, int height) {
+                    }
+                    
+                    @Override
+                    public boolean onSurfaceTextureDestroyed(android.graphics.SurfaceTexture surface) {
+                        return true;
+                    }
+                    
+                    @Override
+                    public void onSurfaceTextureUpdated(android.graphics.SurfaceTexture surface) {
+                    }
+                });
+            }
+            
+            // 如果 Surface 已经可用，直接设置
+            if (exoTextureView.isAvailable()) {
+                android.view.Surface videoSurface = new android.view.Surface(exoTextureView.getSurfaceTexture());
+                exoPlayerKernel.setSurface(videoSurface);
+            }
+            
+            // 隐藏 GSYVideoPlayer 内置的 loading 视图
+            hideGSYBuiltInLoading();
+            
+            Log.d(TAG, "ExoPlayer 内核初始化完成（默认播放器）");
+            
+            // ==================== IJKPlayer 代码保留（备用，暂不使用） ====================
+            /*
+            // 初始化 IJKPlayer 内核（备用）
+            Log.d(TAG, "Initializing IJKPlayer kernel (backup, not used)");
             
             if (ijkPlayerKernel == null) {
                 ijkPlayerKernel = new IjkPlayerKernel(this, playerView);
                 ijkPlayerKernel.setPlayerCallback(new PlayerKernel.PlayerCallback() {
-                    @Override
+                        @Override
                     public void onPrepared() {
                         Log.d(TAG, "IJKPlayer onPrepared");
-                        isPlayerReady = true;
-                        showPlayer();
-                        hideBufferingIndicator();
-                        
-                        if (playerView != null) {
-                            playerView.setVisibility(View.VISIBLE);
-                            playerView.getBackButton().setVisibility(View.GONE);
-                            playerView.getFullscreenButton().setVisibility(View.GONE);
-                            playerView.getStartButton().setVisibility(View.GONE);
+                            isPlayerReady = true;
+                            showPlayer();
+                            hideBufferingIndicator();
+
+                            if (playerView != null) {
+                                playerView.setVisibility(View.VISIBLE);
+                                playerView.getBackButton().setVisibility(View.GONE);
+                                playerView.getFullscreenButton().setVisibility(View.GONE);
+                                playerView.getStartButton().setVisibility(View.GONE);
                         }
                         
                         // 启动弹幕
-                        if (danmuController != null) {
-                            danmuController.startPlayback();
-                            startPositionUpdate();
-                        }
-                        
-                        // 启动播放进度记录
-                        if (progressRecorder != null && !progressRecorder.isRecording()) {
-                            String itemGuid = episodeGuid != null ? episodeGuid : mediaGuid;
-                            progressRecorder.startRecording(itemGuid, mediaGuid);
-                            progressRecorder.setStreamGuids(videoGuid, audioGuid, null);
-                        }
-                        
+                            if (danmuController != null) {
+                                danmuController.startPlayback();
+                                startPositionUpdate();
+                            }
+
+                            // 启动播放进度记录
+                            if (progressRecorder != null && !progressRecorder.isRecording()) {
+                                String itemGuid = episodeGuid != null ? episodeGuid : mediaGuid;
+                                progressRecorder.startRecording(itemGuid, mediaGuid);
+                                progressRecorder.setStreamGuids(videoGuid, audioGuid, null);
+                            }
+
                         // 恢复播放位置
-                        if (resumePositionSeconds > 0) {
-                            long resumePositionMs = resumePositionSeconds * 1000;
-                            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                            if (resumePositionSeconds > 0) {
+                                long resumePositionMs = resumePositionSeconds * 1000;
+                                new Handler(Looper.getMainLooper()).postDelayed(() -> {
                                 if (ijkPlayerKernel != null) {
                                     ijkPlayerKernel.seekTo(resumePositionMs);
-                                }
-                            }, 500);
-                            resumePositionSeconds = 0;
-                        } else {
-                            // 跳过片头
-                            int skipIntro = SharedPreferencesManager.getSkipIntro();
-                            if (skipIntro > 0 && !hasSkippedIntro) {
-                                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                                    if (ijkPlayerKernel != null) {
-                                        ijkPlayerKernel.seekTo(skipIntro * 1000L);
                                     }
                                 }, 500);
-                                hasSkippedIntro = true;
+                                resumePositionSeconds = 0;
+                            } else {
+                            // 跳过片头
+                                int skipIntro = SharedPreferencesManager.getSkipIntro();
+                                if (skipIntro > 0 && !hasSkippedIntro) {
+                                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                    if (ijkPlayerKernel != null) {
+                                        ijkPlayerKernel.seekTo(skipIntro * 1000L);
+                                        }
+                                    }, 500);
+                                    hasSkippedIntro = true;
+                                }
                             }
-                        }
-                        
+
                         // 延迟自动选择音频轨道和检测内嵌字幕
-                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                            new Handler(Looper.getMainLooper()).postDelayed(() -> {
                             if (ijkPlayerKernel != null && audioTrackManager != null) {
                                 audioTrackManager.autoSelectAudioTrack(ijkPlayerKernel);
                             }
@@ -686,11 +974,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             // 如果有内嵌字幕，切换到 ExoPlayer（因为 IJKPlayer 对 subrip 支持有限）
                             if ((subtitleStreams == null || subtitleStreams.isEmpty()) && !useExoPlayerForSubtitle) {
                                 checkAndSwitchToExoForInternalSubtitle();
-                            }
-                        }, 1000);
-                    }
-                    
-                    @Override
+                                }
+                            }, 1000);
+                        }
+
+                        @Override
                     public void onError(String error) {
                         Log.e(TAG, "IJKPlayer error: " + error);
                         // 解码器自动降级
@@ -709,45 +997,45 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             return;
                         }
                         showError("播放错误: " + error);
-                    }
-                    
-                    @Override
+                        }
+
+                        @Override
                     public void onCompletion() {
                         Log.d(TAG, "IJKPlayer onCompletion");
-                        if (SharedPreferencesManager.isAutoPlayNext() && episodeController != null && episodeController.hasEpisodeList()) {
-                            episodeController.playNextEpisodeAuto();
-                        } else {
-                            finish();
+                            if (SharedPreferencesManager.isAutoPlayNext() && episodeController != null && episodeController.hasEpisodeList()) {
+                                episodeController.playNextEpisodeAuto();
+                            } else {
+                                finish();
+                            }
                         }
-                    }
-                    
-                    @Override
+
+                        @Override
                     public void onBuffering(boolean isBuffering) {
                         if (isBuffering && isPlayerReady) {
                             showBufferingIndicator();
                         } else {
                             hideBufferingIndicator();
                         }
-                    }
-                    
-                    @Override
+                        }
+
+                        @Override
                     public void onVideoSizeChanged(int width, int height) {
                         Log.d(TAG, "IJKPlayer video size: " + width + "x" + height);
-                    }
+                        }
                 });
-                
+
                 ijkPlayerKernel.setSubtitleCallback(new PlayerKernel.SubtitleCallback() {
-                    @Override
+                        @Override
                     public void onSubtitleChanged(List<androidx.media3.common.text.Cue> cues) {
                         // IJKPlayer 不使用这个回调
                     }
                     
                     // 标记是否已经检测过内嵌字幕
                     private boolean hasCheckedInternalSubtitle = false;
-                    
-                    @Override
+
+                        @Override
                     public void onTimedText(String text) {
-                        runOnUiThread(() -> {
+                                runOnUiThread(() -> {
                             // 首次收到内嵌字幕时，检查是否需要切换到 ExoPlayer
                             // 条件：服务端没有返回字幕流信息（数据未扫描完成）且当前没有使用外挂字幕
                             if (!hasCheckedInternalSubtitle && text != null && !text.isEmpty()) {
@@ -758,8 +1046,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
                                 if ((subtitleStreams == null || subtitleStreams.isEmpty()) && currentSubtitleIndex < 0) {
                                     Log.d(TAG, "IJKPlayer 检测到内嵌字幕，但服务端未返回字幕信息，切换到 ExoPlayer");
                                     switchToExoPlayerForInternalSubtitle();
-                                    return;
-                                }
+                                return;
+                            }
                             }
                             
                             if (subtitleTextView != null) {
@@ -783,6 +1071,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             
             // 隐藏 GSYVideoPlayer 内置的 loading 视图
             hideGSYBuiltInLoading();
+            */
 
         } catch (Exception e) {
             Log.e(TAG, "GSYVideoPlayer Init Failed", e);
@@ -931,11 +1220,20 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
             // 使用播放器内核播放
             Map<String, String> headers = createHeadersForUrl(url);
-            
+
             if (currentPlayerKernel == null) {
                 Log.e(TAG, "Player kernel not initialized");
                 showError("播放器未初始化");
                 return;
+            }
+            
+            // 如果是 ExoPlayer，确保 Surface 已设置
+            if (useExoPlayerForSubtitle && exoPlayerKernel != null && exoTextureView != null) {
+                if (exoTextureView.isAvailable()) {
+                    android.view.Surface videoSurface = new android.view.Surface(exoTextureView.getSurfaceTexture());
+                    exoPlayerKernel.setSurface(videoSurface);
+                    Log.d(TAG, "ExoPlayer Surface 已在 playMedia 中设置");
+                }
             }
             
             if (isDirectLink && cacheDir != null) {
@@ -950,12 +1248,21 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
             // Load Danmaku - 使用 title + season + episode + guid 获取弹幕
             if (danmuController != null) {
-                if (tvTitle != null && !tvTitle.isEmpty()) {
-                    Log.e(TAG, "Loading danmaku with title=" + tvTitle + ", s" + seasonNumber + "e" + episodeNumber);
-                    danmuController.loadDanmaku(tvTitle, episodeNumber, seasonNumber, episodeGuid, parentGuid);
-                } else {
-                    Log.w(TAG, "No valid title for danmaku, skipping. title=" + tvTitle);
+                // 确保 tvTitle 有效，如果为空则使用 mediaTitle 作为后备
+                String danmakuTitle = tvTitle;
+                if (danmakuTitle == null || danmakuTitle.isEmpty()) {
+                    Log.w(TAG, "tvTitle is empty, using mediaTitle as fallback for danmaku");
+                    danmakuTitle = mediaTitle;
                 }
+                
+                if (danmakuTitle != null && !danmakuTitle.isEmpty()) {
+                    Log.d(TAG, "Loading danmaku with title=" + danmakuTitle + ", s" + seasonNumber + "e" + episodeNumber + ", guid=" + episodeGuid + ", parentGuid=" + parentGuid);
+                    danmuController.loadDanmaku(danmakuTitle, episodeNumber, seasonNumber, episodeGuid, parentGuid);
+                } else {
+                    Log.w(TAG, "No valid title for danmaku, skipping. tvTitle=" + tvTitle + ", mediaTitle=" + mediaTitle);
+                }
+            } else {
+                Log.w(TAG, "Cannot load danmaku: danmuController is null");
             }
 
             // 加载流列表（音频流和字幕流）
@@ -1086,13 +1393,339 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 // 有内嵌字幕轨道，切换到 ExoPlayer
                 // 因为 IJKPlayer 对 subrip/srt 格式的 OnTimedTextListener 支持有限
                 Log.e(TAG, "checkAndSwitchToExoForInternalSubtitle: Switching to ExoPlayer for internal subtitle");
-                runOnUiThread(() -> switchToExoPlayerForInternalSubtitle());
-            } else {
+                                runOnUiThread(() -> switchToExoPlayerForInternalSubtitle());
+                        } else {
                 Log.d(TAG, "checkAndSwitchToExoForInternalSubtitle: No subtitle track found");
-            }
-        } catch (Exception e) {
+                }
+            } catch (Exception e) {
             Log.e(TAG, "checkAndSwitchToExoForInternalSubtitle error", e);
         }
+    }
+
+    /**
+     * 检测视频流是否为 HDR 视频
+     * 通过检查 color_range_type（如 HDR10、Dolby Vision）或 bit_depth（10位）来判断
+     */
+    private boolean isHdrVideo(com.mynas.nastv.model.StreamListResponse.VideoStream video) {
+        if (video == null) return false;
+        
+        String colorRangeType = video.getColorRangeType();
+        int bitDepth = video.getBitDepth();
+        
+        Log.d(TAG, "isHdrVideo: colorRangeType=" + colorRangeType + ", bitDepth=" + bitDepth);
+        
+        // 检查 color_range_type 字段
+        if (colorRangeType != null && !colorRangeType.isEmpty()) {
+            String type = colorRangeType.toUpperCase();
+            // HDR10, HDR10+, Dolby Vision, HLG 等都是 HDR 格式
+            if (type.contains("HDR") || type.contains("DOLBY") || type.contains("DV") || type.contains("HLG")) {
+                Log.d(TAG, "检测到 HDR 视频: colorRangeType=" + colorRangeType);
+                return true;
+            }
+        }
+        
+        // 如果 color_range_type 不是 SDR 且 bit_depth >= 10，也认为是 HDR
+        // 注意：有些 HDR 视频可能没有正确标记 color_range_type
+        if (bitDepth >= 10 && (colorRangeType == null || !colorRangeType.equalsIgnoreCase("SDR"))) {
+            Log.d(TAG, "检测到可能的 HDR 视频: bitDepth=" + bitDepth);
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * 从文件名检测是否为 HDR 视频
+     * 当服务端未正确解析视频元数据时，通过文件名关键字判断
+     */
+    private boolean isHdrFromFileName(String filePath) {
+        if (filePath == null || filePath.isEmpty()) return false;
+        
+        String upperPath = filePath.toUpperCase();
+        
+        // 检查常见的 HDR 标识
+        // HDR10, HDR10+, HDR, DV (Dolby Vision), HLG, 10bit 等
+        if (upperPath.contains("HDR10") || 
+            upperPath.contains("HDR.") || 
+            upperPath.contains(".HDR") ||
+            upperPath.contains("DOLBY.VISION") ||
+            upperPath.contains("DOLBYVISION") ||
+            upperPath.contains(".DV.") ||
+            upperPath.contains("HLG") ||
+            upperPath.contains("10BIT") ||
+            upperPath.contains("10-BIT")) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * 切换到 ExoPlayer 内核播放 HDR 视频
+     * IJKPlayer 对 HDR 色彩空间转换支持有限，ExoPlayer 有更好的原生 HDR 支持
+     * 使用 SurfaceView 而非 TextureView，因为 SurfaceView 支持 HDR 输出
+     */
+    private void switchToExoPlayerForHdr() {
+        Log.d(TAG, "切换到 ExoPlayer 内核以支持 HDR 视频（使用 SurfaceView）");
+
+        if (currentVideoUrl == null || currentVideoUrl.isEmpty()) {
+            Log.e(TAG, "无法切换：视频 URL 为空");
+            return;
+        }
+
+        // 保存当前播放位置
+        long currentPosition = 0;
+        if (currentPlayerKernel != null) {
+            currentPosition = currentPlayerKernel.getCurrentPosition();
+        }
+        if (currentPosition <= 0 && resumePositionSeconds > 0) {
+            currentPosition = resumePositionSeconds * 1000;
+        }
+        final long savedPosition = currentPosition;
+
+        // 停止 GSYVideoPlayer
+        if (playerView != null) {
+            playerView.release();
+            playerView.setVisibility(View.GONE);
+        }
+
+        // 标记使用 ExoPlayer 和 HDR 模式
+        useExoPlayerForSubtitle = true;
+        isHdrMode = true;
+
+        // 隐藏海报背景，避免遮挡视频
+        if (posterImageView != null) {
+            posterImageView.setVisibility(View.GONE);
+        }
+
+        // 创建 ExoPlayer 的 SurfaceView（HDR 需要 SurfaceView）
+        if (exoSurfaceView == null) {
+            exoSurfaceView = new android.view.SurfaceView(this);
+            
+            // 设置 SurfaceView 的 Z-order，确保视频在底层但可见
+            // ZOrderMediaOverlay 让 SurfaceView 在媒体层，但不会遮挡其他 UI
+            exoSurfaceView.setZOrderMediaOverlay(false); // false = 在底层，但可见
+            
+            // 配置 SurfaceView 以正确处理 HDR 色彩空间，避免偏黄
+            // 通过 SurfaceHolder 设置正确的像素格式和色彩空间
+            android.view.SurfaceHolder holder = exoSurfaceView.getHolder();
+            if (holder != null) {
+                // 设置像素格式为支持 HDR 的格式
+                holder.setFormat(android.graphics.PixelFormat.RGBA_8888); // 使用 RGBA_8888 格式，支持更好的色彩空间转换
+                
+                // 注意：SurfaceView 无法直接应用 ColorMatrix 滤镜（因为它在独立 Surface 上渲染）
+                // HDR 偏黄问题需要通过 ExoPlayer 的色调映射或系统级色彩空间转换来解决
+                // 如果问题持续，可能需要：
+                // 1. 升级 Media3 到更新版本（当前 1.2.1）
+                // 2. 检查设备是否支持正确的 HDR 色调映射
+                // 3. 考虑使用 TextureView + 色彩校正（但 TextureView 对 HDR 支持不如 SurfaceView）
+            }
+            
+            android.view.ViewGroup rootView = (android.view.ViewGroup) findViewById(android.R.id.content);
+            if (rootView != null && rootView.getChildCount() > 0) {
+                android.view.ViewGroup mainLayout = (android.view.ViewGroup) rootView.getChildAt(0);
+                
+                // 设置主布局背景为透明，让 SurfaceView 可见
+                mainLayout.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+                
+                // 确保 playerView 完全隐藏，避免遮挡 SurfaceView
+                if (playerView != null) {
+                    playerView.setVisibility(View.GONE);
+                    // 确保 playerView 不会遮挡
+                    playerView.bringToFront();
+                }
+                
+                // 确保 exoTextureView 也隐藏（如果存在）
+                if (exoTextureView != null) {
+                    exoTextureView.setVisibility(View.GONE);
+                }
+                
+                android.widget.RelativeLayout.LayoutParams params = new android.widget.RelativeLayout.LayoutParams(
+                        android.widget.RelativeLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.RelativeLayout.LayoutParams.MATCH_PARENT
+                );
+                
+                // 添加到索引 0（最底层），但确保其他视图不会遮挡
+                mainLayout.addView(exoSurfaceView, 0, params);
+                
+                // 确保 SurfaceView 在底层但可见
+                exoSurfaceView.bringToFront();
+                
+                Log.d(TAG, "ExoPlayer SurfaceView 已添加到主布局（HDR 模式），Z-order 已设置");
+            }
+        }
+        
+        // 确保 SurfaceView 可见，其他播放器视图隐藏
+        exoSurfaceView.setVisibility(View.VISIBLE);
+        if (playerView != null) {
+            playerView.setVisibility(View.GONE);
+        }
+        if (exoTextureView != null) {
+            exoTextureView.setVisibility(View.GONE);
+        }
+
+        // 初始化 ExoPlayer 内核
+        exoPlayerKernel = new com.mynas.nastv.player.ExoPlayerKernel(this);
+        currentPlayerKernel = exoPlayerKernel;
+        Log.d(TAG, "currentPlayerKernel 已更新为 ExoPlayerKernel（HDR 模式）");
+
+        // 设置字幕回调
+        exoPlayerKernel.setSubtitleCallback(cues -> {
+            runOnUiThread(() -> {
+                if (subtitleTextView != null) {
+                    if (cues != null && !cues.isEmpty()) {
+                        StringBuilder sb = new StringBuilder();
+                        for (androidx.media3.common.text.Cue cue : cues) {
+                            if (cue.text != null) {
+                                String cueText = cue.text.toString();
+                                if (isAssDrawingCommand(cueText)) {
+                                    continue;
+                                }
+                                if (sb.length() > 0) sb.append("\n");
+                                sb.append(cueText);
+                            }
+                        }
+                        String text = sb.toString();
+                        if (!text.isEmpty()) {
+                            subtitleTextView.setText(text);
+            subtitleTextView.setVisibility(View.VISIBLE);
+        } else {
+            subtitleTextView.setVisibility(View.GONE);
+        }
+                    } else {
+                        subtitleTextView.setVisibility(View.GONE);
+                    }
+                }
+            });
+        });
+
+        // 创建请求头
+        Map<String, String> headers = createHeadersForUrl(currentVideoUrl);
+
+        // 获取缓存目录
+        File cacheDir = new File(getCacheDir(), "okhttp_video_cache");
+        if (!cacheDir.exists()) {
+            cacheDir.mkdirs();
+        }
+
+        // 设置播放器回调
+        exoPlayerKernel.setPlayerCallback(new com.mynas.nastv.player.ExoPlayerKernel.PlayerCallback() {
+            @Override
+            public void onPrepared() {
+                Log.d(TAG, "ExoPlayer 准备完成（HDR 模式）");
+                runOnUiThread(() -> {
+                    isPlayerReady = true;
+                    showPlayer();
+                    hideBufferingIndicator();
+
+                    if (savedPosition > 0) {
+                        exoPlayerKernel.seekTo(savedPosition);
+                        Log.d(TAG, "恢复播放位置: " + (savedPosition / 1000) + "s");
+                    }
+
+                    if (danmuController != null) {
+                        danmuController.startPlayback();
+                        startPositionUpdateForExo();
+                    }
+
+                    ToastUtils.show(VideoPlayerActivity.this, "已切换到 ExoPlayer（HDR 视频）");
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "ExoPlayer 错误（HDR）: " + error);
+                runOnUiThread(() -> showError("播放错误: " + error));
+            }
+
+            @Override
+            public void onCompletion() {
+                Log.d(TAG, "ExoPlayer 播放完成（HDR）");
+                runOnUiThread(() -> {
+                    if (SharedPreferencesManager.isAutoPlayNext() && episodeController != null && episodeController.hasEpisodeList()) {
+                        episodeController.playNextEpisodeAuto();
+                    } else {
+                        finish();
+                    }
+                });
+            }
+
+            @Override
+            public void onBuffering(boolean isBuffering) {
+                runOnUiThread(() -> {
+                    if (isBuffering && isPlayerReady) {
+                        showBufferingIndicator();
+                } else {
+                        hideBufferingIndicator();
+                    }
+                });
+            }
+
+            @Override
+            public void onVideoSizeChanged(int width, int height) {
+                Log.d(TAG, "ExoPlayer 视频尺寸（HDR）: " + width + "x" + height);
+                runOnUiThread(() -> adjustSurfaceViewAspectRatio(width, height));
+            }
+        });
+
+        // 初始化并播放
+        exoPlayerKernel.init(headers);
+        
+        // 使用 setSurfaceView 让 ExoPlayer 自己管理 Surface（支持 HDR 输出）
+        exoPlayerKernel.setSurfaceView(exoSurfaceView);
+        
+        // 注意：HDR 偏黄问题可能是由于：
+        // 1. HDR 元数据不完整（日志显示 mHasHDRStaticInfo = false）
+        // 2. Media3 1.2.1 的 HDR 色调映射算法可能不够完善
+        // 3. 设备硬件解码器的 HDR 支持问题
+        // 
+        // 已升级 Media3 到 1.3.1 以获得更好的 HDR 色调映射支持
+        // 如果问题仍然存在，可能需要检查视频源的 HDR 元数据
+        
+        // 直接开始播放
+        exoPlayerKernel.playWithProxyCache(currentVideoUrl, headers, cacheDir);
+    }
+
+    /**
+     * 调整 SurfaceView 的宽高比（用于 HDR 模式）
+     */
+    private void adjustSurfaceViewAspectRatio(int videoWidth, int videoHeight) {
+        if (exoSurfaceView == null || videoWidth <= 0 || videoHeight <= 0) {
+            return;
+        }
+        
+        // 获取容器尺寸
+        android.view.ViewGroup parent = (android.view.ViewGroup) exoSurfaceView.getParent();
+        if (parent == null) return;
+        
+        int containerWidth = parent.getWidth();
+        int containerHeight = parent.getHeight();
+        
+        if (containerWidth <= 0 || containerHeight <= 0) return;
+        
+        // 计算视频宽高比
+        float videoAspect = (float) videoWidth / videoHeight;
+        float containerAspect = (float) containerWidth / containerHeight;
+        
+        int newWidth, newHeight;
+        if (videoAspect > containerAspect) {
+            // 视频更宽，以宽度为准
+            newWidth = containerWidth;
+            newHeight = (int) (containerWidth / videoAspect);
+                                    } else {
+            // 视频更高，以高度为准
+            newHeight = containerHeight;
+            newWidth = (int) (containerHeight * videoAspect);
+        }
+        
+        // 设置 SurfaceView 尺寸
+        android.widget.RelativeLayout.LayoutParams params = (android.widget.RelativeLayout.LayoutParams) exoSurfaceView.getLayoutParams();
+        params.width = newWidth;
+        params.height = newHeight;
+        params.addRule(android.widget.RelativeLayout.CENTER_IN_PARENT);
+        exoSurfaceView.setLayoutParams(params);
+        
+        Log.d(TAG, "调整 SurfaceView 尺寸: " + newWidth + "x" + newHeight + " (视频: " + videoWidth + "x" + videoHeight + ", 容器: " + containerWidth + "x" + containerHeight + ")");
     }
 
     /**
@@ -1133,7 +1766,12 @@ public class VideoPlayerActivity extends AppCompatActivity {
             exoTextureView = new android.view.TextureView(this);
             
             // 应用饱和度增强滤镜 - 增加色彩饱和度
-            applySaturationFilter(exoTextureView, 1.05f); // 1.05 = 增加5%饱和度，轻微增强颜色
+            applySaturationFilter(exoTextureView, 1.0f); // 饱和度100%，不调整
+            
+            // 优化TextureView渲染质量，减少动态模糊，提升清晰度
+            exoTextureView.setOpaque(false); // 允许透明，提升渲染质量
+            // 设置高质量渲染模式（通过硬件加速层）
+            exoTextureView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
             
             // 添加到根布局（在 playerView 的位置，但在弹幕容器之下）
             android.view.ViewGroup rootView = (android.view.ViewGroup) findViewById(android.R.id.content);
@@ -1159,7 +1797,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     mainLayout.addView(exoTextureView, playerViewIndex, params);
                 } else {
                     // 如果找不到 playerView，添加到索引 1（海报之后）
-                    mainLayout.addView(exoTextureView, 1, params);
+                mainLayout.addView(exoTextureView, 1, params);
                 }
                 Log.d(TAG, "ExoPlayer TextureView 已添加到主布局（索引=" + playerViewIndex + "，已应用饱和度增强）");
             }
@@ -1579,7 +2217,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                     }
                 }
                 return true;
-            } else {
+                    } else {
                 Log.w(TAG, "播放/暂停按键 - currentPlayerKernel 为 null");
             }
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
@@ -2332,7 +2970,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
      * 1. 适度提高饱和度以改善颜色饱和度不足问题
      * 2. 增强对比度以提升画面层次感
      * 3. 亮度保持正常，不进行调整
-     *
+     * 
      * @param view 目标 View
      * @param saturation 饱和度值 (0=灰度, 1=正常, >1=增强饱和度)
      */
@@ -2343,8 +2981,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
         android.graphics.ColorMatrix colorMatrix = new android.graphics.ColorMatrix();
         colorMatrix.setSaturation(saturation);
         
-        // 增强对比度 - 提升画面层次感和清晰度（5%）
-        float contrast = 1.05f; // 增加5%对比度
+        // 对比度100%，不进行调整
+        float contrast = 1.0f; // 对比度100%，保持原始画质
         // 亮度保持正常，不进行调整
         float brightness = 0f;
         float scale = contrast;

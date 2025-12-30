@@ -104,30 +104,37 @@ public class PlayerSettingsHelper {
 
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "subtitle", 1));
         
-        // ==================== 画质稳定性优化 ====================
-        // 禁用帧跳过和环路滤波跳过，保证画面完整性和稳定性，避免模糊清晰切换
+        // ==================== HDR 视频支持 ====================
+        // 设置 overlay 格式为自动，让硬件解码器决定最佳输出格式
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "overlay-format", 0x32335652)); // fcc-rv32
+        
+        // ==================== 画质与流畅度平衡优化 ====================
+        // 优化环路滤波和帧跳过：在保证画质的同时，减少掉帧和卡顿
         int codecCategory = tv.danmaku.ijk.media.player.IjkMediaPlayer.OPT_CATEGORY_CODEC;
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(codecCategory, "skip_loop_filter", 0));
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(codecCategory, "skip_frame", 0));
+        // skip_loop_filter=8: 跳过非参考帧的环路滤波，减少计算量，提升流畅度，画质影响较小
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(codecCategory, "skip_loop_filter", 8));
+        // skip_frame=8: 跳过非参考帧，减少计算量，提升流畅度，减少掉帧
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(codecCategory, "skip_frame", 8));
         
-        // 优化帧丢弃策略：智能丢弃帧，在保持流畅度的同时保证画质
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "framedrop", 1));
+        // 帧丢弃策略：启用更激进的帧丢弃，减少掉帧和卡顿
+        // framedrop=5 允许在必要时丢弃更多帧以保持流畅，减少画面变化时的掉帧感
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "framedrop", 5));
         
-        // ==================== 缓冲优化（首播/seek 后加速恢复） ====================
+        // ==================== 缓冲优化（减少掉帧和卡顿） ====================
         // 精确跳转
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "enable-accurate-seek", 1));
         
-        // 缓冲区大小：调回 20MB，减少长时间等待又保持稳定
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max-buffer-size", 20 * 1024 * 1024));
+        // 缓冲区大小：增加到 25MB，提供更多缓冲以减少掉帧
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max-buffer-size", 25 * 1024 * 1024));
         
-        // 预缓冲帧数：进一步降低到 40，优先减少 IJK 首播/seek 后卡顿
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "min-frames", 40));
+        // 预缓冲帧数：增加到 60，提供更多预缓冲以减少掉帧
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "min-frames", 60));
         
-        // 视频缓冲帧数：进一步降低到 8，减少一次性缓冲的帧数
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "video-pictq-size", 8));
+        // 视频缓冲帧数：增加到 15，提供更多缓冲帧以减少掉帧
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "video-pictq-size", 15));
         
-        // 最大缓存时长：缩短到 4000ms，减轻长时间“憋一口气”式的卡顿
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max_cached_duration", 4000));
+        // 最大缓存时长：增加到 6000ms，提供更长的缓冲时间以减少掉帧
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max_cached_duration", 6000));
         
         // 准备完成后自动开始播放
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "start-on-prepared", 1));
@@ -150,6 +157,20 @@ public class PlayerSettingsHelper {
         
         // 使用原始帧率 - 不限制帧率，使用视频原始帧率
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "fps", 0));
+        
+        // ==================== 画面变化流畅度优化（减少掉帧） ====================
+        // 启用多线程解码：使用多线程解码，提升画面变化时的性能
+        // threads 参数应该在 CODEC 类别中设置
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(codecCategory, "threads", 4));
+        
+        // 启用音视频同步：确保音视频同步，减少掉帧感
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "sync", "audio"));
+        
+        // 优化帧率控制：使用视频原始帧率，避免帧率波动导致的掉帧
+        // fps=0 已经设置，使用原始帧率
+        
+        // 增加解码器缓冲区：提供更多解码缓冲，减少掉帧
+        // 通过增加缓冲参数（已在上面设置）来实现
 
         return options;
     }

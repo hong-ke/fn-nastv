@@ -73,6 +73,9 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
     private boolean useProxyCache = false;
     private String originalUrl = null;
     
+    // 待执行的 seek 位置（当播放器处于 IDLE 状态时保存）
+    private long pendingSeekPosition = -1;
+    
     // 主线程 Handler，确保 ExoPlayer 操作在主线程执行
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     
@@ -413,25 +416,65 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
     public void seekTo(long positionMs) {
         if (exoPlayer != null) {
             int currentState = exoPlayer.getPlaybackState();
-            Log.d(TAG, "seekTo() 调用 - 目标位置: " + positionMs + "ms, 当前状态: " + getPlaybackStateName() + ", 当前位置: " + exoPlayer.getCurrentPosition() + "ms");
+            int mediaItemCount = exoPlayer.getMediaItemCount();
+            Log.d(TAG, "seekTo() 调用 - 目标位置: " + positionMs + "ms, 当前状态: " + getPlaybackStateName() + ", 当前位置: " + exoPlayer.getCurrentPosition() + "ms, MediaItem数量: " + mediaItemCount);
             
-            // 确保在主线程执行，并且播放器已准备就绪（允许在 BUFFERING 和 READY 状态下执行）
+            // 确保在主线程执行
             if (Looper.myLooper() == Looper.getMainLooper()) {
-                if (currentState != Player.STATE_IDLE && currentState != Player.STATE_ENDED) {
+                if (currentState == Player.STATE_IDLE) {
+                    // IDLE 状态：保存 seek 位置，等播放器准备好后自动跳转
+                    Log.w(TAG, "seekTo() - ExoPlayer 处于 IDLE 状态，保存 seek 位置: " + positionMs + "ms");
+                    pendingSeekPosition = positionMs;
+                    // 如果播放器有 MediaItem，尝试准备播放器
+                    if (mediaItemCount > 0) {
+                        Log.d(TAG, "seekTo() - 播放器有 MediaItem，准备播放器并跳转");
+                        exoPlayer.prepare();
+                        exoPlayer.setPlayWhenReady(true);
+                        // 即使状态是 IDLE，也尝试直接 seek（某些情况下可能有效）
+                        try {
+                            exoPlayer.seekTo(positionMs);
+                            Log.d(TAG, "seekTo() - 在 IDLE 状态下尝试直接 seek");
+                        } catch (Exception e) {
+                            Log.w(TAG, "seekTo() - 在 IDLE 状态下直接 seek 失败，等待播放器准备好: " + e.getMessage());
+                        }
+                    } else {
+                        Log.w(TAG, "seekTo() - 播放器没有 MediaItem，无法准备");
+                    }
+                } else if (currentState == Player.STATE_ENDED) {
+                    // ENDED 状态：重新准备并跳转
+                    Log.w(TAG, "seekTo() - ExoPlayer 处于 ENDED 状态，重新准备并跳转");
+                    exoPlayer.seekTo(positionMs);
+                    exoPlayer.setPlayWhenReady(true);
+                } else {
+                    // BUFFERING 或 READY 状态：直接跳转
                     exoPlayer.seekTo(positionMs);
                     Log.d(TAG, "seekTo() 执行完成 - 跳转到: " + positionMs + "ms");
-                } else {
-                    Log.w(TAG, "seekTo() 失败 - ExoPlayer 状态不允许: " + getPlaybackStateName());
                 }
             } else {
+                final long seekPos = positionMs;
                 mainHandler.post(() -> {
                     if (exoPlayer != null) {
                         int state = exoPlayer.getPlaybackState();
-                        if (state != Player.STATE_IDLE && state != Player.STATE_ENDED) {
-                            exoPlayer.seekTo(positionMs);
-                            Log.d(TAG, "seekTo() 执行完成（异步）- 跳转到: " + positionMs + "ms");
+                        int itemCount = exoPlayer.getMediaItemCount();
+                        if (state == Player.STATE_IDLE) {
+                            Log.w(TAG, "seekTo()（异步）- ExoPlayer 处于 IDLE 状态，保存 seek 位置: " + seekPos + "ms");
+                            pendingSeekPosition = seekPos;
+                            if (itemCount > 0) {
+                                exoPlayer.prepare();
+                                exoPlayer.setPlayWhenReady(true);
+                                try {
+                                    exoPlayer.seekTo(seekPos);
+                                    Log.d(TAG, "seekTo()（异步）- 在 IDLE 状态下尝试直接 seek");
+                                } catch (Exception e) {
+                                    Log.w(TAG, "seekTo()（异步）- 在 IDLE 状态下直接 seek 失败: " + e.getMessage());
+                                }
+                            }
+                        } else if (state == Player.STATE_ENDED) {
+                            exoPlayer.seekTo(seekPos);
+                            exoPlayer.setPlayWhenReady(true);
                         } else {
-                            Log.w(TAG, "seekTo() 失败（异步）- ExoPlayer 状态不允许: " + getStateName(state));
+                            exoPlayer.seekTo(seekPos);
+                            Log.d(TAG, "seekTo() 执行完成（异步）- 跳转到: " + seekPos + "ms");
                         }
                     }
                 });
@@ -601,6 +644,7 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
         isPrepared = false;
         videoWidth = 0;
         videoHeight = 0;
+        pendingSeekPosition = -1; // 清除待执行的 seek
     }
     
     // ==================== Player.Listener 回调 ====================
@@ -618,6 +662,13 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
         
         if (playbackState == Player.STATE_READY && !isPrepared) {
             isPrepared = true;
+            // 如果有待执行的 seek，现在执行
+            if (pendingSeekPosition >= 0) {
+                long seekPos = pendingSeekPosition;
+                pendingSeekPosition = -1; // 清除待执行位置
+                Log.d(TAG, "播放器已准备好，执行待执行的 seek: " + seekPos + "ms");
+                exoPlayer.seekTo(seekPos);
+            }
             if (playerCallback != null) {
                 playerCallback.onPrepared();
             }

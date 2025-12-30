@@ -28,6 +28,7 @@ public class ApiClient {
     private static final int CONNECT_TIMEOUT = 30;
     private static final int READ_TIMEOUT = 60;
     private static final int PLAY_API_TIMEOUT = 60;  // 播放API专用超时时间（秒）
+    private static final int DANMU_API_TIMEOUT = 120; // 弹幕API专用超时时间（秒）- 弹幕服务器响应较慢
     
     private static ApiService apiService;
     private static ApiService fnOSApiService;  // 专门用于FnOS服务器的API服务
@@ -143,15 +144,15 @@ public class ApiClient {
      */
     private static void createDanmuApiService() {
         String danmuBaseUrl = SharedPreferencesManager.getDanmuServerBaseUrl(); // 获取弹幕服务器地址
-        Log.d(TAG, "[DEBUG] 创建DanmuApiService，使用弹幕服务器地址: " + danmuBaseUrl);
+        Log.d(TAG, "[DEBUG] 创建DanmuApiService，使用弹幕服务器地址: " + danmuBaseUrl + "，超时: " + DANMU_API_TIMEOUT + "秒");
         
         HttpLoggingInterceptor loggingInterceptor = new HttpLoggingInterceptor();
         loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BASIC); // 改为BASIC级别，避免打印大量响应体
         
         OkHttpClient okHttpClient = new OkHttpClient.Builder()
                 .connectTimeout(CONNECT_TIMEOUT, TimeUnit.SECONDS)
-                .readTimeout(READ_TIMEOUT, TimeUnit.SECONDS)
-                .writeTimeout(READ_TIMEOUT, TimeUnit.SECONDS)
+                .readTimeout(DANMU_API_TIMEOUT, TimeUnit.SECONDS)  // 使用弹幕API专用超时
+                .writeTimeout(DANMU_API_TIMEOUT, TimeUnit.SECONDS) // 使用弹幕API专用超时
                 .addInterceptor(loggingInterceptor)
                 .addInterceptor(new AuthInterceptor())
                 .build();
@@ -160,7 +161,7 @@ public class ApiClient {
                 .setLenient()
                 .create();
         
-        Log.d(TAG, "[DEBUG] 即将创建弹幕API Retrofit实例，使用弹幕服务器: " + danmuBaseUrl);
+        Log.d(TAG, "[DEBUG] 即将创建弹幕API Retrofit实例，使用弹幕服务器: " + danmuBaseUrl + "，超时: " + DANMU_API_TIMEOUT + "秒");
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(danmuBaseUrl + "/") // 使用弹幕服务器地址，如 http://192.168.3.20:13401/
                 .client(okHttpClient)
@@ -168,7 +169,7 @@ public class ApiClient {
                 .build();
         
         danmuApiService = retrofit.create(ApiService.class);
-        Log.d(TAG, "[DEBUG] DanmuApiService创建完成，弹幕服务器: " + danmuBaseUrl);
+        Log.d(TAG, "[DEBUG] DanmuApiService创建完成，弹幕服务器: " + danmuBaseUrl + "，超时: " + DANMU_API_TIMEOUT + "秒");
     }
     
     /**

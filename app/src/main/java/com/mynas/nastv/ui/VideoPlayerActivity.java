@@ -367,12 +367,27 @@ public class VideoPlayerActivity extends AppCompatActivity {
             // 如果之前使用 ExoPlayer，继续使用 ExoPlayer 播放下一集
             // 这样可以避免服务端字幕数据未扫描完成时无法切换的问题
             if (wasUsingExoPlayer) {
-                Log.e(TAG, "handleEpisodeLoaded: Continuing with ExoPlayer for next episode");
+                Log.e(TAG, "handleEpisodeLoaded: Continuing with ExoPlayer for next episode, isHdrMode=" + isHdrMode);
                 
                 // 重置 ExoPlayer 而不是释放
                 if (exoPlayerKernel != null) {
                     exoPlayerKernel.reset();
+                    
+                    // 根据模式重新设置 Surface
+                    if (isHdrMode && exoSurfaceView != null) {
+                        // HDR 模式使用 SurfaceView，ExoPlayer 会自动管理
+                        exoPlayerKernel.setSurfaceView(exoSurfaceView);
+                        Log.d(TAG, "handleEpisodeLoaded: SurfaceView 已重新设置（HDR 模式）");
+                    } else if (exoTextureView != null && exoTextureView.isAvailable()) {
+                        // 非 HDR 模式使用 TextureView
+                        android.view.Surface videoSurface = new android.view.Surface(exoTextureView.getSurfaceTexture());
+                        exoPlayerKernel.setSurface(videoSurface);
+                        Log.d(TAG, "handleEpisodeLoaded: Surface 已重新设置");
+                    }
                 }
+                
+                // 重置播放状态
+                isPlayerReady = false;
                 
                 // 播放新视频
                 showLoading("加载中...");
@@ -410,10 +425,70 @@ public class VideoPlayerActivity extends AppCompatActivity {
      * 使用 ExoPlayer 播放视频（用于切换剧集时继续使用 ExoPlayer）
      */
     private void playWithExoPlayer(String url) {
-        Log.d(TAG, "playWithExoPlayer: " + url.substring(0, Math.min(80, url.length())));
+        Log.d(TAG, "playWithExoPlayer: " + url.substring(0, Math.min(80, url.length())) + ", isHdrMode=" + isHdrMode);
         
         currentVideoUrl = url;
         
+        // 确保 ExoPlayer 已初始化
+        if (exoPlayerKernel == null) {
+            Log.e(TAG, "playWithExoPlayer: exoPlayerKernel is null, cannot play");
+            showError("播放器未初始化");
+            return;
+        }
+        
+        // HDR 模式使用 SurfaceView
+        if (isHdrMode && exoSurfaceView != null) {
+            exoSurfaceView.setVisibility(View.VISIBLE);
+            // SurfaceView 由 ExoPlayer 自动管理，直接播放
+            playExoPlayerMedia(url);
+            return;
+        }
+        
+        // 确保 TextureView 可见且 Surface 已设置
+        if (exoTextureView != null) {
+            exoTextureView.setVisibility(View.VISIBLE);
+            if (exoTextureView.isAvailable()) {
+                android.view.Surface videoSurface = new android.view.Surface(exoTextureView.getSurfaceTexture());
+                exoPlayerKernel.setSurface(videoSurface);
+                Log.d(TAG, "playWithExoPlayer: Surface 已设置");
+            } else {
+                // 如果 Surface 还未准备好，设置监听器等待
+                exoTextureView.setSurfaceTextureListener(new android.view.TextureView.SurfaceTextureListener() {
+                    @Override
+                    public void onSurfaceTextureAvailable(android.graphics.SurfaceTexture surface, int width, int height) {
+                        Log.d(TAG, "playWithExoPlayer: Surface 可用");
+                        android.view.Surface videoSurface = new android.view.Surface(surface);
+                        exoPlayerKernel.setSurface(videoSurface);
+                        // 现在可以播放了
+                        playExoPlayerMedia(url);
+                    }
+                    
+                    @Override
+                    public void onSurfaceTextureSizeChanged(android.graphics.SurfaceTexture surface, int width, int height) {
+                    }
+                    
+                    @Override
+                    public boolean onSurfaceTextureDestroyed(android.graphics.SurfaceTexture surface) {
+                        return true;
+                    }
+                    
+                    @Override
+                    public void onSurfaceTextureUpdated(android.graphics.SurfaceTexture surface) {
+                    }
+                });
+                Log.d(TAG, "playWithExoPlayer: 等待 Surface 可用");
+                return; // 等待 Surface 可用后再播放
+            }
+        }
+        
+        // 播放视频
+        playExoPlayerMedia(url);
+    }
+    
+    /**
+     * 实际执行 ExoPlayer 播放
+     */
+    private void playExoPlayerMedia(String url) {
         // 创建请求头
         Map<String, String> headers = createHeadersForUrl(url);
         
@@ -426,6 +501,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         // 使用代理缓存播放
         if (exoPlayerKernel != null) {
             exoPlayerKernel.playWithProxyCache(url, headers, cacheDir);
+            Log.d(TAG, "playExoPlayerMedia: 已调用 playWithProxyCache");
         }
         
         // 加载弹幕
@@ -749,8 +825,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 
                 // 设置字幕回调
                 exoPlayerKernel.setSubtitleCallback(cues -> {
-                    runOnUiThread(() -> {
-                        if (subtitleTextView != null) {
+                        runOnUiThread(() -> {
+                                    if (subtitleTextView != null) {
                             if (cues != null && !cues.isEmpty()) {
                                 StringBuilder sb = new StringBuilder();
                                 for (androidx.media3.common.text.Cue cue : cues) {
@@ -767,7 +843,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                                 if (!text.isEmpty()) {
                                     subtitleTextView.setText(text);
                                     subtitleTextView.setVisibility(View.VISIBLE);
-                                } else {
+                            } else {
                                     subtitleTextView.setVisibility(View.GONE);
                                 }
                             } else {
@@ -779,27 +855,27 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 
                 // 设置播放器回调
                 exoPlayerKernel.setPlayerCallback(new com.mynas.nastv.player.ExoPlayerKernel.PlayerCallback() {
-                    @Override
+                        @Override
                     public void onPrepared() {
                         Log.d(TAG, "ExoPlayer onPrepared");
                         runOnUiThread(() -> {
                             isPlayerReady = true;
                             showPlayer();
                             hideBufferingIndicator();
-                            
+
                             // 启动弹幕
                             if (danmuController != null) {
                                 danmuController.startPlayback();
                                 startPositionUpdateForExo();
                             }
-                            
+
                             // 启动播放进度记录
                             if (progressRecorder != null && !progressRecorder.isRecording()) {
                                 String itemGuid = episodeGuid != null ? episodeGuid : mediaGuid;
                                 progressRecorder.startRecording(itemGuid, mediaGuid);
                                 progressRecorder.setStreamGuids(videoGuid, audioGuid, null);
                             }
-                            
+
                             // 恢复播放位置
                             if (resumePositionSeconds > 0) {
                                 long resumePositionMs = resumePositionSeconds * 1000;
@@ -821,7 +897,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                                     hasSkippedIntro = true;
                                 }
                             }
-                            
+
                             // 延迟自动选择音频轨道
                             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                                 if (exoPlayerKernel != null && audioTrackManager != null) {
@@ -829,15 +905,15 @@ public class VideoPlayerActivity extends AppCompatActivity {
                                 }
                             }, 1000);
                         });
-                    }
-                    
-                    @Override
+                        }
+
+                        @Override
                     public void onError(String error) {
                         Log.e(TAG, "ExoPlayer error: " + error);
                         runOnUiThread(() -> showError("播放错误: " + error));
-                    }
-                    
-                    @Override
+                        }
+
+                        @Override
                     public void onCompletion() {
                         Log.d(TAG, "ExoPlayer onCompletion");
                         runOnUiThread(() -> {
@@ -847,9 +923,9 @@ public class VideoPlayerActivity extends AppCompatActivity {
                                 finish();
                             }
                         });
-                    }
-                    
-                    @Override
+                        }
+
+                        @Override
                     public void onBuffering(boolean isBuffering) {
                         runOnUiThread(() -> {
                             if (isBuffering && isPlayerReady) {
@@ -858,9 +934,9 @@ public class VideoPlayerActivity extends AppCompatActivity {
                                 hideBufferingIndicator();
                             }
                         });
-                    }
-                    
-                    @Override
+                        }
+
+                        @Override
                     public void onVideoSizeChanged(int width, int height) {
                         Log.d(TAG, "ExoPlayer video size: " + width + "x" + height);
                         runOnUiThread(() -> adjustTextureViewAspectRatio(width, height));
@@ -875,32 +951,38 @@ public class VideoPlayerActivity extends AppCompatActivity {
             // 设置 TextureView 的 SurfaceTextureListener
             if (exoTextureView.getSurfaceTextureListener() == null) {
                 exoTextureView.setSurfaceTextureListener(new android.view.TextureView.SurfaceTextureListener() {
-                    @Override
+                        @Override
                     public void onSurfaceTextureAvailable(android.graphics.SurfaceTexture surface, int width, int height) {
-                        Log.d(TAG, "ExoPlayer Surface 可用");
+                        Log.d(TAG, "ExoPlayer Surface 可用（在 initializePlayer 中）");
                         android.view.Surface videoSurface = new android.view.Surface(surface);
                         exoPlayerKernel.setSurface(videoSurface);
-                    }
-                    
-                    @Override
+                        // 如果已经有 URL，开始播放
+                        if (currentVideoUrl != null && !currentVideoUrl.isEmpty()) {
+                            Log.d(TAG, "Surface 可用，开始播放: " + currentVideoUrl.substring(0, Math.min(50, currentVideoUrl.length())));
+                            playExoPlayerMedia(currentVideoUrl);
+                        }
+                        }
+
+                        @Override
                     public void onSurfaceTextureSizeChanged(android.graphics.SurfaceTexture surface, int width, int height) {
-                    }
-                    
-                    @Override
+                        }
+
+                        @Override
                     public boolean onSurfaceTextureDestroyed(android.graphics.SurfaceTexture surface) {
                         return true;
-                    }
-                    
-                    @Override
+                        }
+
+                        @Override
                     public void onSurfaceTextureUpdated(android.graphics.SurfaceTexture surface) {
-                    }
-                });
-            }
-            
+                                }
+                            });
+                        }
+
             // 如果 Surface 已经可用，直接设置
             if (exoTextureView.isAvailable()) {
                 android.view.Surface videoSurface = new android.view.Surface(exoTextureView.getSurfaceTexture());
                 exoPlayerKernel.setSurface(videoSurface);
+                Log.d(TAG, "Surface 已可用，已设置给 ExoPlayer");
             }
             
             // 隐藏 GSYVideoPlayer 内置的 loading 视图
@@ -983,19 +1065,19 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         Log.e(TAG, "IJKPlayer error: " + error);
                         // 解码器自动降级
                         if (!forceUseSoftwareDecoder && !SharedPreferencesManager.useSoftwareDecoder()) {
-                            forceUseSoftwareDecoder = true;
+                                forceUseSoftwareDecoder = true;
                             Log.w(TAG, "硬解失败，自动切换到软解");
-                            runOnUiThread(() -> {
-                                ToastUtils.show(VideoPlayerActivity.this, "硬解失败，自动切换软解");
+                                runOnUiThread(() -> {
+                                    ToastUtils.show(VideoPlayerActivity.this, "硬解失败，自动切换软解");
                                 if (ijkPlayerKernel != null) {
                                     ijkPlayerKernel.setForceUseSoftwareDecoder(true);
                                 }
-                                if (currentVideoUrl != null) {
-                                    playMedia(currentVideoUrl);
-                                }
-                            });
-                            return;
-                        }
+                                    if (currentVideoUrl != null) {
+                                        playMedia(currentVideoUrl);
+                                    }
+                                });
+                                return;
+                            }
                         showError("播放错误: " + error);
                         }
 
@@ -1015,7 +1097,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             showBufferingIndicator();
                         } else {
                             hideBufferingIndicator();
-                        }
+                            }
                         }
 
                         @Override
@@ -1227,21 +1309,38 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 return;
             }
             
-            // 如果是 ExoPlayer，确保 Surface 已设置
+            // 如果是 ExoPlayer，确保 Surface 已设置并开始播放
             if (useExoPlayerForSubtitle && exoPlayerKernel != null && exoTextureView != null) {
+                exoTextureView.setVisibility(View.VISIBLE);
                 if (exoTextureView.isAvailable()) {
                     android.view.Surface videoSurface = new android.view.Surface(exoTextureView.getSurfaceTexture());
                     exoPlayerKernel.setSurface(videoSurface);
-                    Log.d(TAG, "ExoPlayer Surface 已在 playMedia 中设置");
+                    Log.d(TAG, "ExoPlayer Surface 已在 playMedia 中设置，开始播放");
+                    // Surface 已设置，可以开始播放
+                    if (isDirectLink && cacheDir != null) {
+                        exoPlayerKernel.playWithProxyCache(playUrl, headers, cacheDir);
+                    } else {
+                        exoPlayerKernel.play(playUrl);
+                    }
+                } else {
+                    Log.w(TAG, "ExoPlayer TextureView Surface 尚未可用，先设置 MediaItem，等待 Surface 可用后自动播放");
+                    // Surface 不可用，先设置 MediaItem，等 Surface 可用后自动播放
+                    // 注意：即使 Surface 不可用，也可以先设置 MediaItem，这样播放器会准备好
+                    if (isDirectLink && cacheDir != null) {
+                        exoPlayerKernel.playWithProxyCache(playUrl, headers, cacheDir);
+                    } else {
+                        exoPlayerKernel.play(playUrl);
+                    }
                 }
-            }
-            
-            if (isDirectLink && cacheDir != null) {
-                // 使用代理缓存播放
-                currentPlayerKernel.playWithProxyCache(playUrl, headers, cacheDir);
             } else {
-                // 直接播放
-                currentPlayerKernel.play(playUrl);
+                // 非 ExoPlayer，直接播放
+                if (isDirectLink && cacheDir != null) {
+                    // 使用代理缓存播放
+                    currentPlayerKernel.playWithProxyCache(playUrl, headers, cacheDir);
+                } else {
+                    // 直接播放
+                    currentPlayerKernel.play(playUrl);
+                }
             }
             
             Log.d(TAG, "Playing video: URL=" + playUrl.substring(0, Math.min(100, playUrl.length())) + "...");
@@ -2295,20 +2394,43 @@ public class VideoPlayerActivity extends AppCompatActivity {
         Log.d(TAG, "执行seek: position=" + position + "ms, isForward=" + isForward + ", 播放器类型: " + (currentPlayerKernel != null ? currentPlayerKernel.getClass().getSimpleName() : "null"));
         if (currentPlayerKernel != null) {
             long currentPos = currentPlayerKernel.getCurrentPosition();
-            Log.d(TAG, "seekTo 前 - 当前位置: " + currentPos + "ms, 目标位置: " + position + "ms");
-            currentPlayerKernel.seekTo(position);
-            // 延迟检查是否成功
+            long duration = currentPlayerKernel.getDuration();
+            Log.d(TAG, "seekTo 前 - 当前位置: " + currentPos + "ms, 目标位置: " + position + "ms, 总时长: " + duration + "ms");
+            
+            // 确保目标位置在有效范围内（创建 final 变量供 lambda 使用）
+            long finalPosition = position;
+            if (duration > 0 && finalPosition > duration) {
+                finalPosition = duration;
+                Log.w(TAG, "目标位置超出总时长，调整为: " + finalPosition + "ms");
+            }
+            if (finalPosition < 0) {
+                finalPosition = 0;
+                Log.w(TAG, "目标位置小于0，调整为: 0ms");
+            }
+            
+            // 执行 seek
+            currentPlayerKernel.seekTo(finalPosition);
+            
+            // 延迟检查是否成功（使用 final 变量）
+            final long seekTargetPosition = finalPosition;
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 if (currentPlayerKernel != null) {
                     long newPos = currentPlayerKernel.getCurrentPosition();
-                    Log.d(TAG, "seekTo 后 - 新位置: " + newPos + "ms, 目标位置: " + position + "ms, 差异: " + Math.abs(newPos - position) + "ms");
+                    long diff = Math.abs(newPos - seekTargetPosition);
+                    Log.d(TAG, "seekTo 后 - 新位置: " + newPos + "ms, 目标位置: " + seekTargetPosition + "ms, 差异: " + diff + "ms");
+                    if (diff > 2000) { // 如果差异超过2秒，可能有问题
+                        Log.w(TAG, "seekTo 可能失败，差异较大: " + diff + "ms");
+                    }
                 }
             }, 500);
+            
+            // seek执行后，启动隐藏计时器（使用调整后的位置）
+            showSeekProgressOverlay(finalPosition, isForward, true);
         } else {
             Log.e(TAG, "executeSeek 失败 - currentPlayerKernel 为 null");
+            // seek执行后，启动隐藏计时器
+            showSeekProgressOverlay(position, isForward, true);
         }
-        // seek执行后，启动隐藏计时器
-        showSeekProgressOverlay(position, isForward, true);
     }
 
     @Override

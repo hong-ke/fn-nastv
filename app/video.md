@@ -54,60 +54,55 @@
 
 ### 3.1 IJKPlayer 解码器配置
 
-位置：`VideoPlayerActivity.getIjkOptions()`
+位置：`PlayerSettingsHelper.getIjkOptions()`
 
 ```java
-// ==================== 画质优化选项 ====================
-
-// 1. 禁用环路滤波跳过 - 提高画质
+// ==================== 画质稳定性优化 ====================
+// 禁用帧跳过和环路滤波跳过，保证画面完整性和稳定性，避免模糊清晰切换
+int codecCategory = IjkMediaPlayer.OPT_CATEGORY_CODEC;
 options.add(new VideoOptionModel(codecCategory, "skip_loop_filter", 0));
+options.add(new VideoOptionModel(codecCategory, "skip_frame", 0));
 
-// 2. 禁用帧跳过 - 保证画面完整性，减少颗粒感
-        options.add(new VideoOptionModel(codecCategory, "skip_frame", 0));
+// 优化帧丢弃策略：智能丢弃帧，在保持流畅度的同时保证画质
+options.add(new VideoOptionModel(playerCategory, "framedrop", 1));
 
-// 3. 优化像素格式 - 使用高质量像素格式提升清晰度
-// 硬解模式下，使用硬件解码器的最佳像素格式
-// 不强制指定 overlay-format，让系统选择最佳格式
-
-// 4. 增加视频缓冲帧数 - 减少丢帧，提高清晰度和流畅度
-// 从 6 增加到 10，提供更多缓冲帧以减少颗粒感
-        options.add(new VideoOptionModel(playerCategory, "video-pictq-size", 10));
-
-// 5. 优化帧率控制 - 减少帧率波动导致的颗粒感
-        options.add(new VideoOptionModel(playerCategory, "fps", 0)); // 0=不限制帧率，使用原始帧率
-
-// ==================== 通用优化选项 ====================
-
-// 帧丢弃策略：智能丢弃帧，在保持流畅度的同时保证画质
-        options.add(new VideoOptionModel(playerCategory, "framedrop", 1));
-
+// ==================== 缓冲优化（解决前40s卡顿） ====================
 // 精确跳转
-        options.add(new VideoOptionModel(playerCategory, "enable-accurate-seek", 1));
+options.add(new VideoOptionModel(playerCategory, "enable-accurate-seek", 1));
 
-// 增加缓冲区大小 - 提供更多缓冲以减少卡顿和颗粒感
-        options.add(new VideoOptionModel(playerCategory, "max-buffer-size", 20 * 1024 * 1024)); // 从15MB增加到20MB
+// 增加缓冲区大小 - 从15MB增加到25MB，提供更多缓冲以减少前40s卡顿
+options.add(new VideoOptionModel(playerCategory, "max-buffer-size", 25 * 1024 * 1024));
 
-// 最小帧数 - 增加预缓冲帧数
-        options.add(new VideoOptionModel(playerCategory, "min-frames", 60)); // 从50增加到60
+// 增加预缓冲帧数 - 从50增加到90，提前缓冲更多帧以减少卡顿
+options.add(new VideoOptionModel(playerCategory, "min-frames", 90));
+
+// 增加视频缓冲帧数 - 从默认值增加到15，提供更多缓冲帧以减少卡顿和画质波动
+options.add(new VideoOptionModel(playerCategory, "video-pictq-size", 15));
+
+// 增加最大缓存时长 - 从默认值增加到8000ms，提供更长的缓冲时间，减少前40s卡顿
+options.add(new VideoOptionModel(playerCategory, "max_cached_duration", 8000));
 
 // 准备完成后自动开始播放
-        options.add(new VideoOptionModel(playerCategory, "start-on-prepared", 1));
+options.add(new VideoOptionModel(playerCategory, "start-on-prepared", 1));
 
 // 增加 packet 缓冲 - 减少卡顿
-        options.add(new VideoOptionModel(playerCategory, "packet-buffering", 1));
+options.add(new VideoOptionModel(playerCategory, "packet-buffering", 1));
 
-// 增加最大缓存时长 - 提供更长的缓冲时间
-        options.add(new VideoOptionModel(playerCategory, "max_cached_duration", 5000)); // 从3000增加到5000ms
+// ==================== 格式探测优化 ====================
+// 增加探测大小 - 从10MB增加到25MB，提前探测更多数据
+options.add(new VideoOptionModel(formatCategory, "probesize", 25 * 1024 * 1024));
 
-// 格式选项 - 增加探测和分析时间以获得更好的画质
-        options.add(new VideoOptionModel(formatCategory, "probesize", 20 * 1024 * 1024)); // 从10MB增加到20MB
-        options.add(new VideoOptionModel(formatCategory, "analyzeduration", 10 * 1000 * 1000)); // 从5秒增加到10秒
+// 增加分析时长 - 从5秒增加到15秒，提前分析更多数据以减少前40s卡顿
+options.add(new VideoOptionModel(formatCategory, "analyzeduration", 15 * 1000 * 1000));
 
 // 刷新数据包 - 减少延迟
-        options.add(new VideoOptionModel(formatCategory, "flush_packets", 1));
+options.add(new VideoOptionModel(formatCategory, "flush_packets", 1));
 
-// 额外优化：禁用低延迟模式以获得更好的画质
-        options.add(new VideoOptionModel(playerCategory, "low_delay", 0));
+// 禁用低延迟模式 - 优先画质和稳定性而非延迟
+options.add(new VideoOptionModel(playerCategory, "low_delay", 0));
+
+// 使用原始帧率 - 不限制帧率，使用视频原始帧率
+options.add(new VideoOptionModel(playerCategory, "fps", 0));
 ```
 
 ### 3.2 颜色饱和度滤镜配置
@@ -118,9 +113,9 @@ options.add(new VideoOptionModel(codecCategory, "skip_loop_filter", 0));
 /**
  * 为 View 应用饱和度增强滤镜
  * 优化方案：
- * 1. 提高饱和度以改善颜色偏白和饱和度不足问题
+ * 1. 适度提高饱和度以改善颜色饱和度不足问题
  * 2. 增强对比度以提升画面层次感
- * 3. 微调亮度以改善偏白问题
+ * 3. 亮度保持正常，不进行调整
  *
  * @param view 目标 View
  * @param saturation 饱和度值 (0=灰度, 1=正常, >1=增强饱和度)
@@ -130,12 +125,12 @@ private void applySaturationFilter(View view, float saturation) {
 
     // 创建饱和度矩阵
     ColorMatrix colorMatrix = new ColorMatrix();
-    colorMatrix.setSaturation(saturation); // 1.35 = 增加35%饱和度
+    colorMatrix.setSaturation(saturation); // 1.15 = 增加15%饱和度
 
-    // 增强对比度 - 从1.05增加到1.1，提升画面层次感和清晰度
+    // 增强对比度 - 提升画面层次感和清晰度
     float contrast = 1.1f; // 增加10%对比度
-    // 微调亮度 - 降低2%亮度以改善颜色偏白问题
-    float brightness = -5f; // 降低约2%亮度（-5/255 ≈ -2%）
+    // 亮度保持正常，不进行调整
+    float brightness = 0f;
     float scale = contrast;
     float translate = (-.5f * scale + .5f) * 255f + brightness;
     ColorMatrix contrastMatrix = new ColorMatrix(new float[] {
@@ -160,12 +155,12 @@ private void applySaturationFilter(View view, float saturation) {
 ```java
 // GSYVideoPlayer 初始化时应用
 if (playerView != null) {
-applySaturationFilter(playerView, 1.35f);
+    applySaturationFilter(playerView, 1.15f); // 增加15%饱和度，适度改善颜色饱和度不足问题
 }
 
 // ExoPlayer 初始化时应用
-        if (exoTextureView != null) {
-applySaturationFilter(exoTextureView, 1.35f);
+if (exoTextureView != null) {
+    applySaturationFilter(exoTextureView, 1.15f); // 1.15 = 增加15%饱和度，适度改善颜色饱和度不足问题
 }
 ```
 
@@ -175,36 +170,41 @@ applySaturationFilter(exoTextureView, 1.35f);
 
 | 参数 | 原值 | 优化值 | 说明 |
 |------|------|--------|------|
-| `skip_loop_filter` | - | 0 | 不跳过环路滤波，提高画质 |
-| `skip_frame` | - | 0 | 不跳过帧，保证画面完整性 |
-| `video-pictq-size` | 6 | 10 | 增加缓冲帧数，减少颗粒感 |
-| `max-buffer-size` | 15MB | 20MB | 增加缓冲区大小 |
-| `min-frames` | 50 | 60 | 增加预缓冲帧数 |
-| `max_cached_duration` | 3000ms | 5000ms | 增加最大缓存时长 |
-| `probesize` | 10MB | 20MB | 增加探测大小 |
-| `analyzeduration` | 5秒 | 10秒 | 增加分析时长 |
+| `skip_loop_filter` | - | 0 | 不跳过环路滤波，提高画质稳定性，避免模糊清晰切换 |
+| `skip_frame` | - | 0 | 不跳过帧，保证画面完整性和稳定性 |
+| `video-pictq-size` | 默认 | 15 | 增加缓冲帧数，减少卡顿和画质波动 |
+| `max-buffer-size` | 15MB | 25MB | 增加缓冲区大小，减少前40s卡顿 |
+| `min-frames` | 50 | 90 | 增加预缓冲帧数，提前缓冲更多帧以减少卡顿 |
+| `max_cached_duration` | 默认 | 8000ms | 增加最大缓存时长，减少前40s卡顿 |
+| `probesize` | 10MB | 25MB | 增加探测大小，提前探测更多数据 |
+| `analyzeduration` | 5秒 | 15秒 | 增加分析时长，提前分析更多数据以减少前40s卡顿 |
 | `fps` | - | 0 | 不限制帧率，使用原始帧率 |
-| `low_delay` | - | 0 | 禁用低延迟模式，优先画质 |
-| `framedrop` | - | 1 | 智能丢弃帧 |
+| `low_delay` | - | 0 | 禁用低延迟模式，优先画质和稳定性 |
+| `framedrop` | - | 1 | 智能丢弃帧，在保持流畅度的同时保证画质 |
 
 ### 4.2 颜色滤镜参数
 
 | 参数 | 原值 | 优化值 | 说明 |
 |------|------|--------|------|
-| `saturation` | 1.2 | 1.35 | 饱和度提升35% |
-| `contrast` | 1.05 | 1.1 | 对比度提升10% |
-| `brightness` | 0 | -5 | 降低约2%亮度，改善偏白 |
+| `saturation` | 1.20 | 1.15 | 饱和度提升15%，适度改善颜色饱和度不足 |
+| `contrast` | 1.05 | 1.1 | 对比度提升10%，提升画面层次感 |
+| `brightness` | -5 | 0 | 亮度保持正常，不进行调整 |
 
 ## 五、优化效果
 
-### 5.1 清晰度提升
-- ✅ 画面颗粒感明显减少
+### 5.1 流畅度提升
+- ✅ 前40s卡顿问题明显改善
 - ✅ 视频播放更加流畅
+- ✅ 缓冲策略优化，减少卡顿
+
+### 5.2 画质稳定性
+- ✅ 画面稳定性提升，避免模糊清晰切换
+- ✅ 禁用帧跳过，保证画面完整性
 - ✅ 细节表现更清晰
 
-### 5.2 颜色优化
-- ✅ 颜色饱和度提升，画面更鲜艳
-- ✅ 颜色偏白问题得到改善
+### 5.3 颜色优化
+- ✅ 颜色饱和度适度提升（15%），画面更自然
+- ✅ 亮度保持正常，不进行额外调整
 - ✅ 画面层次感增强，对比度提升
 
 ## 六、参考文档和资源
@@ -236,10 +236,13 @@ applySaturationFilter(exoTextureView, 1.35f);
 ## 七、后续优化建议
 
 ### 7.1 可调整参数
-1. **饱和度值**：当前 1.35，可根据实际效果在 1.2-1.5 之间调整
+1. **饱和度值**：当前 1.15，可根据实际效果在 1.1-1.25 之间调整
 2. **对比度值**：当前 1.1，可根据实际效果在 1.05-1.15 之间调整
-3. **亮度值**：当前 -5，可根据实际效果在 -10 到 0 之间调整
-4. **缓冲帧数**：当前 10，可根据设备性能在 8-12 之间调整
+3. **亮度值**：当前 0（正常），保持不调整
+4. **缓冲帧数**：当前 15，可根据设备性能在 12-18 之间调整
+5. **预缓冲帧数**：当前 90，可根据设备性能在 70-110 之间调整
+6. **缓冲区大小**：当前 25MB，可根据设备性能在 20-30MB 之间调整
+7. **最大缓存时长**：当前 8000ms，可根据设备性能在 6000-10000ms 之间调整
 
 ### 7.2 性能考虑
 - 增加缓冲会占用更多内存，但可以提升画质
@@ -277,6 +280,11 @@ applySaturationFilter(exoTextureView, 1.35f);
 
 ## 九、版本历史
 
+### v1.1 (2024)
+- 优化前40s卡顿问题：大幅增加缓冲参数（min-frames: 50→90, max-buffer-size: 15MB→25MB, max_cached_duration: 8000ms）
+- 优化画质稳定性：禁用帧跳过和环路滤波跳过，避免模糊清晰切换
+- 调整颜色参数：饱和度从1.20降低到1.15，亮度改为正常（0）
+
 ### v1.0 (2024)
 - 初始优化版本
 - 提升清晰度：增加缓冲帧数、优化解码参数
@@ -286,4 +294,4 @@ applySaturationFilter(exoTextureView, 1.35f);
 
 **文档维护者**：开发团队  
 **最后更新**：2024年  
-**文档版本**：v1.0
+**文档版本**：v1.1

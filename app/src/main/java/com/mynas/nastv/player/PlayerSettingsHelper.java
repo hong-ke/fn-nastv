@@ -103,13 +103,53 @@ public class PlayerSettingsHelper {
         }
 
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "subtitle", 1));
+        
+        // ==================== 画质稳定性优化 ====================
+        // 禁用帧跳过和环路滤波跳过，保证画面完整性和稳定性，避免模糊清晰切换
+        int codecCategory = tv.danmaku.ijk.media.player.IjkMediaPlayer.OPT_CATEGORY_CODEC;
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(codecCategory, "skip_loop_filter", 0));
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(codecCategory, "skip_frame", 0));
+        
+        // 优化帧丢弃策略：智能丢弃帧，在保持流畅度的同时保证画质
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "framedrop", 1));
+        
+        // ==================== 缓冲优化（解决前40s卡顿） ====================
+        // 精确跳转
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "enable-accurate-seek", 1));
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max-buffer-size", 15 * 1024 * 1024));
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "min-frames", 50));
+        
+        // 增加缓冲区大小 - 从15MB增加到25MB，提供更多缓冲以减少前40s卡顿
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max-buffer-size", 25 * 1024 * 1024));
+        
+        // 增加预缓冲帧数 - 从50增加到90，提前缓冲更多帧以减少卡顿
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "min-frames", 90));
+        
+        // 增加视频缓冲帧数 - 提供更多缓冲帧以减少卡顿和画质波动
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "video-pictq-size", 15));
+        
+        // 增加最大缓存时长 - 提供更长的缓冲时间，减少前40s卡顿
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max_cached_duration", 8000));
+        
+        // 准备完成后自动开始播放
         options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "start-on-prepared", 1));
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "probesize", 10 * 1024 * 1024));
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "analyzeduration", 5 * 1000 * 1000));
+        
+        // 增加 packet 缓冲 - 减少卡顿
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "packet-buffering", 1));
+        
+        // ==================== 格式探测优化 ====================
+        // 增加探测大小 - 从10MB增加到25MB，提前探测更多数据
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "probesize", 25 * 1024 * 1024));
+        
+        // 增加分析时长 - 从5秒增加到15秒，提前分析更多数据以减少前40s卡顿
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "analyzeduration", 15 * 1000 * 1000));
+        
+        // 刷新数据包 - 减少延迟
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "flush_packets", 1));
+        
+        // 禁用低延迟模式 - 优先画质和稳定性而非延迟
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "low_delay", 0));
+        
+        // 使用原始帧率 - 不限制帧率，使用视频原始帧率
+        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "fps", 0));
 
         return options;
     }

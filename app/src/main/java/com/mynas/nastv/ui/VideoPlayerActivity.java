@@ -14,11 +14,6 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.shuyu.gsyvideoplayer.builder.GSYVideoOptionBuilder;
-import com.shuyu.gsyvideoplayer.listener.GSYVideoProgressListener;
-import com.shuyu.gsyvideoplayer.listener.VideoAllCallBack;
-import com.shuyu.gsyvideoplayer.utils.GSYVideoType;
-
 import com.mynas.nastv.R;
 import com.mynas.nastv.feature.danmaku.api.IDanmuController;
 import com.mynas.nastv.feature.danmaku.logic.DanmuControllerImpl;
@@ -226,10 +221,12 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 }
                 
                 // 处理字幕流
-                if (data != null && data.getSubtitleStreams() != null) {
+                if (data != null && data.getSubtitleStreams() != null && !data.getSubtitleStreams().isEmpty()) {
                     subtitleManager.setSubtitleStreams(data.getSubtitleStreams());
                     handleSubtitleStreams(data.getSubtitleStreams());
                 }
+                // 注意：如果服务端返回空字幕流，不自动切换 ExoPlayer
+                // 因为很多视频确实没有字幕，不应该强制切换播放器
             }
             
             @Override
@@ -279,10 +276,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
      */
     private void handleEpisodeLoaded(PlayStartInfo playInfo, EpisodeListResponse.Episode episode) {
         runOnUiThread(() -> {
-            Log.d(TAG, "Episode loaded: " + episode.getEpisodeNumber());
+            Log.e(TAG, "handleEpisodeLoaded: Episode " + episode.getEpisodeNumber());
 
-            // 记录当前是否使用 ExoPlayer
+            // 记录当前是否使用 ExoPlayer（用于决定下一集是否继续使用）
             final boolean wasUsingExoPlayer = useExoPlayerForSubtitle;
+            Log.e(TAG, "handleEpisodeLoaded: wasUsingExoPlayer=" + wasUsingExoPlayer);
 
             // 更新当前剧集信息
             episodeNumber = episode.getEpisodeNumber();
@@ -299,21 +297,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
             // 重置恢复位置
             resumePositionSeconds = playInfo.getResumePositionSeconds();
 
-            // 释放 ExoPlayer
-            if (wasUsingExoPlayer) {
-                releaseExoPlayerKernel();
-                useExoPlayerForSubtitle = false;
-                if (exoTextureView != null) {
-                    exoTextureView.setVisibility(View.GONE);
-                }
-            }
-
-            // 停止 GSYVideoPlayer
-            if (playerView != null) {
-                playerView.release();
-                isPlayerReady = false;
-            }
-
             // 清空弹幕缓存
             if (danmuController != null) {
                 danmuController.clearDanmaku();
@@ -324,19 +307,81 @@ public class VideoPlayerActivity extends AppCompatActivity {
             currentSubtitleIndex = -1;
             subtitleStreams = null;
 
-            // 重新初始化播放器
-            if (playerView != null) {
-                playerView.setVisibility(View.VISIBLE);
-            }
-            initializePlayer();
+            // 如果之前使用 ExoPlayer，继续使用 ExoPlayer 播放下一集
+            // 这样可以避免服务端字幕数据未扫描完成时无法切换的问题
+            if (wasUsingExoPlayer) {
+                Log.e(TAG, "handleEpisodeLoaded: Continuing with ExoPlayer for next episode");
+                
+                // 重置 ExoPlayer 而不是释放
+                if (exoPlayerKernel != null) {
+                    exoPlayerKernel.reset();
+                }
+                
+                // 播放新视频
+                showLoading("加载中...");
+                videoUrl = playInfo.getPlayUrl();
+                
+                // 使用 ExoPlayer 播放
+                playWithExoPlayer(videoUrl);
+            } else {
+                // 之前使用 IJKPlayer，继续使用 IJKPlayer
+                Log.e(TAG, "handleEpisodeLoaded: Continuing with IJKPlayer for next episode");
+                
+                // 停止 GSYVideoPlayer
+                if (playerView != null) {
+                    playerView.release();
+                    isPlayerReady = false;
+                }
 
-            // 播放新视频
-            showLoading("加载中...");
-            videoUrl = playInfo.getPlayUrl();
-            playMedia(videoUrl);
+                // 重新初始化播放器
+                if (playerView != null) {
+                    playerView.setVisibility(View.VISIBLE);
+                }
+                initializePlayer();
+
+                // 播放新视频
+                showLoading("加载中...");
+                videoUrl = playInfo.getPlayUrl();
+                playMedia(videoUrl);
+            }
 
             hideSettingsMenu();
         });
+    }
+    
+    /**
+     * 使用 ExoPlayer 播放视频（用于切换剧集时继续使用 ExoPlayer）
+     */
+    private void playWithExoPlayer(String url) {
+        Log.d(TAG, "playWithExoPlayer: " + url.substring(0, Math.min(80, url.length())));
+        
+        currentVideoUrl = url;
+        
+        // 创建请求头
+        Map<String, String> headers = createHeadersForUrl(url);
+        
+        // 获取缓存目录
+        java.io.File cacheDir = new java.io.File(getCacheDir(), "okhttp_video_cache");
+        if (!cacheDir.exists()) {
+            cacheDir.mkdirs();
+        }
+        
+        // 使用代理缓存播放
+        if (exoPlayerKernel != null) {
+            exoPlayerKernel.playWithProxyCache(url, headers, cacheDir);
+        }
+        
+        // 加载弹幕
+        if (danmuController != null && tvTitle != null && !tvTitle.isEmpty()) {
+            Log.d(TAG, "Loading danmaku for ExoPlayer: title=" + tvTitle + ", s" + seasonNumber + "e" + episodeNumber);
+            danmuController.loadDanmaku(tvTitle, episodeNumber, seasonNumber, episodeGuid, parentGuid);
+        }
+        
+        // 加载流列表（音频流和字幕流）
+        String itemGuid = episodeGuid != null ? episodeGuid : mediaGuid;
+        if (itemGuid != null && !itemGuid.isEmpty()) {
+            streamListManager.loadStreamList(itemGuid);
+        }
     }
 
     private void initializeViews() {
@@ -353,7 +398,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
         // 为 GSYVideoPlayer 应用饱和度增强滤镜
         if (playerView != null) {
-            applySaturationFilter(playerView, 1.20f); // 增加20%饱和度，改善颜色偏白和饱和度不足问题
+            applySaturationFilter(playerView, 1.15f); // 增加15%饱和度，适度改善颜色饱和度不足问题
         }
 
         // 初始化辅助类
@@ -509,16 +554,22 @@ public class VideoPlayerActivity extends AppCompatActivity {
         });
     }
 
-    // 记录是否已显示软解提示（避免重复提示）
-    private boolean hasShownSoftwareDecoderToast = false;
     
     /**
      * 处理字幕流列表
+     * 
+     * 策略说明：
+     * - 外挂字幕：使用 SubtitleManager 加载（IJKPlayer 或 ExoPlayer 都可以）
+     * - 内嵌字幕 ASS/SSA：IJKPlayer 支持，无需切换
+     * - 内嵌字幕 subrip/srt 等：切换到 ExoPlayer
      */
     private void handleSubtitleStreams(List<com.mynas.nastv.model.StreamListResponse.SubtitleStream> streams) {
         if (streams == null || streams.isEmpty()) {
+            Log.d(TAG, "handleSubtitleStreams: No subtitle streams");
             return;
         }
+        
+        Log.e(TAG, "handleSubtitleStreams: Found " + streams.size() + " subtitle streams");
         
         // 查找外挂字幕和内嵌字幕
         int firstExternalIndex = -1;
@@ -527,6 +578,12 @@ public class VideoPlayerActivity extends AppCompatActivity {
         
         for (int i = 0; i < streams.size(); i++) {
             com.mynas.nastv.model.StreamListResponse.SubtitleStream sub = streams.get(i);
+            Log.e(TAG, "Subtitle " + i + ": title=" + sub.getTitle() + 
+                    " language=" + sub.getLanguage() + 
+                    " external=" + sub.isExternal() + 
+                    " format=" + sub.getFormat() + 
+                    " codecName=" + sub.getCodecName());
+            
             if (sub.isExternal() && firstExternalIndex == -1) {
                 firstExternalIndex = i;
             }
@@ -539,8 +596,13 @@ public class VideoPlayerActivity extends AppCompatActivity {
             }
         }
         
+        Log.e(TAG, "handleSubtitleStreams: firstExternalIndex=" + firstExternalIndex + 
+                ", firstInternalIndex=" + firstInternalIndex + 
+                ", internalSubtitleFormat=" + internalSubtitleFormat);
+        
         // 优先使用外挂字幕
         if (firstExternalIndex >= 0) {
+            Log.e(TAG, "Using external subtitle at index " + firstExternalIndex);
             subtitleManager.loadSubtitle(firstExternalIndex);
         } else if (firstInternalIndex >= 0) {
             // 只有内嵌字幕，根据格式决定
@@ -549,10 +611,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
             
             if (ijkSupportsFormat) {
                 // ASS/SSA 格式，IJKPlayer 可以处理
-                Log.d(TAG, "Internal subtitle format supported by IJKPlayer: " + format);
+                Log.e(TAG, "Internal subtitle format supported by IJKPlayer: " + format);
             } else {
                 // subrip/srt 等格式，切换到 ExoPlayer
-                Log.d(TAG, "Internal subtitle format NOT supported by IJKPlayer: " + format + ", switching to ExoPlayer");
+                Log.e(TAG, "Internal subtitle format NOT supported by IJKPlayer: " + format + ", switching to ExoPlayer");
                 switchToExoPlayerForInternalSubtitle();
             }
         }
@@ -615,10 +677,15 @@ public class VideoPlayerActivity extends AppCompatActivity {
                             }
                         }
                         
-                        // 延迟自动选择音频轨道
+                        // 延迟自动选择音频轨道和检测内嵌字幕
                         new Handler(Looper.getMainLooper()).postDelayed(() -> {
                             if (ijkPlayerKernel != null && audioTrackManager != null) {
                                 audioTrackManager.autoSelectAudioTrack(ijkPlayerKernel);
+                            }
+                            // 如果服务端没有返回字幕流信息，检测是否有内嵌字幕
+                            // 如果有内嵌字幕，切换到 ExoPlayer（因为 IJKPlayer 对 subrip 支持有限）
+                            if ((subtitleStreams == null || subtitleStreams.isEmpty()) && !useExoPlayerForSubtitle) {
+                                checkAndSwitchToExoForInternalSubtitle();
                             }
                         }, 1000);
                     }
@@ -675,9 +742,26 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         // IJKPlayer 不使用这个回调
                     }
                     
+                    // 标记是否已经检测过内嵌字幕
+                    private boolean hasCheckedInternalSubtitle = false;
+                    
                     @Override
                     public void onTimedText(String text) {
                         runOnUiThread(() -> {
+                            // 首次收到内嵌字幕时，检查是否需要切换到 ExoPlayer
+                            // 条件：服务端没有返回字幕流信息（数据未扫描完成）且当前没有使用外挂字幕
+                            if (!hasCheckedInternalSubtitle && text != null && !text.isEmpty()) {
+                                hasCheckedInternalSubtitle = true;
+                                
+                                // 如果服务端没有返回字幕流信息，说明数据未扫描完成
+                                // 此时 IJKPlayer 检测到了内嵌字幕，应该切换到 ExoPlayer 以获得更好的字幕支持
+                                if ((subtitleStreams == null || subtitleStreams.isEmpty()) && currentSubtitleIndex < 0) {
+                                    Log.d(TAG, "IJKPlayer 检测到内嵌字幕，但服务端未返回字幕信息，切换到 ExoPlayer");
+                                    switchToExoPlayerForInternalSubtitle();
+                                    return;
+                                }
+                            }
+                            
                             if (subtitleTextView != null) {
                                 if (text != null && !text.isEmpty()) {
                                     subtitleTextView.setText(text);
@@ -782,6 +866,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
     private void showBufferingIndicator() {
         runOnUiThread(() -> {
+            // 如果 loadingLayout 正在显示，不显示缓冲指示器（避免两个加载指示器同时显示）
+            if (loadingLayout != null && loadingLayout.getVisibility() == View.VISIBLE) {
+                return;
+            }
+            
             if (bufferingIndicator == null) {
                 bufferingIndicator = findViewById(R.id.buffering_indicator);
                 bufferingText = findViewById(R.id.buffering_text);
@@ -791,9 +880,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 if (bufferingText != null) {
                     bufferingText.setText("缓冲中...");
                 }
-            } else {
-                // 如果没有专门的缓冲指示器，使用 Toast
-                ToastUtils.show(this, "缓冲中...");
             }
         });
     }
@@ -912,17 +998,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 headers.put("Cookie", "Trim-MC-token=" + authToken);
                 headers.put("Authorization", authToken);
 
-                // 详细日志：打印认证信息（隐藏敏感内容）
-                Log.d(TAG, "[CURL TEST] Token length: " + authToken.length() + ", first 10 chars: " +
-                        (authToken.length() > 10 ? authToken.substring(0, 10) + "..." : authToken));
-
                 try {
                     String signature = com.mynas.nastv.utils.SignatureUtils.generateSignature("GET", url, "", null);
                     if (signature != null) {
                         headers.put("authx", signature);
-                        // 详细日志：打印签名信息
-                        Log.d(TAG, "[CURL TEST] Signature length: " + signature.length() + ", first 10 chars: " +
-                                (signature.length() > 10 ? signature.substring(0, 10) + "..." : signature));
                     }
                 } catch (Exception e) {
                     Log.w(TAG, "Sign failed", e);
@@ -942,24 +1021,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
             headers.put("Sec-Fetch-Mode", "cors");
             headers.put("Sec-Fetch-Site", "cross-site");
         }
-
-        // 详细日志：打印所有 headers（用于 curl 测试）
-        Log.d(TAG, "[CURL TEST] ===== Headers for URL =====");
-        Log.d(TAG, "[CURL TEST] URL: " + url);
-        Log.d(TAG, "[CURL TEST] curl -v -X GET \\");
-        for (Map.Entry<String, String> entry : headers.entrySet()) {
-            String key = entry.getKey();
-            String value = entry.getValue();
-            // 隐藏敏感信息的部分内容
-            if (key.equals("Cookie") || key.equals("Authorization") || key.equals("authx")) {
-                String maskedValue = value.length() > 20 ? value.substring(0, 20) + "..." : value;
-                Log.d(TAG, "[CURL TEST]   -H \"" + key + ": " + maskedValue + "\" \\");
-            } else {
-                Log.d(TAG, "[CURL TEST]   -H \"" + key + ": " + value + "\" \\");
-            }
-        }
-        Log.d(TAG, "[CURL TEST]   \"" + url + "\"");
-        Log.d(TAG, "[CURL TEST] =============================");
 
         return headers;
     }
@@ -984,6 +1045,57 @@ public class VideoPlayerActivity extends AppCompatActivity {
     }
 
     /**
+     * 检测 IJKPlayer 是否有内嵌字幕轨道，如果有则切换到 ExoPlayer
+     * 当服务端没有返回字幕流信息时调用此方法
+     */
+    private void checkAndSwitchToExoForInternalSubtitle() {
+        try {
+            com.shuyu.gsyvideoplayer.player.IPlayerManager playerManager =
+                    com.shuyu.gsyvideoplayer.GSYVideoManager.instance().getPlayer();
+            
+            if (!(playerManager instanceof com.shuyu.gsyvideoplayer.player.IjkPlayerManager)) {
+                Log.d(TAG, "checkAndSwitchToExoForInternalSubtitle: Not IJKPlayer");
+                return;
+            }
+            
+            com.shuyu.gsyvideoplayer.player.IjkPlayerManager ijkManager =
+                    (com.shuyu.gsyvideoplayer.player.IjkPlayerManager) playerManager;
+            
+            tv.danmaku.ijk.media.player.misc.IjkTrackInfo[] trackInfos = ijkManager.getTrackInfo();
+            if (trackInfos == null || trackInfos.length == 0) {
+                Log.d(TAG, "checkAndSwitchToExoForInternalSubtitle: No track info");
+                return;
+            }
+            
+            // 查找字幕轨道
+            boolean hasSubtitleTrack = false;
+            for (int i = 0; i < trackInfos.length; i++) {
+                tv.danmaku.ijk.media.player.misc.IjkTrackInfo track = trackInfos[i];
+                int trackType = track.getTrackType();
+                
+                // MEDIA_TRACK_TYPE_TIMEDTEXT = 3 或 MEDIA_TRACK_TYPE_SUBTITLE = 4
+                if (trackType == 3 || trackType == 4) {
+                    Log.e(TAG, "checkAndSwitchToExoForInternalSubtitle: Found subtitle track " + i + 
+                            ", language=" + track.getLanguage());
+                    hasSubtitleTrack = true;
+                    break;
+                }
+            }
+            
+            if (hasSubtitleTrack) {
+                // 有内嵌字幕轨道，切换到 ExoPlayer
+                // 因为 IJKPlayer 对 subrip/srt 格式的 OnTimedTextListener 支持有限
+                Log.e(TAG, "checkAndSwitchToExoForInternalSubtitle: Switching to ExoPlayer for internal subtitle");
+                runOnUiThread(() -> switchToExoPlayerForInternalSubtitle());
+            } else {
+                Log.d(TAG, "checkAndSwitchToExoForInternalSubtitle: No subtitle track found");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "checkAndSwitchToExoForInternalSubtitle error", e);
+        }
+    }
+
+    /**
      * 切换到 ExoPlayer 内核播放内嵌字幕
      * 当检测到只有内嵌字幕时调用此方法
      */
@@ -995,12 +1107,12 @@ public class VideoPlayerActivity extends AppCompatActivity {
             return;
         }
 
-        // 保存当前播放位置（优先使用 GSYVideoPlayer 的位置，否则使用历史恢复位置）
+        // 保存当前播放位置（优先使用播放器内核的位置，否则使用历史恢复位置）
         long currentPosition = 0;
-        if (playerView != null) {
-            currentPosition = playerView.getCurrentPositionWhenPlaying();
+        if (currentPlayerKernel != null) {
+            currentPosition = currentPlayerKernel.getCurrentPosition();
         }
-        // 如果 GSYVideoPlayer 还没开始播放，使用历史恢复位置
+        // 如果播放器还没开始播放，使用历史恢复位置
         if (currentPosition <= 0 && resumePositionSeconds > 0) {
             currentPosition = resumePositionSeconds * 1000;
             Log.d(TAG, "使用历史恢复位置: " + resumePositionSeconds + "s");
@@ -1021,25 +1133,46 @@ public class VideoPlayerActivity extends AppCompatActivity {
             exoTextureView = new android.view.TextureView(this);
             
             // 应用饱和度增强滤镜 - 增加色彩饱和度
-            applySaturationFilter(exoTextureView, 1.20f); // 1.20 = 增加20%饱和度，改善颜色偏白和饱和度不足问题
+            applySaturationFilter(exoTextureView, 1.15f); // 1.15 = 增加15%饱和度，适度改善颜色饱和度不足问题
             
-            // 添加到根布局（在 playerView 的位置）
+            // 添加到根布局（在 playerView 的位置，但在弹幕容器之下）
             android.view.ViewGroup rootView = (android.view.ViewGroup) findViewById(android.R.id.content);
             if (rootView != null && rootView.getChildCount() > 0) {
                 android.view.ViewGroup mainLayout = (android.view.ViewGroup) rootView.getChildAt(0);
-                // 在 playerView 之后添加（索引 1，因为 posterImageView 是索引 0）
+                
+                // 找到 playerView 的索引位置，在同一位置添加 ExoPlayer TextureView
+                int playerViewIndex = -1;
+                for (int i = 0; i < mainLayout.getChildCount(); i++) {
+                    if (mainLayout.getChildAt(i) == playerView) {
+                        playerViewIndex = i;
+                        break;
+                    }
+                }
+                
                 android.widget.RelativeLayout.LayoutParams params = new android.widget.RelativeLayout.LayoutParams(
                         android.widget.RelativeLayout.LayoutParams.MATCH_PARENT,
                         android.widget.RelativeLayout.LayoutParams.MATCH_PARENT
                 );
-                mainLayout.addView(exoTextureView, 1, params);
-                Log.d(TAG, "ExoPlayer TextureView 已添加到主布局（已应用饱和度增强）");
+                
+                // 在 playerView 的位置添加（这样弹幕容器仍然在上层）
+                if (playerViewIndex >= 0) {
+                    mainLayout.addView(exoTextureView, playerViewIndex, params);
+                } else {
+                    // 如果找不到 playerView，添加到索引 1（海报之后）
+                    mainLayout.addView(exoTextureView, 1, params);
+                }
+                Log.d(TAG, "ExoPlayer TextureView 已添加到主布局（索引=" + playerViewIndex + "，已应用饱和度增强）");
             }
         }
         exoTextureView.setVisibility(View.VISIBLE);
 
         // 初始化 ExoPlayer 内核
         exoPlayerKernel = new com.mynas.nastv.player.ExoPlayerKernel(this);
+        
+        // 关键修复：更新 currentPlayerKernel 指向 ExoPlayer
+        // 这样快进/快退、暂停、进度条等操作才能正确作用于 ExoPlayer
+        currentPlayerKernel = exoPlayerKernel;
+        Log.d(TAG, "currentPlayerKernel 已更新为 ExoPlayerKernel");
 
         // 设置字幕回调
         exoPlayerKernel.setSubtitleCallback(cues -> {
@@ -1226,116 +1359,19 @@ public class VideoPlayerActivity extends AppCompatActivity {
     }
 
 
-    /**
-     * 检查并显示解码器切换提示（备用方案）
-     */
-    private void checkAndShowDecoderToast() {
-        if (hasShownSoftwareDecoderToast) return;
-
-        boolean configuredHardware = !SharedPreferencesManager.useSoftwareDecoder() && !forceUseSoftwareDecoder;
-        boolean mediaCodecEnabled = GSYVideoType.isMediaCodec();
-
-        Log.d(TAG, "检测解码器状态: configuredHardware=" + configuredHardware + ", mediaCodecEnabled=" + mediaCodecEnabled);
-    }
-
-    /**
-     * 获取 IJKPlayer 配置选项
-     */
-    private java.util.List<com.shuyu.gsyvideoplayer.model.VideoOptionModel> getIjkOptions(boolean useSoftware) {
-        java.util.List<com.shuyu.gsyvideoplayer.model.VideoOptionModel> options = new java.util.ArrayList<>();
-
-        // 播放器选项
-        int playerCategory = tv.danmaku.ijk.media.player.IjkMediaPlayer.OPT_CATEGORY_PLAYER;
-        int formatCategory = tv.danmaku.ijk.media.player.IjkMediaPlayer.OPT_CATEGORY_FORMAT;
-        int codecCategory = tv.danmaku.ijk.media.player.IjkMediaPlayer.OPT_CATEGORY_CODEC;
-
-        if (!useSoftware) {
-            // 硬解模式配置
-            options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec", 1));
-            options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec-auto-rotate", 1));
-            options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec-handle-resolution-change", 1));
-            options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec-hevc", 1));
-            Log.d(TAG, "IJKPlayer: 启用硬解 + HEVC 硬解");
-        } else {
-            // 软解模式配置
-            options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec", 0));
-            options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "mediacodec-hevc", 0));
-            Log.d(TAG, "IJKPlayer: 使用软解");
-        }
-
-        // 字幕选项 - 启用内嵌字幕解码
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "subtitle", 1));
-        Log.d(TAG, "IJKPlayer: 启用字幕解码");
-
-        // ==================== 画质优化选项 ====================
-        
-        // 1. 禁用环路滤波跳过 - 提高画质（0=不跳过，48=跳过非关键帧，默认48会降低画质）
-        // skip_loop_filter: 0=AVDISCARD_NONE(不跳过), 8=AVDISCARD_DEFAULT, 48=AVDISCARD_NONREF
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(codecCategory, "skip_loop_filter", 0));
-        
-        // 2. 禁用帧跳过 - 保证画面完整性，减少颗粒感
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(codecCategory, "skip_frame", 0));
-        
-        // 3. 优化像素格式 - 使用高质量像素格式提升清晰度
-        // 硬解模式下，使用最佳像素格式以获得更好的画质
-        if (!useSoftware) {
-            // 硬解模式：使用硬件解码器的最佳像素格式
-            // 不强制指定 overlay-format，让系统选择最佳格式
-            // 但可以通过其他参数优化颜色空间转换
-        } else {
-            // 软解模式：使用高质量像素格式
-            // 尝试使用 RGB565 或更高精度格式
-        }
-        
-        // 4. 增加视频缓冲帧数 - 减少丢帧，提高清晰度和流畅度
-        // 从 6 增加到 10，提供更多缓冲帧以减少颗粒感
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "video-pictq-size", 10));
-        
-        // 5. 优化帧率控制 - 减少帧率波动导致的颗粒感
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "fps", 0)); // 0=不限制帧率，使用原始帧率
-        
-        // ==================== 通用优化选项 ====================
-        // 帧丢弃策略：智能丢弃帧，在保持流畅度的同时保证画质
-        // framedrop=1 表示在必要时丢弃帧以保持流畅，但不会过度丢弃导致画质下降
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "framedrop", 1));
-        
-        // 精确跳转
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "enable-accurate-seek", 1));
-        
-        // 增加缓冲区大小 - 提供更多缓冲以减少卡顿和颗粒感
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max-buffer-size", 20 * 1024 * 1024)); // 从15MB增加到20MB
-        
-        // 最小帧数 - 增加预缓冲帧数
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "min-frames", 60)); // 从50增加到60
-        
-        // 准备完成后自动开始播放
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "start-on-prepared", 1));
-        
-        // 增加 packet 缓冲 - 减少卡顿
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "packet-buffering", 1));
-        
-        // 增加最大缓存时长 - 提供更长的缓冲时间
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "max_cached_duration", 5000)); // 从3000增加到5000ms
-
-        // 格式选项 - 增加探测和分析时间以获得更好的画质
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "probesize", 20 * 1024 * 1024)); // 从10MB增加到20MB
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "analyzeduration", 10 * 1000 * 1000)); // 从5秒增加到10秒
-        
-        // 刷新数据包 - 减少延迟
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(formatCategory, "flush_packets", 1));
-        
-        // 额外优化：禁用低延迟模式以获得更好的画质
-        options.add(new com.shuyu.gsyvideoplayer.model.VideoOptionModel(playerCategory, "low_delay", 0));
-
-        Log.d(TAG, "IJKPlayer: 已应用画质优化配置");
-        return options;
-    }
 
     private void showLoading(String msg) {
         runOnUiThread(() -> {
             loadingLayout.setVisibility(View.VISIBLE);
             if (errorLayout != null) errorLayout.setVisibility(View.GONE);
             playerView.setVisibility(View.GONE);
+            // 隐藏缓冲指示器，避免两个加载指示器同时显示
+            if (bufferingIndicator == null) {
+                bufferingIndicator = findViewById(R.id.buffering_indicator);
+            }
+            if (bufferingIndicator != null) {
+                bufferingIndicator.setVisibility(View.GONE);
+            }
         });
     }
 
@@ -1523,20 +1559,28 @@ public class VideoPlayerActivity extends AppCompatActivity {
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
             // 处理播放/暂停
             if (currentPlayerKernel != null) {
-                if (currentPlayerKernel.isPlaying()) {
+                boolean wasPlaying = currentPlayerKernel.isPlaying();
+                Log.d(TAG, "播放/暂停按键 - 当前状态: " + (wasPlaying ? "播放中" : "已暂停") + ", 播放器类型: " + currentPlayerKernel.getClass().getSimpleName());
+                if (wasPlaying) {
+                    Log.d(TAG, "执行暂停操作");
                     currentPlayerKernel.pause();
+                    // 暂停后，显示播放图标（因为可以继续播放）
                     showCenterIcon(false);
                     if (danmuController != null) {
                         danmuController.pausePlayback();
                     }
                 } else {
+                    Log.d(TAG, "执行播放操作");
                     currentPlayerKernel.start();
+                    // 播放后，显示暂停图标（因为可以暂停）
                     showCenterIcon(true);
                     if (danmuController != null) {
                         danmuController.startPlayback();
                     }
                 }
                 return true;
+            } else {
+                Log.w(TAG, "播放/暂停按键 - currentPlayerKernel 为 null");
             }
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
             // 按下键呼出/隐藏设置菜单和进度条
@@ -1610,9 +1654,20 @@ public class VideoPlayerActivity extends AppCompatActivity {
      * 执行实际的seek操作
      */
     private void executeSeek(long position, boolean isForward) {
-        Log.d(TAG, "执行seek: position=" + position);
+        Log.d(TAG, "执行seek: position=" + position + "ms, isForward=" + isForward + ", 播放器类型: " + (currentPlayerKernel != null ? currentPlayerKernel.getClass().getSimpleName() : "null"));
         if (currentPlayerKernel != null) {
+            long currentPos = currentPlayerKernel.getCurrentPosition();
+            Log.d(TAG, "seekTo 前 - 当前位置: " + currentPos + "ms, 目标位置: " + position + "ms");
             currentPlayerKernel.seekTo(position);
+            // 延迟检查是否成功
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (currentPlayerKernel != null) {
+                    long newPos = currentPlayerKernel.getCurrentPosition();
+                    Log.d(TAG, "seekTo 后 - 新位置: " + newPos + "ms, 目标位置: " + position + "ms, 差异: " + Math.abs(newPos - position) + "ms");
+                }
+            }, 500);
+        } else {
+            Log.e(TAG, "executeSeek 失败 - currentPlayerKernel 为 null");
         }
         // seek执行后，启动隐藏计时器
         showSeekProgressOverlay(position, isForward, true);
@@ -1635,10 +1690,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private Handler iconHandler = new Handler(Looper.getMainLooper());
     private Runnable hideIconRunnable;
 
-    // 当前播放速度（由 menuController 管理，保留兼容变量）
-    private float currentSpeed = 1.0f;
-    private static final float[] SPEED_OPTIONS = {0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
-    private static final String[] SPEED_LABELS = {"0.5x", "0.75x", "1.0x", "1.25x", "1.5x", "2.0x"};
 
     /**
      * 显示设置菜单（委托给 menuController）
@@ -1674,19 +1725,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * 更新速度标签（委托给 menuController）
-     */
-    private void updateSpeedLabel() {
-        // 由 menuController 管理
-    }
-
-    /**
-     * 更新弹幕标签（委托给 menuController）
-     */
-    private void updateDanmakuLabel() {
-        // 由 menuController 管理
-    }
 
     // 显示中央播放/暂停图标
     private void showCenterIcon(boolean isPlaying) {
@@ -1695,8 +1733,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
         }
 
         if (centerPlayIcon != null) {
-            // 设置图标：播放时显示播放图标，暂停时显示暂停图标
-            centerPlayIcon.setImageResource(isPlaying ? R.drawable.ic_play_arrow : R.drawable.ic_pause);
+            // 设置图标：播放时显示暂停图标（表示可以暂停），暂停时显示播放图标（表示可以播放）
+            centerPlayIcon.setImageResource(isPlaying ? R.drawable.ic_pause : R.drawable.ic_play_arrow);
             centerPlayIcon.setVisibility(View.VISIBLE);
 
             // 取消之前的隐藏任务
@@ -1886,39 +1924,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
         }
     }
 
-    private void showSpeedMenu() {
-        int currentIndex = 2;
-        for (int i = 0; i < SPEED_OPTIONS.length; i++) {
-            if (Math.abs(SPEED_OPTIONS[i] - currentSpeed) < 0.01f) {
-                currentIndex = i;
-                break;
-            }
-        }
-
-        new android.app.AlertDialog.Builder(this)
-                .setTitle("播放速度")
-                .setSingleChoiceItems(SPEED_LABELS, currentIndex, (dialog, which) -> {
-                    currentSpeed = SPEED_OPTIONS[which];
-                    if (playerView != null) {
-                        playerView.setSpeed(currentSpeed);
-                    }
-                    updateSpeedLabel();
-                    ToastUtils.show(this, "播放速度: " + SPEED_LABELS[which]);
-                    dialog.dismiss();
-                })
-                .show();
-    }
-
-    private void showQualityMenu() {
-        String[] qualityLabels = {"原画", "1080P", "720P", "480P"};
-
-        new android.app.AlertDialog.Builder(this)
-                .setTitle("画质选择")
-                .setItems(qualityLabels, (dialog, which) -> {
-                    ToastUtils.show(this, "已选择: " + qualityLabels[which]);
-                })
-                .show();
-    }
 
     private void showSubtitleMenu() {
         // 构建字幕选项列表
@@ -2045,23 +2050,6 @@ public class VideoPlayerActivity extends AppCompatActivity {
         }
     }
 
-    private boolean isDanmakuEnabled = true;
-
-    private void toggleDanmaku() {
-        isDanmakuEnabled = !isDanmakuEnabled;
-        if (danmuController != null) {
-            if (isDanmakuEnabled) {
-                danmuController.startPlayback();
-            } else {
-                danmuController.pausePlayback();
-            }
-        }
-        if (danmuContainer != null) {
-            danmuContainer.setVisibility(isDanmakuEnabled ? View.VISIBLE : View.GONE);
-        }
-        updateDanmakuLabel();
-        ToastUtils.show(this, isDanmakuEnabled ? "弹幕已开启" : "弹幕已关闭");
-    }
 
     /**
      * 显示设置对话框
@@ -2341,10 +2329,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
     /**
      * 为 View 应用饱和度增强滤镜
      * 优化方案：
-     * 1. 提高饱和度以改善颜色偏白和饱和度不足问题
+     * 1. 适度提高饱和度以改善颜色饱和度不足问题
      * 2. 增强对比度以提升画面层次感
-     * 3. 微调亮度以改善偏白问题
-     * 
+     * 3. 亮度保持正常，不进行调整
+     *
      * @param view 目标 View
      * @param saturation 饱和度值 (0=灰度, 1=正常, >1=增强饱和度)
      */
@@ -2355,10 +2343,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
         android.graphics.ColorMatrix colorMatrix = new android.graphics.ColorMatrix();
         colorMatrix.setSaturation(saturation);
         
-        // 增强对比度 - 从1.05增加到1.1，提升画面层次感和清晰度
+        // 增强对比度 - 提升画面层次感和清晰度
         float contrast = 1.1f; // 增加10%对比度
-        // 微调亮度 - 降低2%亮度以改善颜色偏白问题
-        float brightness = -5f; // 降低约2%亮度（-5/255 ≈ -2%）
+        // 亮度保持正常，不进行调整
+        float brightness = 0f;
         float scale = contrast;
         float translate = (-.5f * scale + .5f) * 255f + brightness;
         android.graphics.ColorMatrix contrastMatrix = new android.graphics.ColorMatrix(new float[] {

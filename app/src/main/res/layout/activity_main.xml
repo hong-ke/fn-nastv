@@ -10,13 +10,15 @@
 
     <!-- 左侧导航栏 - 模仿飞牛影视风格 -->
     <LinearLayout
+        android:id="@+id/sidebar_container"
         android:layout_width="240dp"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:background="@color/tv_background"
         android:paddingTop="24dp"
         android:paddingBottom="16dp"
-        android:paddingHorizontal="16dp">
+        android:paddingHorizontal="16dp"
+        android:descendantFocusability="afterDescendants">
 
         <!-- 应用Logo和标题 -->
         <LinearLayout
@@ -56,6 +58,8 @@
             android:background="@drawable/nav_item_selected_bg"
             android:focusable="true"
             android:clickable="true"
+            android:nextFocusDown="@id/nav_favorite_container"
+            android:nextFocusRight="@id/main_scroll_view"
             android:drawableStart="@drawable/ic_home"
             android:drawablePadding="12dp"
             android:drawableTint="@color/tv_accent"
@@ -72,6 +76,9 @@
             android:layout_marginTop="4dp"
             android:focusable="true"
             android:clickable="true"
+            android:nextFocusUp="@id/nav_home"
+            android:nextFocusDown="@id/media_library_list"
+            android:nextFocusRight="@id/main_scroll_view"
             android:background="?attr/selectableItemBackground">
 
             <ImageView
@@ -116,7 +123,43 @@
             android:layout_height="0dp"
             android:layout_weight="1"
             android:scrollbars="none"
-            android:overScrollMode="never" />
+            android:overScrollMode="never"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:nextFocusUp="@id/nav_favorite_container"
+            android:nextFocusRight="@id/main_scroll_view"
+            android:nextFocusDown="@id/nav_clear_cache"
+            android:descendantFocusability="afterDescendants" />
+
+        <!-- 清理缓存按钮 -->
+        <LinearLayout
+            android:id="@+id/nav_clear_cache"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="16dp"
+            android:layout_marginTop="16dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:nextFocusUp="@id/media_library_list"
+            android:nextFocusRight="@id/main_scroll_view"
+            android:background="?attr/selectableItemBackground">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_delete"
+                android:tint="@color/tv_text_secondary" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="清理缓存"
+                android:textSize="16sp"
+                android:textColor="@color/tv_text_secondary"
+                android:layout_marginStart="12dp" />
+        </LinearLayout>
 
     </LinearLayout>
 
@@ -131,7 +174,8 @@
         android:scrollbars="vertical"
         android:fadeScrollbars="false"
         android:focusable="true"
-        android:focusableInTouchMode="true">
+        android:focusableInTouchMode="true"
+        android:nextFocusLeft="@id/nav_home">
 
         <LinearLayout
             android:layout_width="match_parent"

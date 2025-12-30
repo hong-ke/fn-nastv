@@ -183,6 +183,27 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         
+        // 主页导航焦点变化监听器（用于遥控器导航）
+        navHome.setOnFocusChangeListener((v, hasFocus) -> {
+            Log.d(TAG, "首页焦点变化: hasFocus=" + hasFocus + ", isShowingLibraryContent=" + isShowingLibraryContent);
+            if (hasFocus) {
+                // 获得焦点时显示高亮
+                navHome.setBackgroundColor(getColor(R.color.tv_accent));
+                navHome.setTextColor(getColor(R.color.white));
+            } else {
+                // 失去焦点时，根据是否在主页决定背景
+                if (!isShowingLibraryContent) {
+                    // 在主页模式，显示选中状态（浅色背景）
+                    navHome.setBackgroundResource(R.drawable.nav_item_selected_bg);
+                    navHome.setTextColor(getColor(R.color.tv_accent));
+                } else {
+                    // 在媒体库模式，不显示选中状态
+                    navHome.setBackground(null);
+                    navHome.setTextColor(getColor(R.color.tv_text_secondary));
+                }
+            }
+        });
+        
         // 收藏导航点击事件
         View navFavoriteContainer = findViewById(R.id.nav_favorite_container);
         if (navFavoriteContainer != null) {
@@ -190,6 +211,42 @@ public class MainActivity extends AppCompatActivity {
                 Log.d(TAG, "用户点击收藏导航");
                 Intent intent = new Intent(MainActivity.this, FavoriteActivity.class);
                 startActivity(intent);
+            });
+            
+            // 收藏导航焦点变化监听器
+            navFavoriteContainer.setOnFocusChangeListener((v, hasFocus) -> {
+                Log.d(TAG, "收藏焦点变化: hasFocus=" + hasFocus);
+                if (hasFocus) {
+                    navFavoriteContainer.setBackgroundColor(getColor(R.color.tv_accent));
+                    // 同时更新首页的背景（确保首页不再显示蓝色）
+                    if (!isShowingLibraryContent) {
+                        navHome.setBackgroundResource(R.drawable.nav_item_selected_bg);
+                        navHome.setTextColor(getColor(R.color.tv_accent));
+                    } else {
+                        navHome.setBackground(null);
+                        navHome.setTextColor(getColor(R.color.tv_text_secondary));
+                    }
+                } else {
+                    navFavoriteContainer.setBackground(null);
+                }
+            });
+        }
+        
+        // 清理缓存按钮点击事件
+        View navClearCache = findViewById(R.id.nav_clear_cache);
+        if (navClearCache != null) {
+            navClearCache.setOnClickListener(v -> {
+                Log.d(TAG, "用户点击清理缓存");
+                clearAllCache();
+            });
+            
+            // 清理缓存按钮焦点变化监听器
+            navClearCache.setOnFocusChangeListener((v, hasFocus) -> {
+                if (hasFocus) {
+                    navClearCache.setBackgroundColor(getColor(R.color.tv_accent));
+                } else {
+                    navClearCache.setBackground(null);
+                }
             });
         }
     }
@@ -199,6 +256,22 @@ public class MainActivity extends AppCompatActivity {
      */
     private void setupMediaLibraryList() {
         mediaLibraryAdapter = new MediaLibraryAdapter(this::onLibraryClick);
+        
+        // 设置媒体库焦点监听器，当媒体库获得焦点时更新首页背景
+        mediaLibraryAdapter.setOnFocusListener(hasFocus -> {
+            if (hasFocus) {
+                Log.d(TAG, "媒体库获得焦点，更新首页背景");
+                // 媒体库获得焦点时，首页应该显示未选中状态（除非在主页模式）
+                if (!isShowingLibraryContent) {
+                    navHome.setBackgroundResource(R.drawable.nav_item_selected_bg);
+                    navHome.setTextColor(getColor(R.color.tv_accent));
+                } else {
+                    navHome.setBackground(null);
+                    navHome.setTextColor(getColor(R.color.tv_text_secondary));
+                }
+            }
+        });
+        
         mediaLibraryList.setLayoutManager(new LinearLayoutManager(this));
         mediaLibraryList.setAdapter(mediaLibraryAdapter);
     }
@@ -790,14 +863,20 @@ public class MainActivity extends AppCompatActivity {
      */
     private void setHomeNavigationSelected(boolean isSelected) {
         if (navHome != null) {
-            if (isSelected) {
-                navHome.setBackgroundColor(getColor(R.color.tv_accent));
-                navHome.setTextColor(getColor(R.color.tv_text_on_accent));
-                Log.d(TAG, "主页导航：已选中");
-            } else {
-                navHome.setBackground(null);
-                navHome.setTextColor(getColor(R.color.tv_text_primary));
-                Log.d(TAG, "主页导航：取消选中");
+            // 保存选中状态
+            navHome.setTag(R.id.nav_home, isSelected);
+            
+            // 只有在没有焦点时才更新背景（焦点状态由 OnFocusChangeListener 处理）
+            if (!navHome.hasFocus()) {
+                if (isSelected) {
+                    navHome.setBackgroundResource(R.drawable.nav_item_selected_bg);
+                    navHome.setTextColor(getColor(R.color.tv_accent));
+                    Log.d(TAG, "主页导航：已选中");
+                } else {
+                    navHome.setBackground(null);
+                    navHome.setTextColor(getColor(R.color.tv_text_secondary));
+                    Log.d(TAG, "主页导航：取消选中");
+                }
             }
         }
     }
@@ -832,11 +911,282 @@ public class MainActivity extends AppCompatActivity {
                     return true;
                 }
             case KeyEvent.KEYCODE_MENU:
-                // 菜单键 - 显示设置或选项
-                ToastUtils.show(this, "菜单功能待实现");
+                // 菜单键 - 显示设置菜单
+                showSettingsMenu();
                 return true;
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+                // 左键 - 如果当前焦点在主内容区域，移动到侧边栏
+                View currentFocus = getCurrentFocus();
+                if (currentFocus != null) {
+                    // 检查当前焦点是否在主内容区域
+                    if (isViewInMainContent(currentFocus)) {
+                        // 将焦点移动到侧边栏
+                        if (navHome != null) {
+                            navHome.requestFocus();
+                            return true;
+                        }
+                    }
+                }
+                break;
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                // 右键 - 如果当前焦点在侧边栏，移动到主内容区域
+                currentFocus = getCurrentFocus();
+                if (currentFocus != null) {
+                    if (isViewInSidebar(currentFocus)) {
+                        // 将焦点移动到主内容区域的第一个可聚焦项
+                        View firstFocusable = findFirstFocusableInMainContent();
+                        if (firstFocusable != null) {
+                            firstFocusable.requestFocus();
+                            return true;
+                        }
+                    }
+                }
+                break;
             default:
                 return super.onKeyDown(keyCode, event);
         }
+        return super.onKeyDown(keyCode, event);
+    }
+    
+    /**
+     * 检查视图是否在主内容区域
+     */
+    private boolean isViewInMainContent(View view) {
+        if (mainScrollView == null) return false;
+        View parent = view;
+        while (parent != null) {
+            if (parent == mainScrollView) return true;
+            if (parent.getParent() instanceof View) {
+                parent = (View) parent.getParent();
+            } else {
+                break;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * 检查视图是否在侧边栏
+     */
+    private boolean isViewInSidebar(View view) {
+        if (navHome == null) return false;
+        View sidebar = (View) navHome.getParent();
+        View parent = view;
+        while (parent != null) {
+            if (parent == sidebar) return true;
+            if (parent.getParent() instanceof View) {
+                parent = (View) parent.getParent();
+            } else {
+                break;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * 在主内容区域找到第一个可聚焦的视图
+     */
+    private View findFirstFocusableInMainContent() {
+        if (continueWatchingList != null && continueWatchingList.getVisibility() == View.VISIBLE) {
+            if (continueWatchingList.getChildCount() > 0) {
+                return continueWatchingList.getChildAt(0);
+            }
+        }
+        if (mediaContentContainer != null && mediaContentContainer.getChildCount() > 0) {
+            return findFirstFocusableInViewGroup(mediaContentContainer);
+        }
+        return null;
+    }
+    
+    /**
+     * 递归查找第一个可聚焦的视图
+     */
+    private View findFirstFocusableInViewGroup(android.view.ViewGroup viewGroup) {
+        for (int i = 0; i < viewGroup.getChildCount(); i++) {
+            View child = viewGroup.getChildAt(i);
+            if (child.isFocusable() && child.getVisibility() == View.VISIBLE) {
+                return child;
+            }
+            if (child instanceof android.view.ViewGroup) {
+                View found = findFirstFocusableInViewGroup((android.view.ViewGroup) child);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * 显示设置菜单
+     */
+    private void showSettingsMenu() {
+        String[] options = {"清空缓存", "退出登录"};
+        
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("设置")
+            .setItems(options, (dialog, which) -> {
+                switch (which) {
+                    case 0:
+                        // 清空缓存
+                        clearVideoCache();
+                        break;
+                    case 1:
+                        // 退出登录
+                        logout();
+                        break;
+                }
+            })
+            .setNegativeButton("取消", null)
+            .show();
+    }
+    
+    /**
+     * 清空视频缓存
+     */
+    private void clearVideoCache() {
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("清空缓存")
+            .setMessage("确定要清空所有视频缓存吗？")
+            .setPositiveButton("确定", (dialog, which) -> {
+                try {
+                    // 清空 OkHttpProxyCacheManager 的缓存
+                    com.mynas.nastv.cache.OkHttpProxyCacheManager cacheManager = 
+                        com.mynas.nastv.cache.OkHttpProxyCacheManager.instance();
+                    cacheManager.clearCache(this, null, null);
+                    
+                    // 同时清空 GSY 的缓存目录
+                    java.io.File gsyCacheDir = new java.io.File(getCacheDir(), "gsy_video_cache");
+                    if (gsyCacheDir.exists()) {
+                        deleteDirectory(gsyCacheDir);
+                    }
+                    
+                    // 清空 okhttp_video_cache 目录
+                    java.io.File okhttpCacheDir = new java.io.File(getCacheDir(), "okhttp_video_cache");
+                    if (okhttpCacheDir.exists()) {
+                        deleteDirectory(okhttpCacheDir);
+                    }
+                    
+                    ToastUtils.show(this, "缓存已清空");
+                    Log.d(TAG, "视频缓存已清空");
+                } catch (Exception e) {
+                    Log.e(TAG, "清空缓存失败", e);
+                    ToastUtils.show(this, "清空缓存失败: " + e.getMessage());
+                }
+            })
+            .setNegativeButton("取消", null)
+            .show();
+    }
+    
+    /**
+     * 清理所有缓存（左侧菜单按钮）
+     */
+    private void clearAllCache() {
+        // 计算缓存大小
+        long totalSize = 0;
+        
+        java.io.File gsyCacheDir = new java.io.File(getCacheDir(), "gsy_video_cache");
+        if (gsyCacheDir.exists()) {
+            totalSize += getDirectorySize(gsyCacheDir);
+        }
+        
+        java.io.File okhttpCacheDir = new java.io.File(getCacheDir(), "okhttp_video_cache");
+        if (okhttpCacheDir.exists()) {
+            totalSize += getDirectorySize(okhttpCacheDir);
+        }
+        
+        String sizeStr = formatFileSize(totalSize);
+        
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("清理缓存")
+            .setMessage("当前缓存大小: " + sizeStr + "\n确定要清理所有缓存吗？")
+            .setPositiveButton("确定", (dialog, which) -> {
+                try {
+                    long freedSize = 0;
+                    
+                    // 清空 GSY 的缓存目录
+                    if (gsyCacheDir.exists()) {
+                        freedSize += getDirectorySize(gsyCacheDir);
+                        deleteDirectory(gsyCacheDir);
+                    }
+                    
+                    // 清空 okhttp_video_cache 目录
+                    if (okhttpCacheDir.exists()) {
+                        freedSize += getDirectorySize(okhttpCacheDir);
+                        deleteDirectory(okhttpCacheDir);
+                    }
+                    
+                    ToastUtils.show(this, "已清理 " + formatFileSize(freedSize));
+                    Log.d(TAG, "缓存已清理: " + formatFileSize(freedSize));
+                } catch (Exception e) {
+                    Log.e(TAG, "清理缓存失败", e);
+                    ToastUtils.show(this, "清理缓存失败");
+                }
+            })
+            .setNegativeButton("取消", null)
+            .show();
+    }
+    
+    /**
+     * 获取目录大小
+     */
+    private long getDirectorySize(java.io.File dir) {
+        long size = 0;
+        if (dir.isDirectory()) {
+            java.io.File[] files = dir.listFiles();
+            if (files != null) {
+                for (java.io.File file : files) {
+                    if (file.isFile()) {
+                        size += file.length();
+                    } else {
+                        size += getDirectorySize(file);
+                    }
+                }
+            }
+        }
+        return size;
+    }
+    
+    /**
+     * 格式化文件大小
+     */
+    private String formatFileSize(long size) {
+        if (size < 1024) {
+            return size + " B";
+        } else if (size < 1024 * 1024) {
+            return String.format("%.1f KB", size / 1024.0);
+        } else if (size < 1024 * 1024 * 1024) {
+            return String.format("%.1f MB", size / (1024.0 * 1024));
+        } else {
+            return String.format("%.2f GB", size / (1024.0 * 1024 * 1024));
+        }
+    }
+    
+    /**
+     * 递归删除目录
+     */
+    private boolean deleteDirectory(java.io.File dir) {
+        if (dir.isDirectory()) {
+            java.io.File[] files = dir.listFiles();
+            if (files != null) {
+                for (java.io.File file : files) {
+                    deleteDirectory(file);
+                }
+            }
+        }
+        return dir.delete();
+    }
+    
+    /**
+     * 退出登录
+     */
+    private void logout() {
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("退出登录")
+            .setMessage("确定要退出登录吗？")
+            .setPositiveButton("确定", (dialog, which) -> {
+                SharedPreferencesManager.clearAuthInfo();
+                navigateToLogin();
+            })
+            .setNegativeButton("取消", null)
+            .show();
     }
 }

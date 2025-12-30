@@ -2,6 +2,8 @@ package com.mynas.nastv.player;
 
 import android.content.Context;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.Surface;
 import android.view.TextureView;
@@ -69,6 +71,9 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
     // 缓存相关
     private boolean useProxyCache = false;
     private String originalUrl = null;
+    
+    // 主线程 Handler，确保 ExoPlayer 操作在主线程执行
+    private Handler mainHandler = new Handler(Looper.getMainLooper());
     
     public ExoPlayerKernel(Context context) {
         this.context = context.getApplicationContext();
@@ -267,7 +272,21 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
      */
     public void start() {
         if (exoPlayer != null) {
-            exoPlayer.setPlayWhenReady(true);
+            Log.d(TAG, "start() 调用 - 当前状态: " + getPlaybackStateName() + ", isPlaying: " + exoPlayer.isPlaying());
+            // 确保在主线程执行
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                exoPlayer.setPlayWhenReady(true);
+                Log.d(TAG, "start() 执行完成 - setPlayWhenReady(true)");
+            } else {
+                mainHandler.post(() -> {
+                    if (exoPlayer != null) {
+                        exoPlayer.setPlayWhenReady(true);
+                        Log.d(TAG, "start() 执行完成（异步）- setPlayWhenReady(true)");
+                    }
+                });
+            }
+        } else {
+            Log.e(TAG, "start() 失败 - ExoPlayer 为 null");
         }
     }
     
@@ -276,7 +295,21 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
      */
     public void pause() {
         if (exoPlayer != null) {
-            exoPlayer.setPlayWhenReady(false);
+            Log.d(TAG, "pause() 调用 - 当前状态: " + getPlaybackStateName() + ", isPlaying: " + exoPlayer.isPlaying());
+            // 确保在主线程执行
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                exoPlayer.setPlayWhenReady(false);
+                Log.d(TAG, "pause() 执行完成 - setPlayWhenReady(false)");
+            } else {
+                mainHandler.post(() -> {
+                    if (exoPlayer != null) {
+                        exoPlayer.setPlayWhenReady(false);
+                        Log.d(TAG, "pause() 执行完成（异步）- setPlayWhenReady(false)");
+                    }
+                });
+            }
+        } else {
+            Log.e(TAG, "pause() 失败 - ExoPlayer 为 null");
         }
     }
     
@@ -285,7 +318,16 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
      */
     public void stop() {
         if (exoPlayer != null) {
-            exoPlayer.stop();
+            // 确保在主线程执行
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                exoPlayer.stop();
+            } else {
+                mainHandler.post(() -> {
+                    if (exoPlayer != null) {
+                        exoPlayer.stop();
+                    }
+                });
+            }
         }
     }
     
@@ -294,7 +336,32 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
      */
     public void seekTo(long positionMs) {
         if (exoPlayer != null) {
-            exoPlayer.seekTo(positionMs);
+            int currentState = exoPlayer.getPlaybackState();
+            Log.d(TAG, "seekTo() 调用 - 目标位置: " + positionMs + "ms, 当前状态: " + getPlaybackStateName() + ", 当前位置: " + exoPlayer.getCurrentPosition() + "ms");
+            
+            // 确保在主线程执行，并且播放器已准备就绪（允许在 BUFFERING 和 READY 状态下执行）
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                if (currentState != Player.STATE_IDLE && currentState != Player.STATE_ENDED) {
+                    exoPlayer.seekTo(positionMs);
+                    Log.d(TAG, "seekTo() 执行完成 - 跳转到: " + positionMs + "ms");
+                } else {
+                    Log.w(TAG, "seekTo() 失败 - ExoPlayer 状态不允许: " + getPlaybackStateName());
+                }
+            } else {
+                mainHandler.post(() -> {
+                    if (exoPlayer != null) {
+                        int state = exoPlayer.getPlaybackState();
+                        if (state != Player.STATE_IDLE && state != Player.STATE_ENDED) {
+                            exoPlayer.seekTo(positionMs);
+                            Log.d(TAG, "seekTo() 执行完成（异步）- 跳转到: " + positionMs + "ms");
+                        } else {
+                            Log.w(TAG, "seekTo() 失败（异步）- ExoPlayer 状态不允许: " + getStateName(state));
+                        }
+                    }
+                });
+            }
+        } else {
+            Log.e(TAG, "seekTo() 失败 - ExoPlayer 为 null");
         }
     }
     
@@ -320,12 +387,43 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
     
     /**
      * 是否正在播放
+     * ExoPlayer 的 isPlaying() 返回 getPlayWhenReady() && getPlaybackState() == STATE_READY
+     * 这里直接使用 ExoPlayer 的 isPlaying() 方法
      */
     public boolean isPlaying() {
         if (exoPlayer != null) {
-            return exoPlayer.isPlaying();
+            // ExoPlayer 的 isPlaying() 是线程安全的
+            boolean playing = exoPlayer.isPlaying();
+            boolean playWhenReady = exoPlayer.getPlayWhenReady();
+            int state = exoPlayer.getPlaybackState();
+            Log.d(TAG, "isPlaying() - 返回: " + playing + ", playWhenReady: " + playWhenReady + ", 状态: " + getStateName(state));
+            return playing;
         }
+        Log.d(TAG, "isPlaying() - ExoPlayer 为 null，返回 false");
         return false;
+    }
+    
+    /**
+     * 获取播放状态名称（用于日志）
+     */
+    private String getPlaybackStateName() {
+        if (exoPlayer == null) {
+            return "NULL";
+        }
+        return getStateName(exoPlayer.getPlaybackState());
+    }
+    
+    /**
+     * 将状态码转换为名称
+     */
+    private String getStateName(int state) {
+        switch (state) {
+            case Player.STATE_IDLE: return "IDLE";
+            case Player.STATE_BUFFERING: return "BUFFERING";
+            case Player.STATE_READY: return "READY";
+            case Player.STATE_ENDED: return "ENDED";
+            default: return "UNKNOWN(" + state + ")";
+        }
     }
     
     /**

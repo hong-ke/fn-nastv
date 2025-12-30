@@ -7,7 +7,9 @@
     android:padding="@dimen/tv_margin_medium"
     android:background="?attr/selectableItemBackground"
     android:focusable="true"
-    android:clickable="true">
+    android:focusableInTouchMode="true"
+    android:clickable="true"
+    android:nextFocusRight="@id/main_scroll_view">
 
     <!-- 📚 图标 -->
     <ImageView

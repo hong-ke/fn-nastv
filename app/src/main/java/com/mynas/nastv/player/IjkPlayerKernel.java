@@ -36,8 +36,8 @@ public class IjkPlayerKernel implements PlayerKernel {
     private IjkMediaPlayer currentIjkPlayer;
     
     // 回调接口
-    private PlayerCallback playerCallback;
-    private SubtitleCallback subtitleCallback;
+    private PlayerKernel.PlayerCallback playerCallback;
+    private PlayerKernel.SubtitleCallback subtitleCallback;
     
     // 状态
     private boolean isPrepared = false;
@@ -335,12 +335,12 @@ public class IjkPlayerKernel implements PlayerKernel {
     }
     
     @Override
-    public void setPlayerCallback(PlayerCallback callback) {
+    public void setPlayerCallback(PlayerKernel.PlayerCallback callback) {
         this.playerCallback = callback;
     }
     
     @Override
-    public void setSubtitleCallback(SubtitleCallback callback) {
+    public void setSubtitleCallback(PlayerKernel.SubtitleCallback callback) {
         this.subtitleCallback = callback;
     }
     

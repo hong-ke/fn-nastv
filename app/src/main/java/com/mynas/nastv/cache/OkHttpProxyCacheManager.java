@@ -971,12 +971,63 @@ public class OkHttpProxyCacheManager implements ICacheManager {
     public void clearCache(Context context, File cachePath, String url) {
         File cacheDir = new File(context.getCacheDir(), CACHE_DIR);
         if (TextUtils.isEmpty(url)) {
-            if (cacheDir.exists()) deleteDirectory(cacheDir);
+            if (cacheDir.exists()) {
+                long size = getDirectorySize(cacheDir);
+                if (deleteDirectory(cacheDir)) {
+                    Log.d(TAG, "clearCache: 清空所有缓存成功, 释放 " + (size / 1024 / 1024) + "MB");
+                } else {
+                    Log.e(TAG, "clearCache: 清空缓存失败");
+                }
+            } else {
+                Log.d(TAG, "clearCache: 缓存目录不存在");
+            }
         } else {
             String videoId = md5(url);
             File videoDir = new File(cacheDir, videoId);
-            if (videoDir.exists()) deleteDirectory(videoDir);
+            if (videoDir.exists()) {
+                long size = getDirectorySize(videoDir);
+                if (deleteDirectory(videoDir)) {
+                    Log.d(TAG, "clearCache: 清空视频 " + videoId + " 缓存成功, 释放 " + (size / 1024 / 1024) + "MB");
+                }
+            }
         }
+    }
+    
+    /**
+     * 清空所有缓存并返回清理的大小（字节）
+     */
+    public long clearAllCache(Context context) {
+        File cacheDir = new File(context.getCacheDir(), CACHE_DIR);
+        long totalSize = 0;
+        
+        if (cacheDir.exists()) {
+            totalSize = getDirectorySize(cacheDir);
+            if (deleteDirectory(cacheDir)) {
+                Log.d(TAG, "clearAllCache: 清空所有缓存成功, 释放 " + (totalSize / 1024 / 1024) + "MB");
+            } else {
+                Log.e(TAG, "clearAllCache: 清空缓存失败");
+                totalSize = 0;
+            }
+        }
+        
+        // 重置状态
+        cachedChunks.clear();
+        currentVideoId = null;
+        currentVideoDir = null;
+        currentContentLength = -1;
+        
+        return totalSize;
+    }
+    
+    /**
+     * 获取缓存大小（字节）
+     */
+    public long getCacheSize(Context context) {
+        File cacheDir = new File(context.getCacheDir(), CACHE_DIR);
+        if (cacheDir.exists()) {
+            return getDirectorySize(cacheDir);
+        }
+        return 0;
     }
     
     @Override

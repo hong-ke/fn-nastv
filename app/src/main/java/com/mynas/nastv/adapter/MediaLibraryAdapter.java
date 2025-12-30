@@ -22,14 +22,23 @@ public class MediaLibraryAdapter extends RecyclerView.Adapter<MediaLibraryAdapte
     
     private List<MediaManager.MediaDbItem> mediaLibraries = new ArrayList<>();
     private OnLibraryClickListener listener;
+    private OnLibraryFocusListener focusListener;
     private int selectedPosition = -1;
     
     public interface OnLibraryClickListener {
         void onLibraryClick(MediaManager.MediaDbItem library, int position);
     }
     
+    public interface OnLibraryFocusListener {
+        void onLibraryFocusChanged(boolean hasFocus);
+    }
+    
     public MediaLibraryAdapter(OnLibraryClickListener listener) {
         this.listener = listener;
+    }
+    
+    public void setOnFocusListener(OnLibraryFocusListener focusListener) {
+        this.focusListener = focusListener;
     }
     
     public void updateLibraries(List<MediaManager.MediaDbItem> libraries) {
@@ -86,6 +95,24 @@ public class MediaLibraryAdapter extends RecyclerView.Adapter<MediaLibraryAdapte
             libraryName = itemView.findViewById(R.id.library_name);
             libraryCount = itemView.findViewById(R.id.library_count);
             
+            // 设置焦点变化监听器，用于遥控器导航时的视觉反馈
+            itemView.setOnFocusChangeListener((v, hasFocus) -> {
+                if (hasFocus) {
+                    v.setBackgroundColor(v.getContext().getColor(R.color.tv_accent));
+                    // 通知焦点变化
+                    if (focusListener != null) {
+                        focusListener.onLibraryFocusChanged(true);
+                    }
+                } else {
+                    int position = getAdapterPosition();
+                    if (position != RecyclerView.NO_POSITION && position == selectedPosition) {
+                        v.setBackgroundColor(v.getContext().getColor(R.color.tv_accent_light));
+                    } else {
+                        v.setBackground(null);
+                    }
+                }
+            });
+            
             itemView.setOnClickListener(v -> {
                 int position = getAdapterPosition();
                 if (position != RecyclerView.NO_POSITION && listener != null) {
@@ -105,10 +132,10 @@ public class MediaLibraryAdapter extends RecyclerView.Adapter<MediaLibraryAdapte
                 libraryCount.setText("0");
             }
             
-            // 设置选中状态
-            if (isSelected) {
+            // 设置选中状态（非焦点时）
+            if (isSelected && !itemView.hasFocus()) {
                 itemView.setBackgroundColor(itemView.getContext().getColor(R.color.tv_accent_light));
-            } else {
+            } else if (!itemView.hasFocus()) {
                 itemView.setBackground(null);
             }
         }

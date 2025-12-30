@@ -5,6 +5,7 @@ import android.net.Uri;
 import android.util.Log;
 import android.view.Surface;
 import android.view.TextureView;
+import android.view.View;
 
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
@@ -33,7 +34,7 @@ import java.util.Map;
  * 支持 onCues 回调获取内嵌字幕
  * 支持 OkHttpProxyCacheManager 本地代理缓存
  */
-public class ExoPlayerKernel implements Player.Listener {
+public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
     private static final String TAG = "ExoPlayerKernel";
     
     private Context context;
@@ -41,9 +42,24 @@ public class ExoPlayerKernel implements Player.Listener {
     private TextureView textureView;
     private Surface surface;
     
-    // 回调接口
-    private SubtitleCallback subtitleCallback;
-    private PlayerCallback playerCallback;
+    // 回调接口（使用 PlayerKernel 接口）
+    private PlayerKernel.SubtitleCallback subtitleCallback;
+    private PlayerKernel.PlayerCallback playerCallback;
+    
+    // 兼容旧的接口（保留用于向后兼容）
+    @Deprecated
+    public interface SubtitleCallback {
+        void onSubtitleChanged(List<androidx.media3.common.text.Cue> cues);
+    }
+    
+    @Deprecated
+    public interface PlayerCallback {
+        void onPrepared();
+        void onError(String error);
+        void onCompletion();
+        void onBuffering(boolean isBuffering);
+        void onVideoSizeChanged(int width, int height);
+    }
     
     // 状态
     private boolean isPrepared = false;
@@ -54,34 +70,68 @@ public class ExoPlayerKernel implements Player.Listener {
     private boolean useProxyCache = false;
     private String originalUrl = null;
     
-    /**
-     * 字幕回调接口
-     */
-    public interface SubtitleCallback {
-        void onSubtitleChanged(List<androidx.media3.common.text.Cue> cues);
-    }
-    
-    /**
-     * 播放器回调接口
-     */
-    public interface PlayerCallback {
-        void onPrepared();
-        void onError(String error);
-        void onCompletion();
-        void onBuffering(boolean isBuffering);
-        void onVideoSizeChanged(int width, int height);
-    }
-    
     public ExoPlayerKernel(Context context) {
         this.context = context.getApplicationContext();
     }
     
-    public void setSubtitleCallback(SubtitleCallback callback) {
+    @Override
+    public void setSubtitleCallback(PlayerKernel.SubtitleCallback callback) {
         this.subtitleCallback = callback;
     }
     
-    public void setPlayerCallback(PlayerCallback callback) {
+    @Override
+    public void setPlayerCallback(PlayerKernel.PlayerCallback callback) {
         this.playerCallback = callback;
+    }
+    
+    // 兼容旧接口
+    @Deprecated
+    public void setSubtitleCallback(SubtitleCallback callback) {
+        if (callback != null) {
+            this.subtitleCallback = new PlayerKernel.SubtitleCallback() {
+                @Override
+                public void onSubtitleChanged(List<androidx.media3.common.text.Cue> cues) {
+                    callback.onSubtitleChanged(cues);
+                }
+                
+                @Override
+                public void onTimedText(String text) {
+                    // ExoPlayer 不使用 onTimedText，只使用 onSubtitleChanged
+                }
+            };
+        }
+    }
+    
+    @Deprecated
+    public void setPlayerCallback(PlayerCallback callback) {
+        if (callback != null) {
+            this.playerCallback = new PlayerKernel.PlayerCallback() {
+                @Override
+                public void onPrepared() {
+                    callback.onPrepared();
+                }
+                
+                @Override
+                public void onError(String error) {
+                    callback.onError(error);
+                }
+                
+                @Override
+                public void onCompletion() {
+                    callback.onCompletion();
+                }
+                
+                @Override
+                public void onBuffering(boolean isBuffering) {
+                    callback.onBuffering(isBuffering);
+                }
+                
+                @Override
+                public void onVideoSizeChanged(int width, int height) {
+                    callback.onVideoSizeChanged(width, height);
+                }
+            };
+        }
     }
     
     /**
@@ -308,6 +358,35 @@ public class ExoPlayerKernel implements Player.Listener {
      */
     public int getVideoHeight() {
         return videoHeight;
+    }
+    
+    @Override
+    public View getPlayerView() {
+        return textureView;
+    }
+    
+    @Override
+    public void selectAudioTrack(int trackIndex) {
+        // ExoPlayer 的音频轨道选择需要更复杂的实现
+        // 暂时留空，后续可以扩展
+    }
+    
+    @Override
+    public void selectSubtitleTrack(int trackIndex) {
+        // ExoPlayer 的字幕轨道选择需要更复杂的实现
+        // 暂时留空，后续可以扩展
+    }
+    
+    @Override
+    public List<TrackInfo> getAudioTracks() {
+        // ExoPlayer 的轨道信息获取需要更复杂的实现
+        return new java.util.ArrayList<>();
+    }
+    
+    @Override
+    public List<TrackInfo> getSubtitleTracks() {
+        // ExoPlayer 的轨道信息获取需要更复杂的实现
+        return new java.util.ArrayList<>();
     }
     
     /**

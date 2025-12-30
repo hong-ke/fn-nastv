@@ -15,6 +15,7 @@ import androidx.media3.common.PlaybackException;
 import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
+import androidx.media3.common.TrackSelectionParameters;
 import androidx.media3.common.text.CueGroup;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DefaultDataSource;
@@ -158,16 +159,16 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
         
         DataSource.Factory dataSourceFactory = new DefaultDataSource.Factory(context, httpFactory);
         
-        // 创建 LoadControl - 优化缓冲策略，增加缓冲以提高画质稳定性
+        // 创建 LoadControl - 优化缓冲策略：缩短首播与 seek 后等待时间
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                10000,  // minBufferMs - 增加最小缓冲
-                60000,  // maxBufferMs - 增加最大缓冲
-                2500,   // bufferForPlaybackMs - 开始播放前的缓冲
-                5000    // bufferForPlaybackAfterRebufferMs - 重新缓冲后的缓冲
+                5_000,   // minBufferMs：降低到 5s，加快启动和 seek 后恢复
+                30_000,  // maxBufferMs：30s，足够平衡稳定性
+                700,     // bufferForPlaybackMs：首播前缓冲 0.7s
+                1_500    // bufferForPlaybackAfterRebufferMs：seek/重缓冲后缓冲 1.5s
             )
             .setTargetBufferBytes(C.LENGTH_UNSET) // 不限制缓冲大小
-            .setPrioritizeTimeOverSizeThresholds(false) // 优先保证画质
+            .setPrioritizeTimeOverSizeThresholds(false) // 保持画质优先
             .build();
         
         // 创建 RenderersFactory - 优先使用硬件解码器
@@ -181,6 +182,13 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
             .setMediaSourceFactory(new DefaultMediaSourceFactory(dataSourceFactory))
             .setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING) // 视频缩放模式
             .build();
+
+        // 画质优先：强制选择设备支持的最高码率/分辨率轨道
+        TrackSelectionParameters qualityParams = exoPlayer.getTrackSelectionParameters()
+                .buildUpon()
+                .setForceHighestSupportedBitrate(true)
+                .build();
+        exoPlayer.setTrackSelectionParameters(qualityParams);
         
         // 添加监听器
         exoPlayer.addListener(this);

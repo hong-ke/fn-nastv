@@ -398,7 +398,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
 
         // 为 GSYVideoPlayer 应用饱和度增强滤镜
         if (playerView != null) {
-            applySaturationFilter(playerView, 1.15f); // 增加15%饱和度，适度改善颜色饱和度不足问题
+            applySaturationFilter(playerView, 1.05f); // 增加5%饱和度，轻微增强颜色
         }
 
         // 初始化辅助类
@@ -1133,7 +1133,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
             exoTextureView = new android.view.TextureView(this);
             
             // 应用饱和度增强滤镜 - 增加色彩饱和度
-            applySaturationFilter(exoTextureView, 1.15f); // 1.15 = 增加15%饱和度，适度改善颜色饱和度不足问题
+            applySaturationFilter(exoTextureView, 1.05f); // 1.05 = 增加5%饱和度，轻微增强颜色
             
             // 添加到根布局（在 playerView 的位置，但在弹幕容器之下）
             android.view.ViewGroup rootView = (android.view.ViewGroup) findViewById(android.R.id.content);
@@ -2343,8 +2343,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
         android.graphics.ColorMatrix colorMatrix = new android.graphics.ColorMatrix();
         colorMatrix.setSaturation(saturation);
         
-        // 增强对比度 - 提升画面层次感和清晰度
-        float contrast = 1.1f; // 增加10%对比度
+        // 增强对比度 - 提升画面层次感和清晰度（5%）
+        float contrast = 1.05f; // 增加5%对比度
         // 亮度保持正常，不进行调整
         float brightness = 0f;
         float scale = contrast;

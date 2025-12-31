@@ -1,5 +1,6 @@
 package com.mynas.nastv.feature.danmaku.model;
 
+import android.graphics.Bitmap;
 import com.google.gson.annotations.SerializedName;
 import java.io.Serializable;
 import java.util.LinkedList;
@@ -11,9 +12,10 @@ import java.util.Queue;
  * 对应后端 /danmu/get API 返回的弹幕数据。
  * 使用 @SerializedName 注解防止混淆问题。
  * 支持对象池复用，减少内存波动（NFR-03）。
+ * 支持 Bitmap 预渲染缓存，提升绘制性能。
  * 
  * @author nastv
- * @version 1.1
+ * @version 1.2
  */
 public class DanmakuEntity implements Serializable {
     
@@ -41,6 +43,11 @@ public class DanmakuEntity implements Serializable {
      * 将实例回收到对象池
      */
     public void recycle() {
+        // 回收 Bitmap
+        if (cachedBitmap != null && !cachedBitmap.isRecycled()) {
+            cachedBitmap.recycle();
+            cachedBitmap = null;
+        }
         synchronized (sPool) {
             if (sPool.size() < MAX_POOL_SIZE) {
                 this.reset();
@@ -104,6 +111,11 @@ public class DanmakuEntity implements Serializable {
     public transient float speed;
     
     /**
+     * 预渲染的 Bitmap 缓存（避免每帧重复 drawText）
+     */
+    public transient Bitmap cachedBitmap;
+    
+    /**
      * 构造函数
      */
     public DanmakuEntity() {
@@ -114,6 +126,7 @@ public class DanmakuEntity implements Serializable {
         this.currentX = 0;
         this.currentY = 0;
         this.trackIndex = 0;
+        this.cachedBitmap = null;
     }
     
     /**
@@ -131,6 +144,8 @@ public class DanmakuEntity implements Serializable {
         this.trackIndex = 0;
         this.startTimeMs = 0;
         this.speed = 0;
+        // Bitmap 在 recycle() 中处理
+        this.cachedBitmap = null;
     }
     
     /**

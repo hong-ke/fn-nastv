@@ -53,10 +53,16 @@ public class DanmakuOverlayView extends View implements IDanmakuView {
     public DanmakuOverlayView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         
+        // 关键：强制硬件加速，提升性能
+        setLayerType(LAYER_TYPE_HARDWARE, null);
+        
         // 配置视图属性：焦点穿透
         setFocusable(false);
         setClickable(false);
         setWillNotDraw(false); // 允许绘制
+        
+        // 优化：设置背景透明，避免不必要的绘制
+        setBackground(null);
         
         // 初始化画笔（简单配置，不使用 ShadowLayer）
         textPaint = new Paint();

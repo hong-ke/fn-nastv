@@ -4,12 +4,11 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.PixelFormat;
 import android.graphics.PorterDuff;
+import android.graphics.SurfaceTexture;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
+import android.view.TextureView;
 
 import com.mynas.nastv.feature.danmaku.model.DanmakuEntity;
 
@@ -17,17 +16,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 高性能弹幕 SurfaceView
+ * 弹幕 TextureView
  * 
- * 简化版本：直接 drawText，不使用 Bitmap 缓存
- * 在低端设备上 drawText 比 drawBitmap 更快
+ * 使用 TextureView 替代 SurfaceView：
+ * - 与视频播放器共享 GPU 管线，减少资源竞争
+ * - 支持硬件加速
+ * - 可以做动画和变换
  * 
  * @author nastv
- * @version 3.1 (Simple drawText)
+ * @version 1.0
  */
-public class DanmakuSurfaceView extends SurfaceView implements SurfaceHolder.Callback, IDanmakuView {
+public class DanmakuTextureView extends TextureView implements TextureView.SurfaceTextureListener, IDanmakuView {
     
-    private static final String TAG = "DanmakuSurfaceView";
+    private static final String TAG = "DanmakuTextureView";
     
     private final Paint textPaint;
     private final Paint strokePaint;
@@ -39,33 +40,28 @@ public class DanmakuSurfaceView extends SurfaceView implements SurfaceHolder.Cal
     private final java.util.Map<String, Integer> colorCache = new java.util.HashMap<>();
     private static final int MAX_COLOR_CACHE = 50;
     
-    private SurfaceHolder surfaceHolder;
     private boolean isSurfaceReady = false;
     private long frameCount = 0;
     
-    public DanmakuSurfaceView(Context context) {
+    public DanmakuTextureView(Context context) {
         this(context, null);
     }
     
-    public DanmakuSurfaceView(Context context, AttributeSet attrs) {
+    public DanmakuTextureView(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
     
-    public DanmakuSurfaceView(Context context, AttributeSet attrs, int defStyleAttr) {
+    public DanmakuTextureView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         
         setFocusable(false);
         setClickable(false);
+        setOpaque(false); // 透明背景
+        setSurfaceTextureListener(this);
         
-        // 必须用 setZOrderOnTop(true) 否则黑屏
-        setZOrderOnTop(true);
-        surfaceHolder = getHolder();
-        surfaceHolder.setFormat(PixelFormat.TRANSLUCENT);
-        surfaceHolder.addCallback(this);
-        
-        // 文字画笔 - 极简配置
+        // 文字画笔
         textPaint = new Paint();
-        textPaint.setAntiAlias(false); // 关闭抗锯齿提升性能
+        textPaint.setAntiAlias(false);
         textPaint.setColor(Color.WHITE);
         textPaint.setTextSize(56);
         textPaint.setStyle(Paint.Style.FILL);
@@ -78,24 +74,30 @@ public class DanmakuSurfaceView extends SurfaceView implements SurfaceHolder.Cal
         strokePaint.setStyle(Paint.Style.STROKE);
         strokePaint.setStrokeWidth(3f);
         
-        Log.d(TAG, "DanmakuSurfaceView 初始化完成 (Simple)");
+        Log.d(TAG, "DanmakuTextureView 初始化完成");
     }
     
     @Override
-    public void surfaceCreated(SurfaceHolder holder) {
+    public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
         isSurfaceReady = true;
-        Log.d(TAG, "Surface 已创建");
+        Log.d(TAG, "SurfaceTexture 可用: " + width + "x" + height);
     }
     
     @Override
-    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        Log.d(TAG, "Surface 尺寸变化: " + width + "x" + height);
+    public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+        Log.d(TAG, "SurfaceTexture 尺寸变化: " + width + "x" + height);
     }
     
     @Override
-    public void surfaceDestroyed(SurfaceHolder holder) {
+    public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
         isSurfaceReady = false;
-        Log.d(TAG, "Surface 已销毁");
+        Log.d(TAG, "SurfaceTexture 销毁");
+        return true;
+    }
+    
+    @Override
+    public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+        // 不需要处理
     }
     
     @Override
@@ -115,7 +117,7 @@ public class DanmakuSurfaceView extends SurfaceView implements SurfaceHolder.Cal
     }
     
     private void drawDanmaku() {
-        if (!isSurfaceReady || surfaceHolder == null) {
+        if (!isSurfaceReady) {
             return;
         }
         
@@ -124,29 +126,25 @@ public class DanmakuSurfaceView extends SurfaceView implements SurfaceHolder.Cal
             drawList.addAll(renderList);
         }
         
-        int danmakuCount = drawList.size();
-        
         Canvas canvas = null;
         try {
-            canvas = surfaceHolder.lockCanvas();
+            canvas = lockCanvas();
             if (canvas == null) {
                 return;
             }
             
             frameCount++;
             
-            // 每100帧打印一次性能日志
-            if (frameCount % 100 == 0) {
-                Log.d(TAG, "帧=" + frameCount + ", 弹幕数=" + danmakuCount);
-            }
-            
             // 清空画布
             canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
             
-            // 绘制每条弹幕（只绘制一次，不绘制描边）
+            // 绘制每条弹幕
             for (int i = 0, size = drawList.size(); i < size; i++) {
                 DanmakuEntity entity = drawList.get(i);
                 if (entity != null && entity.text != null && !entity.text.isEmpty()) {
+                    // 先绘制黑色描边
+                    canvas.drawText(entity.text, entity.currentX, entity.currentY, strokePaint);
+                    // 再绘制彩色文字
                     textPaint.setColor(parseColor(entity.color));
                     canvas.drawText(entity.text, entity.currentX, entity.currentY, textPaint);
                 }
@@ -155,9 +153,9 @@ public class DanmakuSurfaceView extends SurfaceView implements SurfaceHolder.Cal
         } catch (Exception e) {
             Log.e(TAG, "弹幕渲染错误", e);
         } finally {
-            if (canvas != null && surfaceHolder != null) {
+            if (canvas != null) {
                 try {
-                    surfaceHolder.unlockCanvasAndPost(canvas);
+                    unlockCanvasAndPost(canvas);
                 } catch (Exception e) {
                     // 忽略
                 }
@@ -185,10 +183,10 @@ public class DanmakuSurfaceView extends SurfaceView implements SurfaceHolder.Cal
             renderList.clear();
         }
         
-        if (isSurfaceReady && surfaceHolder != null) {
+        if (isSurfaceReady) {
             Canvas canvas = null;
             try {
-                canvas = surfaceHolder.lockCanvas();
+                canvas = lockCanvas();
                 if (canvas != null) {
                     canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
                 }
@@ -197,7 +195,7 @@ public class DanmakuSurfaceView extends SurfaceView implements SurfaceHolder.Cal
             } finally {
                 if (canvas != null) {
                     try {
-                        surfaceHolder.unlockCanvasAndPost(canvas);
+                        unlockCanvasAndPost(canvas);
                     } catch (Exception e) {
                         // 忽略
                     }

@@ -2,6 +2,7 @@ package com.mynas.nastv.feature.danmaku.logic;
 
 import android.content.Context;
 import android.util.Log;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
@@ -9,6 +10,8 @@ import com.mynas.nastv.feature.danmaku.api.IDanmuController;
 import com.mynas.nastv.feature.danmaku.model.DanmakuEntity;
 import com.mynas.nastv.feature.danmaku.model.DanmuConfig;
 import com.mynas.nastv.feature.danmaku.view.DanmakuSurfaceView;
+import com.mynas.nastv.feature.danmaku.view.DanmakuHardwareView;
+import com.mynas.nastv.feature.danmaku.view.DanmakuOverlayView;
 import com.mynas.nastv.feature.danmaku.view.IDanmakuView;
 import com.mynas.nastv.feature.danmaku.view.DanmuRenderer;
 
@@ -23,11 +26,21 @@ public class DanmuControllerImpl implements IDanmuController {
     private static final String TAG = "DanmuControllerImpl";
     
     private Context context;
-    private DanmakuSurfaceView overlayView;  // 使用 SurfaceView，独立渲染不影响主线程
+    private IDanmakuView overlayView;  // 使用接口，支持多种实现
+    private View overlayViewInstance;  // 保存View实例，用于removeView
     private DanmuRenderer renderer;
     private DanmuPresenter presenter;
     private DanmuRepository repository;
     private DanmuConfig config;
+    
+    // 弹幕视图类型枚举
+    public enum DanmakuViewType {
+        SURFACE_VIEW,      // SurfaceView（推荐，性能最佳）
+        HARDWARE_VIEW,     // 硬件加速View
+        OVERLAY_VIEW       // 普通View
+    }
+    
+    private static final DanmakuViewType DEFAULT_VIEW_TYPE = DanmakuViewType.SURFACE_VIEW;
     
     private boolean isInitialized = false;
     
@@ -37,14 +50,50 @@ public class DanmuControllerImpl implements IDanmuController {
     
     @Override
     public void initialize(Context context, ViewGroup parentContainer) {
+        initialize(context, parentContainer, DEFAULT_VIEW_TYPE);
+    }
+    
+    /**
+     * 初始化弹幕控制器，支持选择不同的视图实现
+     * 
+     * @param context 上下文
+     * @param parentContainer 父容器
+     * @param viewType 视图类型
+     *   - HARDWARE_VIEW: 硬件加速View（推荐，无需lockCanvas，性能最佳）
+     *   - OVERLAY_VIEW: 普通View（备选方案）
+     *   - SURFACE_VIEW: SurfaceView（旧方案，低端设备上lockCanvas慢）
+     */
+    public void initialize(Context context, ViewGroup parentContainer, DanmakuViewType viewType) {
         if (isInitialized) throw new IllegalStateException("Already initialized");
         this.context = context;
         this.config = DanmuConfig.loadFromPrefs();
-        // 使用 SurfaceView，独立渲染线程
-        this.overlayView = new DanmakuSurfaceView(context);
+        
+        // 根据类型创建不同的视图实现
+        View view;
+        switch (viewType) {
+            case HARDWARE_VIEW:
+                // 硬件加速View
+                view = new DanmakuHardwareView(context);
+                Log.d(TAG, "使用 DanmakuHardwareView（硬件加速）");
+                break;
+            case OVERLAY_VIEW:
+                // 普通View
+                view = new DanmakuOverlayView(context);
+                Log.d(TAG, "使用 DanmakuOverlayView");
+                break;
+            case SURFACE_VIEW:
+            default:
+                // 推荐：SurfaceView，性能最佳
+                view = new DanmakuSurfaceView(context);
+                Log.d(TAG, "使用 DanmakuSurfaceView（推荐，性能最佳）");
+                break;
+        }
+        
+        this.overlayView = (IDanmakuView) view;
+        this.overlayViewInstance = view;  // 保存View实例
         this.overlayView.setDanmakuAlpha(config.opacity);
         
-        parentContainer.addView(overlayView, new FrameLayout.LayoutParams(
+        parentContainer.addView(view, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
@@ -53,9 +102,9 @@ public class DanmuControllerImpl implements IDanmuController {
         this.presenter = new DanmuPresenter(renderer, overlayView);
         this.repository = new DanmuRepository();
         
-        overlayView.post(() -> {
-            int width = overlayView.getWidth();
-            int height = overlayView.getHeight();
+        view.post(() -> {
+            int width = view.getWidth();
+            int height = view.getHeight();
             if (width > 0 && height > 0) {
                 presenter.updateViewSize(width, height);
             }
@@ -157,9 +206,11 @@ public class DanmuControllerImpl implements IDanmuController {
     public void destroy() {
         if (!isInitialized) return;
         if (presenter != null) presenter.destroy();
-        if (overlayView != null && overlayView.getParent() != null) {
-            ((ViewGroup)overlayView.getParent()).removeView(overlayView);
+        if (overlayViewInstance != null && overlayViewInstance.getParent() != null) {
+            ((ViewGroup)overlayViewInstance.getParent()).removeView(overlayViewInstance);
         }
+        overlayView = null;
+        overlayViewInstance = null;
         isInitialized = false;
     }
     

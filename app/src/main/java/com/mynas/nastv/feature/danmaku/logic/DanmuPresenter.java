@@ -49,6 +49,11 @@ public class DanmuPresenter {
     private long lastFpsCalculationTimeMs = 0;
     
     // Choreographer 帧回调 - 在渲染线程执行
+    // 优化：每3帧更新一次弹幕位置（约20fps），减少绘制调用
+    private int frameSkipCounter = 0;
+    private static final int FRAME_SKIP = 3; // 每3帧计算一次位置（60/3=20fps）
+    private float accumulatedDeltaMs = 0; // 累积的时间差
+    
     private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {
         @Override
         public void doFrame(long frameTimeNanos) {
@@ -71,6 +76,9 @@ public class DanmuPresenter {
             }
             lastFrameTimeNanos = frameTimeNanos;
             
+            // 累积时间
+            accumulatedDeltaMs += deltaTimeMs;
+            
             // FPS 监控
             long now = System.currentTimeMillis();
             frameCount++;
@@ -79,8 +87,14 @@ public class DanmuPresenter {
                 lastFpsCalculationTimeMs = now;
             }
             
-            // 直接在渲染线程更新弹幕
-            updateDanmakuFrame(deltaTimeMs);
+            // 每3帧更新一次弹幕（约20fps）
+            frameSkipCounter++;
+            if (frameSkipCounter >= FRAME_SKIP) {
+                frameSkipCounter = 0;
+                // 使用累积的 deltaTime
+                updateDanmakuFrame(accumulatedDeltaMs);
+                accumulatedDeltaMs = 0;
+            }
         }
     };
     

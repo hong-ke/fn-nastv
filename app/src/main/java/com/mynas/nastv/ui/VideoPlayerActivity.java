@@ -1,9 +1,11 @@
 package com.mynas.nastv.ui;
 
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.StrictMode;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
@@ -134,6 +136,29 @@ public class VideoPlayerActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // 启用 StrictMode 检测主线程阻塞（仅 Debug 模式）
+        // 注意：BuildConfig 可能未生成，使用 ApplicationInfo 检测
+        boolean isDebug = (getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        if (isDebug) {
+            StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder()
+                    .detectDiskReads()      // 检测磁盘读取
+                    .detectDiskWrites()     // 检测磁盘写入
+                    .detectNetwork()        // 检测网络操作
+                    .detectCustomSlowCalls() // 检测自定义慢调用
+                    .penaltyLog()           // 违规时记录日志
+                    .penaltyFlashScreen()   // 违规时闪烁屏幕（可选，用于调试）
+                    .build());
+            
+            StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder()
+                    .detectLeakedSqlLiteObjects()  // 检测 SQLite 对象泄漏
+                    .detectLeakedClosableObjects() // 检测未关闭的对象
+                    .penaltyLog()
+                    .build());
+            
+            Log.d(TAG, "StrictMode 已启用，将检测主线程阻塞问题");
+        }
+        
         setContentView(R.layout.activity_video_player);
 
         initializeData();
@@ -810,6 +835,13 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         mainLayout.addView(exoTextureView, 1, params);
                     }
                     Log.d(TAG, "ExoPlayer TextureView 已添加到主布局（索引=" + playerViewIndex + "）");
+                    
+                    // 确保 TextureView 在弹幕容器之下，但在其他视图之上
+                    // 确保正确的视图层级：弹幕容器在最上层，TextureView 在中间层
+                    // 注意：不要频繁调用 bringToFront，避免影响弹幕显示
+                    if (danmuContainer != null) {
+                        danmuContainer.bringToFront(); // 弹幕容器必须在最上层
+                    }
                 }
             }
             exoTextureView.setVisibility(View.VISIBLE);
@@ -958,6 +990,14 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         Log.d(TAG, "ExoPlayer Surface 可用（在 initializePlayer 中）");
                         android.view.Surface videoSurface = new android.view.Surface(surface);
                         exoPlayerKernel.setSurface(videoSurface);
+                        
+                        // 确保 TextureView 可见
+                        exoTextureView.setVisibility(View.VISIBLE);
+                        // 确保弹幕容器在最上层（不要频繁调用，避免影响弹幕显示）
+                        if (danmuContainer != null) {
+                            danmuContainer.bringToFront(); // 弹幕容器必须在最上层
+                        }
+                        
                         // 如果已经有 URL，开始播放
                         if (currentVideoUrl != null && !currentVideoUrl.isEmpty()) {
                             Log.d(TAG, "Surface 可用，开始播放: " + currentVideoUrl.substring(0, Math.min(50, currentVideoUrl.length())));
@@ -985,6 +1025,13 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 android.view.Surface videoSurface = new android.view.Surface(exoTextureView.getSurfaceTexture());
                 exoPlayerKernel.setSurface(videoSurface);
                 Log.d(TAG, "Surface 已可用，已设置给 ExoPlayer");
+                
+                // 确保 TextureView 可见
+                exoTextureView.setVisibility(View.VISIBLE);
+                // 确保弹幕容器在最上层（不要频繁调用，避免影响弹幕显示）
+                if (danmuContainer != null) {
+                    danmuContainer.bringToFront(); // 弹幕容器必须在最上层
+                }
             }
             
             // 隐藏 GSYVideoPlayer 内置的 loading 视图
@@ -1313,7 +1360,13 @@ public class VideoPlayerActivity extends AppCompatActivity {
             
             // 如果是 ExoPlayer，确保 Surface 已设置并开始播放
             if (useExoPlayerForSubtitle && exoPlayerKernel != null && exoTextureView != null) {
+                // 确保 TextureView 可见
                 exoTextureView.setVisibility(View.VISIBLE);
+                // 确保弹幕容器在最上层（不要频繁调用，避免影响弹幕显示）
+                if (danmuContainer != null) {
+                    danmuContainer.bringToFront(); // 弹幕容器必须在最上层
+                }
+                
                 if (exoTextureView.isAvailable()) {
                     android.view.Surface videoSurface = new android.view.Surface(exoTextureView.getSurfaceTexture());
                     exoPlayerKernel.setSurface(videoSurface);
@@ -2123,6 +2176,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 if (playerView != null) {
                     playerView.setVisibility(View.GONE);
                 }
+                // 确保弹幕容器在最上层（不要频繁调用，避免影响弹幕显示）
+                if (danmuContainer != null) {
+                    danmuContainer.bringToFront();
+                }
+                Log.d(TAG, "showPlayer: ExoPlayer TextureView 已显示");
             } else {
                 playerView.setVisibility(View.VISIBLE);
             }

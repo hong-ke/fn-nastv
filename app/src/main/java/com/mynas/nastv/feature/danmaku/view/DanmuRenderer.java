@@ -40,6 +40,10 @@ public class DanmuRenderer {
     // 当前激活的弹幕列表
     private final List<DanmakuEntity> activeDanmakuList = new ArrayList<>();
     
+    // 复用列表，避免每帧创建新对象
+    private final List<DanmakuEntity> visibleListCache = new ArrayList<>();
+    private final List<DanmakuEntity> stillActiveCache = new ArrayList<>();
+    
     // 优化：只使用2个轨道
     private static final int MAX_TRACKS = 2;
     
@@ -61,8 +65,9 @@ public class DanmuRenderer {
     // 长弹幕阈值（超过15个字符视为长弹幕）
     private static final int LONG_DANMAKU_THRESHOLD = 15;
     
-    // 弹幕滚动速度（像素/秒）- 减慢速度
-    private static final float SCROLL_SPEED = 150f;
+    // 弹幕滚动速度（像素/秒）- 优化为更平滑的速度
+    // 速度适中，既能保证流畅度，又不会太快导致看不清
+    private static final float SCROLL_SPEED = 180f;
     
     public DanmuRenderer(Context context, DanmuConfig config) {
         this.context = context;
@@ -108,26 +113,28 @@ public class DanmuRenderer {
     }
     
     public List<DanmakuEntity> calculateVisibleDanmaku(long currentPositionMs) {
-        List<DanmakuEntity> visibleList = new ArrayList<>();
+        // 复用列表
+        visibleListCache.clear();
+        stillActiveCache.clear();
         
         if (danmakuDataMap == null || danmakuDataMap.isEmpty()) {
-            return visibleList;
+            return visibleListCache;
         }
         
         int topBoundary = (int) (viewHeight * config.topMarginPercent);
         int bottomBoundary = (int) (viewHeight * (1.0f - config.bottomMarginPercent));
         
-        List<DanmakuEntity> stillActive = new ArrayList<>();
-        for (DanmakuEntity entity : activeDanmakuList) {
+        for (int i = 0, size = activeDanmakuList.size(); i < size; i++) {
+            DanmakuEntity entity = activeDanmakuList.get(i);
             if (updateDanmakuPosition(entity, currentPositionMs)) {
                 if (isWithinRenderArea(entity, topBoundary, bottomBoundary)) {
-                    visibleList.add(entity);
-                    stillActive.add(entity);
+                    visibleListCache.add(entity);
+                    stillActiveCache.add(entity);
                 }
             }
         }
         activeDanmakuList.clear();
-        activeDanmakuList.addAll(stillActive);
+        activeDanmakuList.addAll(stillActiveCache);
         
         long bucketId = currentPositionMs / 60000;
         String bucketKey = (bucketId * 60000) + "-" + ((bucketId + 1) * 60000);
@@ -138,11 +145,12 @@ public class DanmuRenderer {
             long timeWindowStart = currentPositionMs - 100;
             long timeWindowEnd = currentPositionMs + 100;
             
-            for (DanmakuEntity entity : bucketData) {
+            for (int i = 0, size = bucketData.size(); i < size; i++) {
+                DanmakuEntity entity = bucketData.get(i);
                 if (entity.time >= timeWindowStart && entity.time <= timeWindowEnd) {
                     boolean alreadyActive = false;
-                    for (DanmakuEntity active : activeDanmakuList) {
-                        if (active == entity) {
+                    for (int j = 0, activeSize = activeDanmakuList.size(); j < activeSize; j++) {
+                        if (activeDanmakuList.get(j) == entity) {
                             alreadyActive = true;
                             break;
                         }
@@ -151,19 +159,35 @@ public class DanmuRenderer {
                     if (!alreadyActive) {
                         if (initializeDanmakuPosition(entity, currentPositionMs, topBoundary, bottomBoundary)) {
                             activeDanmakuList.add(entity);
-                            visibleList.add(entity);
+                            visibleListCache.add(entity);
                         }
                     }
                 }
             }
         }
         
-        return visibleList;
+        return visibleListCache;
     }
     
     private boolean updateDanmakuPositionSmooth(DanmakuEntity entity, float deltaTimeMs) {
         if (entity.isScrollType()) {
+            // 确保 deltaTimeMs 在合理范围内，避免跳跃
+            if (deltaTimeMs > 50f) {
+                deltaTimeMs = 50f; // 限制最大帧间隔
+            }
+            if (deltaTimeMs < 0.1f) {
+                deltaTimeMs = 0.1f; // 限制最小帧间隔
+            }
+            
+            // 使用平滑的线性移动计算
+            // 速度单位：像素/秒，deltaTimeMs 单位：毫秒
             float distance = (deltaTimeMs / 1000.0f) * entity.speed;
+            
+            // 确保移动距离不会过大，避免跳跃
+            if (distance > entity.speed * 0.1f) { // 如果单帧移动超过速度的10%，限制它
+                distance = entity.speed * 0.1f;
+            }
+            
             entity.currentX -= distance;
             
             float textWidth = entity.text.length() * fontSize * 0.55f;
@@ -178,22 +202,25 @@ public class DanmuRenderer {
      * 计算当前可见的弹幕列表（帧同步版本）
      * 优化：连续滚动，不等待一屏结束
      * 新增：清理已使用的弹幕，释放内存
+     * 优化：复用列表，避免每帧创建新对象
      */
     public List<DanmakuEntity> calculateVisibleDanmakuSmooth(long currentPositionMs, float deltaTimeMs) {
-        List<DanmakuEntity> visibleList = new ArrayList<>();
+        // 复用列表
+        visibleListCache.clear();
+        stillActiveCache.clear();
         
         if (danmakuDataMap == null || danmakuDataMap.isEmpty()) {
-            return visibleList;
+            return visibleListCache;
         }
         
         int lineHeight = fontSize + 16;
         int topMargin = 30;
         
-        List<DanmakuEntity> stillActive = new ArrayList<>();
-        for (DanmakuEntity entity : activeDanmakuList) {
+        for (int i = 0, size = activeDanmakuList.size(); i < size; i++) {
+            DanmakuEntity entity = activeDanmakuList.get(i);
             if (updateDanmakuPositionSmooth(entity, deltaTimeMs)) {
-                visibleList.add(entity);
-                stillActive.add(entity);
+                visibleListCache.add(entity);
+                stillActiveCache.add(entity);
                 
                 if (entity.trackIndex >= 0 && entity.trackIndex < MAX_TRACKS) {
                     float textWidth = entity.text.length() * fontSize * 0.55f;
@@ -206,7 +233,7 @@ public class DanmuRenderer {
             }
         }
         activeDanmakuList.clear();
-        activeDanmakuList.addAll(stillActive);
+        activeDanmakuList.addAll(stillActiveCache);
         
         long bucketId = currentPositionMs / 60000;
         String bucketKey = (bucketId * 60000) + "-" + ((bucketId + 1) * 60000);
@@ -224,8 +251,8 @@ public class DanmuRenderer {
                 
                 if (entity.time >= timeWindowStart && entity.time <= timeWindowEnd) {
                     boolean alreadyActive = false;
-                    for (DanmakuEntity active : activeDanmakuList) {
-                        if (active == entity) {
+                    for (int i = 0, size = activeDanmakuList.size(); i < size; i++) {
+                        if (activeDanmakuList.get(i) == entity) {
                             alreadyActive = true;
                             break;
                         }
@@ -234,7 +261,7 @@ public class DanmuRenderer {
                     if (!alreadyActive) {
                         if (initializeDanmakuPositionSmooth(entity, topMargin, lineHeight)) {
                             activeDanmakuList.add(entity);
-                            visibleList.add(entity);
+                            visibleListCache.add(entity);
                             // 从缓存中移除已使用的弹幕，释放内存
                             iterator.remove();
                         }
@@ -246,7 +273,7 @@ public class DanmuRenderer {
         // 清理已过期的时间桶（当前时间之前超过2分钟的桶）
         cleanupOldBuckets(currentPositionMs);
         
-        return visibleList;
+        return visibleListCache;
     }
     
     /**

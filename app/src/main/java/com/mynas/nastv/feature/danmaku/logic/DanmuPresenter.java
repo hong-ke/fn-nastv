@@ -1,125 +1,134 @@
 package com.mynas.nastv.feature.danmaku.logic;
 
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Looper;
-import android.view.Choreographer;
 import android.util.Log;
 
 import com.mynas.nastv.feature.danmaku.model.DanmakuEntity;
 import com.mynas.nastv.feature.danmaku.model.DanmuConfig;
-import com.mynas.nastv.feature.danmaku.view.DanmakuOverlayView;
+import com.mynas.nastv.feature.danmaku.view.IDanmakuView;
 import com.mynas.nastv.feature.danmaku.view.DanmuRenderer;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
  * 弹幕演示器
  * 
+ * 优化版本：使用独立线程进行弹幕计算，不阻塞主线程
+ * 
  * 职责：
  * - 管理弹幕渲染状态
  * - 处理播放位置更新
  * - 协调 Renderer 和 OverlayView
- * - 实现 PTS 同步（FR-06, FR-07）
- * - 使用 Choreographer 实现帧同步的线性滚动
+ * - 使用独立线程计算弹幕位置
  * 
  * @author nastv
- * @version 1.0
+ * @version 2.0
  */
 public class DanmuPresenter {
     
     private static final String TAG = "DanmuPresenter";
     
     private final DanmuRenderer renderer;
-    private final DanmakuOverlayView overlayView;
-    private final Handler updateHandler;
+    private final IDanmakuView overlayView;
+    private final Handler mainHandler;
+    
+    // 独立渲染线程
+    private HandlerThread renderThread;
+    private Handler renderHandler;
     
     private Map<String, List<DanmakuEntity>> danmakuData;
-    private long currentPositionMs = 0;
-    private boolean isPlaying = false;
-    private boolean isVisible = true;
+    private volatile long currentPositionMs = 0;
+    private volatile boolean isPlaying = false;
+    private volatile boolean isVisible = true;
     
-    // 帧同步滚动相关
-    private long lastFrameTimeNanos = 0;
-    private long lastRenderTimeNanos = 0;
+    // 帧时间控制
+    private long lastRenderTimeMs = 0;
+    private static final long FRAME_INTERVAL_MS = 33; // 30fps
     
-    // FPS 监控与熔断相关 (Epic 4)
+    // FPS 监控（仅用于日志）
     private int frameCount = 0;
     private long lastFpsCalculationTimeMs = 0;
-    private int lowFpsStreak = 0; // 连续低 FPS 计数
-    private boolean isCircuitBroken = false; // 熔断状态
-
-    /**
-     * 帧同步回调 - 实现线性滚动
-     * 使用 Choreographer 确保每帧更新，避免卡顿
-     */
-    private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {
+    
+    // 渲染循环 Runnable
+    private final Runnable renderRunnable = new Runnable() {
         @Override
-        public void doFrame(long frameTimeNanos) {
+        public void run() {
             if (!isPlaying || !isVisible) {
+                // 继续调度下一帧，等待恢复
+                if (isPlaying && renderHandler != null) {
+                    renderHandler.postDelayed(this, FRAME_INTERVAL_MS);
+                }
                 return;
             }
             
-            // 计算帧间隔时间（纳秒转毫秒）
-            float deltaTimeMs = 0;
-            if (lastRenderTimeNanos > 0) {
-                deltaTimeMs = (frameTimeNanos - lastRenderTimeNanos) / 1_000_000f;
-            }
-            lastRenderTimeNanos = frameTimeNanos;
-            
-            // FPS 监控
-            frameCount++;
             long now = System.currentTimeMillis();
+            float deltaTimeMs;
+            
+            if (lastRenderTimeMs > 0) {
+                deltaTimeMs = now - lastRenderTimeMs;
+                if (deltaTimeMs > 100f) {
+                    deltaTimeMs = 100f;
+                }
+            } else {
+                deltaTimeMs = FRAME_INTERVAL_MS;
+            }
+            lastRenderTimeMs = now;
+            
+            // FPS 监控（仅日志）
+            frameCount++;
             if (now - lastFpsCalculationTimeMs >= 1000) {
-                float currentFps = frameCount * 1000f / (now - lastFpsCalculationTimeMs);
-                // Log.v(TAG, "弹幕 FPS: " + currentFps);
-                checkCircuitBreaker(currentFps);
                 frameCount = 0;
                 lastFpsCalculationTimeMs = now;
             }
             
-            // 更新弹幕位置并渲染
-            if (!isCircuitBroken) {
-                updateDanmakuFrame(deltaTimeMs);
-            }
+            // 在渲染线程计算弹幕
+            updateDanmakuFrame(deltaTimeMs);
             
-            // 继续下一帧
-            Choreographer.getInstance().postFrameCallback(this);
+            // 调度下一帧
+            if (isPlaying && renderHandler != null) {
+                renderHandler.postDelayed(this, FRAME_INTERVAL_MS);
+            }
         }
     };
     
-    public DanmuPresenter(DanmuRenderer renderer, DanmakuOverlayView overlayView) {
+    public DanmuPresenter(DanmuRenderer renderer, IDanmakuView overlayView) {
         this.renderer = renderer;
         this.overlayView = overlayView;
-        this.updateHandler = new Handler(Looper.getMainLooper());
+        this.mainHandler = new Handler(Looper.getMainLooper());
+        
+        // 创建独立渲染线程
+        renderThread = new HandlerThread("DanmakuRenderThread");
+        renderThread.start();
+        renderHandler = new Handler(renderThread.getLooper());
+        
+        Log.d(TAG, "DanmuPresenter 初始化完成（独立渲染线程）");
     }
+
     
     /**
      * 设置弹幕数据
-     * 
-     * @param data 弹幕数据映射
      */
     public void setDanmakuData(Map<String, List<DanmakuEntity>> data) {
         this.danmakuData = data;
         renderer.setDanmakuData(data);
-        Log.d(TAG, "弹幕数据已设置");
+        Log.d(TAG, "弹幕数据已设置，共 " + (data != null ? data.size() : 0) + " 个时间桶");
     }
     
     /**
      * 更新播放位置
-     * 
-     * @param positionMs 当前播放位置（毫秒）
      */
     public void onPlaybackPositionUpdate(long positionMs) {
         this.currentPositionMs = positionMs;
-        // 位置更新由 frameCallback 处理，这里只更新时间戳
     }
     
     /**
-     * 帧同步更新弹幕
+     * 在渲染线程更新弹幕
      * 
-     * @param deltaTimeMs 距离上一帧的时间间隔（毫秒）
+     * 优化：复用列表，避免每帧创建新对象
      */
     private void updateDanmakuFrame(float deltaTimeMs) {
         if (danmakuData == null || danmakuData.isEmpty()) {
@@ -127,16 +136,20 @@ public class DanmuPresenter {
         }
         
         try {
-            // 使用帧间隔时间计算可见弹幕（实现线性滚动）
-            List<DanmakuEntity> visibleList = renderer.calculateVisibleDanmakuSmooth(currentPositionMs, deltaTimeMs);
+            // 在渲染线程计算可见弹幕
+            final List<DanmakuEntity> visibleList = renderer.calculateVisibleDanmakuSmooth(currentPositionMs, deltaTimeMs);
             
-            // 调试日志：每秒打印一次
-            if (System.currentTimeMillis() % 1000 < 20) {
+            // 调试日志（降低频率）
+            if (System.currentTimeMillis() % 1000 < 50) {
                 Log.d(TAG, "弹幕帧更新: position=" + currentPositionMs + "ms, visible=" + visibleList.size());
             }
             
-            // 更新视图
-            overlayView.renderDanmaku(visibleList);
+            // 渲染弹幕
+            if (!visibleList.isEmpty() || frameCount % 30 == 0) {
+                if (isVisible) {
+                    overlayView.renderDanmaku(visibleList);
+                }
+            }
             
         } catch (Exception e) {
             Log.e(TAG, "更新弹幕帧失败", e);
@@ -144,20 +157,21 @@ public class DanmuPresenter {
     }
     
     /**
-     * 跳转到指定位置（Seek操作）
-     * 
-     * @param newPositionMs 新的播放位置（毫秒）
+     * 跳转到指定位置
      */
     public void onSeek(long newPositionMs) {
         Log.d(TAG, "跳转到位置: " + newPositionMs + "ms");
         this.currentPositionMs = newPositionMs;
         
-        // 清除旧弹幕
-        renderer.clear();
-        overlayView.clearDanmaku();
+        // 在渲染线程清除弹幕
+        if (renderHandler != null) {
+            renderHandler.post(() -> {
+                renderer.clear();
+                mainHandler.post(() -> overlayView.clearDanmaku());
+            });
+        }
         
-        // 重置帧时间
-        lastRenderTimeNanos = 0;
+        lastRenderTimeMs = 0;
     }
     
     /**
@@ -168,13 +182,14 @@ public class DanmuPresenter {
             isPlaying = true;
             Log.d(TAG, "开始播放弹幕");
             
-            // 重置帧时间
-            lastRenderTimeNanos = 0;
+            lastRenderTimeMs = 0;
             lastFpsCalculationTimeMs = System.currentTimeMillis();
             frameCount = 0;
             
-            // 启动帧同步回调
-            Choreographer.getInstance().postFrameCallback(frameCallback);
+            // 在渲染线程启动渲染循环
+            if (renderHandler != null) {
+                renderHandler.post(renderRunnable);
+            }
         }
     }
     
@@ -185,7 +200,10 @@ public class DanmuPresenter {
         if (isPlaying) {
             isPlaying = false;
             Log.d(TAG, "暂停播放弹幕");
-            Choreographer.getInstance().removeFrameCallback(frameCallback);
+            
+            if (renderHandler != null) {
+                renderHandler.removeCallbacks(renderRunnable);
+            }
         }
     }
     
@@ -196,9 +214,9 @@ public class DanmuPresenter {
         if (!isVisible) {
             isVisible = true;
             Log.d(TAG, "显示弹幕");
-            if (isPlaying) {
-                lastRenderTimeNanos = 0;
-                Choreographer.getInstance().postFrameCallback(frameCallback);
+            if (isPlaying && renderHandler != null) {
+                lastRenderTimeMs = 0;
+                renderHandler.post(renderRunnable);
             }
         }
     }
@@ -210,62 +228,19 @@ public class DanmuPresenter {
         if (isVisible) {
             isVisible = false;
             Log.d(TAG, "隐藏弹幕");
-            overlayView.clearDanmaku();
-            Choreographer.getInstance().removeFrameCallback(frameCallback);
+            mainHandler.post(() -> overlayView.clearDanmaku());
         }
     }
-
-    /**
-     * 检查并触发熔断机制 (Story 4.2)
-     */
-    private void checkCircuitBreaker(float fps) {
-        if (fps < 20) {
-            lowFpsStreak++;
-            if (lowFpsStreak >= 3) { // 持续 3 秒低 FPS
-                if (!isCircuitBroken) {
-                    isCircuitBroken = true;
-                    Log.w(TAG, "触发熔断：FPS 持续过低 (" + fps + ")，自动隐藏弹幕以保护性能");
-                    mainHandler.post(() -> {
-                        overlayView.clearDanmaku();
-                    });
-                }
-            }
-        } else {
-            lowFpsStreak = 0;
-            if (isCircuitBroken && fps > 30) {
-                isCircuitBroken = false;
-                Log.d(TAG, "️ 熔断恢复：性能已回升 (" + fps + ")");
-            }
-        }
-    }
-
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     
-    /**
-     * 检查弹幕是否可见
-     * 
-     * @return true 如果可见
-     */
     public boolean isVisible() {
         return isVisible;
     }
     
-    /**
-     * 更新视图尺寸
-     * 
-     * @param width  宽度
-     * @param height 高度
-     */
     public void updateViewSize(int width, int height) {
         renderer.updateViewSize(width, height);
         overlayView.setTextSize(renderer.getFontSize());
     }
     
-    /**
-     * 更新配置
-     * 
-     * @param config 新配置
-     */
     public void updateConfig(DanmuConfig config) {
         renderer.updateConfig(config);
         overlayView.setDanmakuAlpha(config.opacity);
@@ -273,26 +248,38 @@ public class DanmuPresenter {
     }
     
     /**
-     * 清空弹幕缓存数据
-     * 用于切换剧集时清除旧弹幕
+     * 清空弹幕缓存
      */
     public void clearDanmaku() {
-        Log.d(TAG, "清空弹幕缓存数据");
+        Log.d(TAG, "清空弹幕缓存");
         pausePlayback();
         this.danmakuData = null;
         this.currentPositionMs = 0;
-        renderer.clear();
-        overlayView.clearDanmaku();
+        
+        if (renderHandler != null) {
+            renderHandler.post(() -> renderer.clear());
+        }
+        mainHandler.post(() -> overlayView.clearDanmaku());
     }
     
     /**
      * 销毁资源
      */
     public void destroy() {
+        Log.d(TAG, "销毁 DanmuPresenter");
         pausePlayback();
-        Choreographer.getInstance().removeFrameCallback(frameCallback);
+        
+        if (renderHandler != null) {
+            renderHandler.removeCallbacksAndMessages(null);
+            renderHandler = null;
+        }
+        
+        if (renderThread != null) {
+            renderThread.quitSafely();
+            renderThread = null;
+        }
+        
         renderer.clear();
         overlayView.clearDanmaku();
-        Log.d(TAG, "DanmuPresenter 已销毁");
     }
 }

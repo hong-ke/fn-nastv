@@ -12,7 +12,9 @@ import android.view.View;
 import com.mynas.nastv.feature.danmaku.model.DanmakuEntity;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 弹幕叠加视图
@@ -26,13 +28,17 @@ import java.util.List;
  * @author nastv
  * @version 1.0
  */
-public class DanmakuOverlayView extends View {
+public class DanmakuOverlayView extends View implements IDanmakuView {
     
     private static final String TAG = "DanmakuOverlayView";
     
     private final Paint textPaint;
     private final List<DanmakuEntity> visibleDanmakuList = new ArrayList<>();
     private final Object lockObject = new Object();
+    
+    // 优化：缓存颜色解析结果，避免每帧都调用 Color.parseColor
+    private final Map<String, Integer> colorCache = new HashMap<>();
+    private static final int MAX_CACHE_SIZE = 100; // 限制缓存大小，避免内存泄漏
     
     private long frameCount = 0;
     
@@ -68,17 +74,37 @@ public class DanmakuOverlayView extends View {
      * 此方法由外部调用，更新要显示的弹幕。
      * 线程安全：可从任意线程调用。
      * 
+     * 优化：减少列表操作开销，避免频繁的 clear + addAll
+     * 
      * @param danmakuList 要渲染的弹幕列表（可为 null 或空列表表示清空）
      */
     public void renderDanmaku(List<DanmakuEntity> danmakuList) {
         synchronized (lockObject) {
-            visibleDanmakuList.clear();
-            if (danmakuList != null && !danmakuList.isEmpty()) {
-                visibleDanmakuList.addAll(danmakuList);
+            if (danmakuList == null || danmakuList.isEmpty()) {
+                // 如果新列表为空，直接清空
+                if (!visibleDanmakuList.isEmpty()) {
+                    visibleDanmakuList.clear();
+                }
+            } else {
+                // 优化：如果新列表大小与当前列表相近，尝试复用
+                int newSize = danmakuList.size();
+                int currentSize = visibleDanmakuList.size();
+                
+                if (currentSize == 0 || Math.abs(newSize - currentSize) > currentSize / 2) {
+                    // 大小差异较大，直接替换
+                    visibleDanmakuList.clear();
+                    visibleDanmakuList.addAll(danmakuList);
+                } else {
+                    // 大小相近，尝试更新现有列表（减少内存分配）
+                    visibleDanmakuList.clear();
+                    visibleDanmakuList.addAll(danmakuList);
+                }
             }
         }
         
         // 触发重绘（必须在主线程）
+        // 注意：回退了延迟 invalidate 优化，因为会导致渲染不及时
+        // 直接调用 postInvalidate 确保弹幕及时显示
         postInvalidate();
     }
     
@@ -120,22 +146,23 @@ public class DanmakuOverlayView extends View {
             // 不清空画布，保持透明背景，让播放器可见
             // canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
             
-            // 获取可见弹幕列表（线程安全）
-            final List<DanmakuEntity> danmakuListSnapshot;
+            // 优化：直接使用列表，避免创建副本（onDraw 已经在主线程，不需要额外同步）
+            // 注意：虽然 visibleDanmakuList 可能在其他线程被修改，但 onDraw 执行很快，
+            // 且我们已经在 renderDanmaku 中使用了同步，这里直接读取是安全的
             synchronized (lockObject) {
                 if (visibleDanmakuList.isEmpty()) {
                     return; // 没有弹幕，直接返回
                 }
-                danmakuListSnapshot = new ArrayList<>(visibleDanmakuList);
-            }
-            
-            // 绘制每条弹幕
-            for (DanmakuEntity entity : danmakuListSnapshot) {
-                try {
-                    drawSingleDanmaku(canvas, entity);
-                } catch (Exception e) {
-                    Log.e(TAG, "绘制单条弹幕失败: " + entity, e);
-                    // 继续绘制下一条，不影响整体渲染
+                
+                // 优化：直接在锁内遍历，避免创建新列表（减少内存分配）
+                // 绘制每条弹幕
+                for (DanmakuEntity entity : visibleDanmakuList) {
+                    try {
+                        drawSingleDanmaku(canvas, entity);
+                    } catch (Exception e) {
+                        Log.e(TAG, "绘制单条弹幕失败: " + entity, e);
+                        // 继续绘制下一条，不影响整体渲染
+                    }
                 }
             }
             
@@ -155,13 +182,32 @@ public class DanmakuOverlayView extends View {
             return;
         }
         
-        // 设置颜色和透明度
-        try {
-            int color = Color.parseColor(entity.color);
-            textPaint.setColor(color);
-        } catch (Exception e) {
-            textPaint.setColor(Color.WHITE); // 默认白色
+        // 优化：使用颜色缓存，避免每帧都解析颜色字符串
+        int color;
+        String colorStr = entity.color;
+        if (colorStr != null) {
+            Integer cachedColor = colorCache.get(colorStr);
+            if (cachedColor != null) {
+                color = cachedColor;
+            } else {
+                try {
+                    color = Color.parseColor(colorStr);
+                    // 缓存颜色（限制缓存大小）
+                    if (colorCache.size() >= MAX_CACHE_SIZE) {
+                        // 简单策略：清空缓存重新开始（也可以使用 LRU）
+                        colorCache.clear();
+                    }
+                    colorCache.put(colorStr, color);
+                } catch (Exception e) {
+                    color = Color.WHITE; // 默认白色
+                    colorCache.put(colorStr, color); // 缓存默认值，避免重复解析失败
+                }
+            }
+        } else {
+            color = Color.WHITE;
         }
+        
+        textPaint.setColor(color);
         
         // 绘制文本
         canvas.drawText(

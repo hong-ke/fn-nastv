@@ -9,6 +9,8 @@ import com.mynas.nastv.feature.danmaku.api.IDanmuController;
 import com.mynas.nastv.feature.danmaku.model.DanmakuEntity;
 import com.mynas.nastv.feature.danmaku.model.DanmuConfig;
 import com.mynas.nastv.feature.danmaku.view.DanmakuOverlayView;
+import com.mynas.nastv.feature.danmaku.view.IDanmakuView;
+import com.mynas.nastv.feature.danmaku.view.DanmakuSurfaceView;
 import com.mynas.nastv.feature.danmaku.view.DanmuRenderer;
 
 import java.util.List;
@@ -22,7 +24,7 @@ public class DanmuControllerImpl implements IDanmuController {
     private static final String TAG = "DanmuControllerImpl";
     
     private Context context;
-    private DanmakuOverlayView overlayView;
+    private DanmakuSurfaceView overlayView;  // 使用 SurfaceView 提升性能
     private DanmuRenderer renderer;
     private DanmuPresenter presenter;
     private DanmuRepository repository;
@@ -39,7 +41,8 @@ public class DanmuControllerImpl implements IDanmuController {
         if (isInitialized) throw new IllegalStateException("Already initialized");
         this.context = context;
         this.config = DanmuConfig.loadFromPrefs();
-        this.overlayView = new DanmakuOverlayView(context);
+        // 使用 SurfaceView 替代普通 View，提升渲染性能
+        this.overlayView = new DanmakuSurfaceView(context);
         this.overlayView.setDanmakuAlpha(config.opacity);
         
         parentContainer.addView(overlayView, new FrameLayout.LayoutParams(

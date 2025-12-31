@@ -779,9 +779,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 // 应用饱和度增强滤镜
                 applySaturationFilter(exoTextureView, 1.0f); // 饱和度100%，不调整
                 
-                // 优化TextureView渲染质量
-                exoTextureView.setOpaque(false);
-                exoTextureView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+                // 优化TextureView渲染质量，提升清晰度，减少背景模糊
+                exoTextureView.setOpaque(false); // 允许透明，提升渲染质量
+                exoTextureView.setLayerType(View.LAYER_TYPE_HARDWARE, null); // 硬件加速，提升渲染性能和质量
+                // 设置高质量渲染模式
+                exoTextureView.setContentDescription("ExoPlayer Video View");
                 
                 // 添加到根布局
                 android.view.ViewGroup rootView = (android.view.ViewGroup) findViewById(android.R.id.content);

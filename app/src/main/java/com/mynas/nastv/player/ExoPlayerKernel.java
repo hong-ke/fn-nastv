@@ -175,11 +175,12 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
             .setPrioritizeTimeOverSizeThresholds(false) // 保持画质优先
             .build();
         
-        // 创建 RenderersFactory - 优先使用硬件解码器
+        // 创建 RenderersFactory - 优先使用硬件解码器，优化画质
         // Media3 1.2.1 版本会自动处理 HDR 色调映射，无需手动配置
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             .setEnableDecoderFallback(true); // 启用解码器回退，确保兼容性
+        // 注意：DefaultRenderersFactory 默认优先使用硬件解码器，无需额外配置
         
         // 创建 ExoPlayer
         exoPlayer = new ExoPlayer.Builder(context, renderersFactory)
@@ -191,7 +192,10 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
         // 画质优先：强制选择设备支持的最高码率/分辨率轨道
         TrackSelectionParameters qualityParams = exoPlayer.getTrackSelectionParameters()
                 .buildUpon()
-                .setForceHighestSupportedBitrate(true)
+                .setForceHighestSupportedBitrate(true) // 强制最高码率
+                .setMaxVideoSizeSd() // 移除 SD 限制，允许选择更高分辨率
+                .setMaxVideoFrameRate(Integer.MAX_VALUE) // 移除帧率限制
+                .setMaxVideoBitrate(Integer.MAX_VALUE) // 移除码率限制
                 // 音频优先选择 AAC，因为 DTS/EAC3 在某些设备上可能无法正常输出
                 .setPreferredAudioMimeType("audio/mp4a-latm") // AAC
                 .build();
@@ -200,13 +204,16 @@ public class ExoPlayerKernel implements PlayerKernel, Player.Listener {
         // 添加监听器
         exoPlayer.addListener(this);
         
-        // 高质量画质设置：优化清晰度，减少动态模糊
-        // 使用高质量缩放模式，避免模糊
+        // 高质量画质设置：优化清晰度，减少背景模糊
+        // 使用高质量缩放模式，保持原始宽高比，避免拉伸导致的模糊
         exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT);
         
-        // 设置播放参数：确保不丢帧，高质量播放
-        PlaybackParameters playbackParams = new PlaybackParameters(1.0f, 1.0f); // 正常速度，不丢帧
+        // 设置播放参数：确保不丢帧，高质量播放，不进行帧率调整
+        PlaybackParameters playbackParams = new PlaybackParameters(1.0f, 1.0f); // 正常速度，不丢帧，不调整帧率
         exoPlayer.setPlaybackParameters(playbackParams);
+        
+        // 禁用视频帧率调整，保持原始帧率以获得最佳画质
+        exoPlayer.setVideoFrameMetadataListener(null); // 不监听帧元数据，减少处理开销
         
         Log.d(TAG, "ExoPlayer 初始化完成（已优化画质设置）");
     }

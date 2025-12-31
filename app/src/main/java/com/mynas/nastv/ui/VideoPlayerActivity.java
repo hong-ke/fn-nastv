@@ -1376,8 +1376,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
                         exoPlayerKernel.playWithProxyCache(playUrl, headers, cacheDir);
                     } else {
                         exoPlayerKernel.play(playUrl);
-                    }
-                } else {
+                }
+            } else {
                     Log.w(TAG, "ExoPlayer TextureView Surface 尚未可用，先设置 MediaItem，等待 Surface 可用后自动播放");
                     // Surface 不可用，先设置 MediaItem，等 Surface 可用后自动播放
                     // 注意：即使 Surface 不可用，也可以先设置 MediaItem，这样播放器会准备好
@@ -2488,8 +2488,8 @@ public class VideoPlayerActivity extends AppCompatActivity {
             showSeekProgressOverlay(finalPosition, isForward, true);
         } else {
             Log.e(TAG, "executeSeek 失败 - currentPlayerKernel 为 null");
-            // seek执行后，启动隐藏计时器
-            showSeekProgressOverlay(position, isForward, true);
+        // seek执行后，启动隐藏计时器
+        showSeekProgressOverlay(position, isForward, true);
         }
     }
 

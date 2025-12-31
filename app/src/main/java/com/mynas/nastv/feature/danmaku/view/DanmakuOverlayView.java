@@ -58,12 +58,13 @@ public class DanmakuOverlayView extends View implements IDanmakuView {
         setClickable(false);
         setWillNotDraw(false); // 允许绘制
         
-        // 初始化画笔
+        // 初始化画笔（简单配置，不使用 ShadowLayer）
         textPaint = new Paint();
-        textPaint.setAntiAlias(true); // 抗锯齿
+        textPaint.setAntiAlias(false); // 关闭抗锯齿，提升性能
         textPaint.setColor(Color.WHITE);
-        textPaint.setTextSize(48); // 默认字体大小，会被动态调整
+        textPaint.setTextSize(56);
         textPaint.setStyle(Paint.Style.FILL);
+        textPaint.setFakeBoldText(true);
         
         Log.d(TAG, "DanmakuOverlayView 初始化完成");
     }

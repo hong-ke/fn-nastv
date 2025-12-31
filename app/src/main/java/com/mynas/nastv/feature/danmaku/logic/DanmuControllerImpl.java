@@ -8,9 +8,8 @@ import android.widget.FrameLayout;
 import com.mynas.nastv.feature.danmaku.api.IDanmuController;
 import com.mynas.nastv.feature.danmaku.model.DanmakuEntity;
 import com.mynas.nastv.feature.danmaku.model.DanmuConfig;
-import com.mynas.nastv.feature.danmaku.view.DanmakuOverlayView;
-import com.mynas.nastv.feature.danmaku.view.IDanmakuView;
 import com.mynas.nastv.feature.danmaku.view.DanmakuSurfaceView;
+import com.mynas.nastv.feature.danmaku.view.IDanmakuView;
 import com.mynas.nastv.feature.danmaku.view.DanmuRenderer;
 
 import java.util.List;
@@ -24,7 +23,7 @@ public class DanmuControllerImpl implements IDanmuController {
     private static final String TAG = "DanmuControllerImpl";
     
     private Context context;
-    private DanmakuSurfaceView overlayView;  // 使用 SurfaceView 提升性能
+    private DanmakuSurfaceView overlayView;  // 使用 SurfaceView，独立渲染不影响主线程
     private DanmuRenderer renderer;
     private DanmuPresenter presenter;
     private DanmuRepository repository;
@@ -41,7 +40,7 @@ public class DanmuControllerImpl implements IDanmuController {
         if (isInitialized) throw new IllegalStateException("Already initialized");
         this.context = context;
         this.config = DanmuConfig.loadFromPrefs();
-        // 使用 SurfaceView 替代普通 View，提升渲染性能
+        // 使用 SurfaceView，独立渲染线程
         this.overlayView = new DanmakuSurfaceView(context);
         this.overlayView.setDanmakuAlpha(config.opacity);
         

@@ -65,21 +65,19 @@ public class DanmakuSurfaceView extends SurfaceView implements SurfaceHolder.Cal
         setFocusable(false);
         setClickable(false);
         
-        // 设置透明背景 - 使用 setZOrderOnTop 确保弹幕在最上层
+        // 设置透明背景 - 必须用 setZOrderOnTop(true) 否则黑屏
         setZOrderOnTop(true);
         surfaceHolder = getHolder();
         surfaceHolder.setFormat(PixelFormat.TRANSLUCENT);
         surfaceHolder.addCallback(this);
         
-        // 初始化文字画笔（优化：使用 ShadowLayer 替代描边，减少一次绘制）
+        // 初始化文字画笔（简单配置）
         textPaint = new Paint();
-        textPaint.setAntiAlias(false); // 关闭抗锯齿，提升性能
+        textPaint.setAntiAlias(false);
         textPaint.setColor(Color.WHITE);
         textPaint.setTextSize(56);
         textPaint.setStyle(Paint.Style.FILL);
         textPaint.setFakeBoldText(true);
-        // 使用阴影层替代描边，只需绘制一次
-        textPaint.setShadowLayer(3f, 1f, 1f, Color.BLACK);
         
         // shadowPaint 不再使用，保留兼容性
         shadowPaint = new Paint();

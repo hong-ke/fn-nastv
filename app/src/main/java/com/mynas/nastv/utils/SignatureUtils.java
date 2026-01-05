@@ -111,6 +111,7 @@ public class SignatureUtils {
     /**
      * 提取URL路径部分
      * 从完整URL中提取 /v/api/... 格式的路径
+     * 注意：保留查询参数，因为签名计算需要包含查询参数
      */
     private static String extractPath(String fullUrl) {
         try {
@@ -128,13 +129,15 @@ public class SignatureUtils {
                 }
             }
             
-            // 移除查询参数
-            int queryIndex = path.indexOf('?');
-            if (queryIndex >= 0) {
-                path = path.substring(0, queryIndex);
+            // 保留查询参数，因为签名计算需要包含查询参数
+            // 例如：/v/api/v1/media/range/xxx?direct_link_quality_index=0
+            // 移除锚点（如果有）
+            int anchorIndex = path.indexOf('#');
+            if (anchorIndex >= 0) {
+                path = path.substring(0, anchorIndex);
             }
             
-            Log.d(TAG, "提取路径: " + fullUrl + " -> " + path);
+            Log.d(TAG, "提取路径（包含查询参数）: " + fullUrl + " -> " + path);
             return path;
             
         } catch (Exception e) {

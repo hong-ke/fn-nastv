@@ -8,7 +8,6 @@ import com.mynas.nastv.feature.danmaku.model.DanmakuEntity;
 import com.mynas.nastv.feature.danmaku.model.DanmuConfig;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -244,15 +243,15 @@ public class DanmuRenderer {
             long timeWindowStart = currentPositionMs - 100;
             long timeWindowEnd = currentPositionMs + 100;
             
-            // 使用迭代器，支持在遍历时删除已使用的弹幕
-            Iterator<DanmakuEntity> iterator = bucketData.iterator();
-            while (iterator.hasNext()) {
-                DanmakuEntity entity = iterator.next();
+            // 优化：使用索引遍历，标记待删除项，避免 Iterator 创建
+            // 从后向前遍历，可以安全删除
+            for (int i = bucketData.size() - 1; i >= 0; i--) {
+                DanmakuEntity entity = bucketData.get(i);
                 
                 if (entity.time >= timeWindowStart && entity.time <= timeWindowEnd) {
                     boolean alreadyActive = false;
-                    for (int i = 0, size = activeDanmakuList.size(); i < size; i++) {
-                        if (activeDanmakuList.get(i) == entity) {
+                    for (int j = 0, activeSize = activeDanmakuList.size(); j < activeSize; j++) {
+                        if (activeDanmakuList.get(j) == entity) {
                             alreadyActive = true;
                             break;
                         }
@@ -263,7 +262,7 @@ public class DanmuRenderer {
                             activeDanmakuList.add(entity);
                             visibleListCache.add(entity);
                             // 从缓存中移除已使用的弹幕，释放内存
-                            iterator.remove();
+                            bucketData.remove(i);
                         }
                     }
                 }
@@ -276,41 +275,70 @@ public class DanmuRenderer {
         return visibleListCache;
     }
     
+    // 复用：待删除的桶 key 列表
+    private final List<String> keysToRemove = new ArrayList<>();
+    
+    // 上次清理时间，避免每帧都清理
+    private long lastCleanupTime = 0;
+    private static final long CLEANUP_INTERVAL = 5000; // 5秒清理一次
+    
     /**
      * 清理已过期的时间桶，释放内存
+     * 优化：避免每帧清理，减少 Iterator 和 String.split 调用
      */
     private void cleanupOldBuckets(long currentPositionMs) {
         if (danmakuDataMap == null) return;
         
+        // 限制清理频率，避免每帧都遍历
+        long now = System.currentTimeMillis();
+        if (now - lastCleanupTime < CLEANUP_INTERVAL) {
+            return;
+        }
+        lastCleanupTime = now;
+        
         // 清理当前时间之前超过2分钟的桶
         long cleanupThreshold = currentPositionMs - 120000; // 2分钟前
         
-        Iterator<Map.Entry<String, List<DanmakuEntity>>> iterator = danmakuDataMap.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<String, List<DanmakuEntity>> entry = iterator.next();
+        keysToRemove.clear();
+        
+        // 使用 entrySet 遍历，避免创建 Iterator（编译器优化）
+        for (Map.Entry<String, List<DanmakuEntity>> entry : danmakuDataMap.entrySet()) {
             String key = entry.getKey();
             
-            // 解析桶的结束时间
-            try {
-                String[] parts = key.split("-");
-                if (parts.length == 2) {
-                    long bucketEnd = Long.parseLong(parts[1]);
-                    if (bucketEnd < cleanupThreshold) {
-                        // 回收桶中的所有弹幕实体
-                        List<DanmakuEntity> entities = entry.getValue();
-                        if (entities != null) {
-                            for (DanmakuEntity entity : entities) {
-                                entity.recycle();
-                            }
-                            entities.clear();
-                        }
-                        iterator.remove();
-                        Log.d(TAG, "清理过期弹幕桶: " + key);
+            // 手动解析 key，避免 String.split 创建数组
+            long bucketEnd = parseBucketEndTime(key);
+            if (bucketEnd > 0 && bucketEnd < cleanupThreshold) {
+                // 回收桶中的所有弹幕实体
+                List<DanmakuEntity> entities = entry.getValue();
+                if (entities != null) {
+                    for (int i = 0, size = entities.size(); i < size; i++) {
+                        entities.get(i).recycle();
                     }
+                    entities.clear();
                 }
-            } catch (Exception e) {
-                // 忽略解析错误
+                keysToRemove.add(key);
             }
+        }
+        
+        // 批量删除
+        for (int i = 0, size = keysToRemove.size(); i < size; i++) {
+            danmakuDataMap.remove(keysToRemove.get(i));
+            Log.d(TAG, "清理过期弹幕桶: " + keysToRemove.get(i));
+        }
+    }
+    
+    /**
+     * 手动解析桶 key 的结束时间，避免 String.split
+     * key 格式: "startTime-endTime"
+     */
+    private long parseBucketEndTime(String key) {
+        if (key == null) return -1;
+        int dashIndex = key.indexOf('-');
+        if (dashIndex < 0 || dashIndex >= key.length() - 1) return -1;
+        try {
+            return Long.parseLong(key.substring(dashIndex + 1));
+        } catch (NumberFormatException e) {
+            return -1;
         }
     }
 

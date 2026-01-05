@@ -1048,21 +1048,10 @@ public class MainActivity extends AppCompatActivity {
             .setMessage("确定要清空所有视频缓存吗？")
             .setPositiveButton("确定", (dialog, which) -> {
                 try {
-                    // 清空 OkHttpProxyCacheManager 的缓存
-                    com.mynas.nastv.cache.OkHttpProxyCacheManager cacheManager = 
-                        com.mynas.nastv.cache.OkHttpProxyCacheManager.instance();
-                    cacheManager.clearCache(this, null, null);
-                    
-                    // 同时清空 GSY 的缓存目录
-                    java.io.File gsyCacheDir = new java.io.File(getCacheDir(), "gsy_video_cache");
-                    if (gsyCacheDir.exists()) {
-                        deleteDirectory(gsyCacheDir);
-                    }
-                    
-                    // 清空 okhttp_video_cache 目录
-                    java.io.File okhttpCacheDir = new java.io.File(getCacheDir(), "okhttp_video_cache");
-                    if (okhttpCacheDir.exists()) {
-                        deleteDirectory(okhttpCacheDir);
+                    // 清空视频缓存目录
+                    java.io.File videoCacheDir = new java.io.File(getCacheDir(), "video_cache");
+                    if (videoCacheDir.exists()) {
+                        deleteDirectory(videoCacheDir);
                     }
                     
                     ToastUtils.show(this, "缓存已清空");

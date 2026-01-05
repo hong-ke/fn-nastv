@@ -43,48 +43,27 @@ android {
         viewBinding true
     }
 
-    // 🚀 多架构分包配置 (ARM & x86)
+    // 多架构分包配置
     splits {
         abi {
             enable true
             reset()
             include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
-            universalApk true // 同时生成一个包含所有架构的通用包
+            universalApk true
         }
-    }
-    
-    // 🔧 解决 native 库冲突（GSYVideoPlayer 可能包含多个版本的解码库）
-    packagingOptions {
-        pickFirst 'lib/armeabi-v7a/libijkffmpeg.so'
-        pickFirst 'lib/arm64-v8a/libijkffmpeg.so'
-        pickFirst 'lib/x86/libijkffmpeg.so'
-        pickFirst 'lib/x86_64/libijkffmpeg.so'
-        pickFirst 'lib/armeabi-v7a/libijksdl.so'
-        pickFirst 'lib/arm64-v8a/libijksdl.so'
-        pickFirst 'lib/x86/libijksdl.so'
-        pickFirst 'lib/x86_64/libijksdl.so'
-        pickFirst 'lib/armeabi-v7a/libijkplayer.so'
-        pickFirst 'lib/arm64-v8a/libijkplayer.so'
-        pickFirst 'lib/x86/libijkplayer.so'
-        pickFirst 'lib/x86_64/libijkplayer.so'
     }
 }
 
 dependencies {
-    // 🎬 GSYVideoPlayer 播放器 (使用 JitPack)
-    // 使用最新版本 v11.3.0，格式：com.github.用户名:仓库名:版本号
-    // 排除扩展解码库，避免 native 库冲突（如果需要扩展解码库，可以单独添加）
-    implementation('com.github.CarGuo:GSYVideoPlayer:v11.3.0') {
-        exclude group: 'com.github.CarGuo.GSYVideoPlayer', module: 'gsyvideoplayer-ex_so'
-    }
-    
-    // 📝 Media3 ExoPlayer（用于内嵌字幕和 HDR 支持）
-    // 升级到 1.3.1 以获得更好的 HDR 色调映射支持，修复偏黄问题
-    implementation 'androidx.media3:media3-exoplayer:1.3.1'
-    implementation 'androidx.media3:media3-exoplayer-dash:1.3.1'
-    implementation 'androidx.media3:media3-exoplayer-hls:1.3.1'
-    implementation 'androidx.media3:media3-datasource-okhttp:1.3.1'
-    implementation 'androidx.media3:media3-common:1.3.1'
+    // 🎬 Media3 ExoPlayer（主播放器）
+    // 使用 androidx.media3 替代 GSYVideoPlayer
+    def media3_version = "1.3.1"
+    implementation "androidx.media3:media3-exoplayer:$media3_version"
+    implementation "androidx.media3:media3-exoplayer-dash:$media3_version"
+    implementation "androidx.media3:media3-exoplayer-hls:$media3_version"
+    implementation "androidx.media3:media3-datasource-okhttp:$media3_version"
+    implementation "androidx.media3:media3-common:$media3_version"
+    implementation "androidx.media3:media3-ui:$media3_version"
     
     // 🔗 网络请求
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'

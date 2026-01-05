@@ -7,20 +7,25 @@ package com.mynas.nastv.model;
 public class PlayStartInfo {
     
     private String playUrl;
-    private long resumePositionSeconds; // ts 值，恢复播放位置（秒）
+    private long resumePositionMs; // ts 值，恢复播放位置（毫秒）
     private String mediaGuid;
     private String videoGuid;
     private String audioGuid;
     private String subtitleGuid;
     
-    public PlayStartInfo(String playUrl, long resumePositionSeconds) {
+    public PlayStartInfo(String playUrl, long resumePositionMs) {
         this.playUrl = playUrl;
-        this.resumePositionSeconds = resumePositionSeconds;
+        this.resumePositionMs = resumePositionMs;
     }
     
     // Getters
     public String getPlayUrl() { return playUrl; }
-    public long getResumePositionSeconds() { return resumePositionSeconds; }
+    /**
+     * @deprecated 使用 getResumePositionMs() 代替，ts 值实际是毫秒
+     */
+    @Deprecated
+    public long getResumePositionSeconds() { return resumePositionMs; }
+    public long getResumePositionMs() { return resumePositionMs; }
     public String getMediaGuid() { return mediaGuid; }
     public String getVideoGuid() { return videoGuid; }
     public String getAudioGuid() { return audioGuid; }
@@ -28,7 +33,7 @@ public class PlayStartInfo {
     
     // Setters
     public void setPlayUrl(String playUrl) { this.playUrl = playUrl; }
-    public void setResumePositionSeconds(long resumePositionSeconds) { this.resumePositionSeconds = resumePositionSeconds; }
+    public void setResumePositionMs(long resumePositionMs) { this.resumePositionMs = resumePositionMs; }
     public void setMediaGuid(String mediaGuid) { this.mediaGuid = mediaGuid; }
     public void setVideoGuid(String videoGuid) { this.videoGuid = videoGuid; }
     public void setAudioGuid(String audioGuid) { this.audioGuid = audioGuid; }
@@ -38,7 +43,7 @@ public class PlayStartInfo {
     public String toString() {
         return "PlayStartInfo{" +
                 "playUrl='" + playUrl + '\'' +
-                ", resumePositionSeconds=" + resumePositionSeconds +
+                ", resumePositionMs=" + resumePositionMs +
                 ", mediaGuid='" + mediaGuid + '\'' +
                 ", videoGuid='" + videoGuid + '\'' +
                 '}';

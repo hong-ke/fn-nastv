@@ -7,17 +7,8 @@
     android:focusable="true"
     android:focusableInTouchMode="true">
 
-    <!-- 海报背景 (放在最底层) -->
-    <ImageView
-        android:id="@+id/poster_image"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scaleType="centerCrop"
-        android:alpha="0.3"
-        android:src="@drawable/ic_default_backdrop" />
-
-    <!-- GSYVideoPlayer 播放器 (在海报之上) - 使用自定义无 loading 版本 -->
-    <com.mynas.nastv.player.NoLoadingGSYVideoPlayer
+    <!-- Media3 播放器 -->
+    <com.mynas.nastv.player.Media3VideoPlayer
         android:id="@+id/player_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

@@ -12,7 +12,6 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import com.mynas.nastv.R;
-import com.mynas.nastv.cache.OkHttpProxyCacheManager;
 import com.mynas.nastv.model.EpisodeListResponse;
 import com.mynas.nastv.model.StreamListResponse;
 import com.mynas.nastv.utils.SharedPreferencesManager;
@@ -264,31 +263,14 @@ public class PlayerMenuController {
             progressCurrentTime.setText(formatTime(currentPosition));
             progressTotalTime.setText(formatTime(duration));
 
-            // 缓存进度
+            // 缓存进度（简化版）
             int bufferProgress = progress;
-            int cachedChunks = 0;
-            try {
-                OkHttpProxyCacheManager cacheManager = OkHttpProxyCacheManager.instance();
-                if (cacheManager != null) {
-                    bufferProgress = cacheManager.getDownloadProgress();
-                    cachedChunks = cacheManager.getCachedChunksCount();
-                }
-            } catch (Exception e) {
-                // ignore
-            }
 
             if (bufferProgressbar != null) {
                 bufferProgressbar.setProgress(bufferProgress);
             }
             if (bufferInfoText != null) {
-                if (cachedChunks > 0) {
-                    int cachedMB = cachedChunks * 2;
-                    bufferInfoText.setText("已缓存 " + cachedMB + "MB (" + bufferProgress + "%)");
-                } else if (bufferProgress >= 99) {
-                    bufferInfoText.setText("缓存完成");
-                } else {
-                    bufferInfoText.setText("");
-                }
+                bufferInfoText.setText("");
             }
         }
     }

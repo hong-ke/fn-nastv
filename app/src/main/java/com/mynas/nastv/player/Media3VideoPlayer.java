@@ -145,7 +145,7 @@ public class Media3VideoPlayer extends FrameLayout implements Player.Listener {
             .setPrioritizeTimeOverSizeThresholds(false)
             .build();
         
-        // 创建 RenderersFactory - 优先硬件解码，启用高质量渲染
+        // 创建 RenderersFactory - 优先硬件解码，启用高质量渲染，减少丢帧
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(context)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             .setEnableDecoderFallback(true)
@@ -154,13 +154,19 @@ public class Media3VideoPlayer extends FrameLayout implements Player.Listener {
             // 允许更长的视频无缝切换时间，减少切换时的画质损失
             .setAllowedVideoJoiningTimeMs(5000);
         
-        // 创建 ExoPlayer - 使用高质量缩放模式
+        // 创建 ExoPlayer - 使用高质量缩放模式，优化帧保留
         exoPlayer = new ExoPlayer.Builder(context, renderersFactory)
             .setLoadControl(loadControl)
             .setMediaSourceFactory(new DefaultMediaSourceFactory(dataSourceFactory))
             // 使用 SCALE_TO_FIT_WITH_CROPPING 保持原始画质，避免模糊
             .setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+            // 设置 Seek 步进
+            .setSeekBackIncrementMs(5000)
+            .setSeekForwardIncrementMs(10000)
             .build();
+        
+        // 设置精确 Seek 模式，确保 seek 到精确位置而不是最近的关键帧
+        exoPlayer.setSeekParameters(androidx.media3.exoplayer.SeekParameters.EXACT);
         
         // 画质优先设置 - 强制最高质量
         TrackSelectionParameters qualityParams = exoPlayer.getTrackSelectionParameters()

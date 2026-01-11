@@ -621,6 +621,7 @@ public class Media3VideoPlayer extends FrameLayout implements Player.Listener {
     
     /**
      * 获取所有音频轨道
+     * 注意：groupIndex 是所有轨道组的索引（包括视频、音频、字幕等）
      */
     public java.util.List<AudioTrackInfo> getAudioTracks() {
         java.util.List<AudioTrackInfo> tracks = new java.util.ArrayList<>();
@@ -634,7 +635,7 @@ public class Media3VideoPlayer extends FrameLayout implements Player.Listener {
                 for (int i = 0; i < group.length; i++) {
                     androidx.media3.common.Format format = group.getTrackFormat(i);
                     AudioTrackInfo info = new AudioTrackInfo();
-                    info.groupIndex = groupIndex;
+                    info.groupIndex = groupIndex;  // 使用全局索引
                     info.trackIndex = i;
                     info.language = format.language;
                     info.label = format.label;
@@ -646,10 +647,10 @@ public class Media3VideoPlayer extends FrameLayout implements Player.Listener {
                     // 检查格式是否支持
                     info.isSupported = group.isTrackSupported(i);
                     tracks.add(info);
-                    Log.d(TAG, "音频轨道: " + info.getDisplayName() + ", selected=" + info.isSelected + ", supported=" + info.isSupported);
+                    Log.d(TAG, "音频轨道[" + groupIndex + "]: " + info.getDisplayName() + ", selected=" + info.isSelected + ", supported=" + info.isSupported);
                 }
             }
-            groupIndex++;
+            groupIndex++;  // 所有组都递增
         }
         
         return tracks;
@@ -657,6 +658,8 @@ public class Media3VideoPlayer extends FrameLayout implements Player.Listener {
     
     /**
      * 选择音频轨道
+     * @param groupIndex 轨道组的全局索引（从 getAudioTracks 获取）
+     * @param trackIndex 组内轨道索引
      */
     public void selectAudioTrack(int groupIndex, int trackIndex) {
         if (exoPlayer == null) return;
@@ -665,7 +668,12 @@ public class Media3VideoPlayer extends FrameLayout implements Player.Listener {
         int currentGroupIndex = 0;
         
         for (androidx.media3.common.Tracks.Group group : currentTracks.getGroups()) {
-            if (group.getType() == C.TRACK_TYPE_AUDIO && currentGroupIndex == groupIndex) {
+            if (currentGroupIndex == groupIndex) {
+                if (group.getType() != C.TRACK_TYPE_AUDIO) {
+                    Log.e(TAG, "选择音频轨道失败: groupIndex=" + groupIndex + " 不是音频组");
+                    return;
+                }
+                
                 // 构建轨道选择覆盖
                 TrackSelectionParameters.Builder builder = exoPlayer.getTrackSelectionParameters().buildUpon();
                 
@@ -684,10 +692,10 @@ public class Media3VideoPlayer extends FrameLayout implements Player.Listener {
                 Log.d(TAG, "已选择音频轨道: groupIndex=" + groupIndex + ", trackIndex=" + trackIndex);
                 return;
             }
-            if (group.getType() == C.TRACK_TYPE_AUDIO) {
-                currentGroupIndex++;
-            }
+            currentGroupIndex++;  // 所有组都递增，与 getAudioTracks 保持一致
         }
+        
+        Log.e(TAG, "选择音频轨道失败: 未找到 groupIndex=" + groupIndex);
     }
     
     /**

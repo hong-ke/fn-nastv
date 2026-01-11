@@ -835,8 +835,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     private void startDanmaku() {
         if (danmuController != null && tvTitle != null) {
-            Log.d(TAG, "加载弹幕: " + tvTitle + " S" + seasonNumber + "E" + episodeNumber);
-            danmuController.loadDanmaku(tvTitle, episodeNumber, seasonNumber, episodeGuid, parentGuid);
+            // 电影时 season/episode 可能为 0，弹幕接口需要传 1
+            int season = seasonNumber > 0 ? seasonNumber : 1;
+            int episode = episodeNumber > 0 ? episodeNumber : 1;
+            Log.d(TAG, "加载弹幕: " + tvTitle + " S" + season + "E" + episode + " (原始: S" + seasonNumber + "E" + episodeNumber + ")");
+            danmuController.loadDanmaku(tvTitle, episode, season, episodeGuid, parentGuid);
             danmuController.startPlayback();
         }
     }

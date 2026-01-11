@@ -484,4 +484,9 @@
 
     </LinearLayout>
 
+    <!-- 🎛️ 侧边面板 - 倍速/选集/设置 -->
+    <include
+        android:id="@+id/side_panel"
+        layout="@layout/panel_player_side" />
+
 </RelativeLayout>

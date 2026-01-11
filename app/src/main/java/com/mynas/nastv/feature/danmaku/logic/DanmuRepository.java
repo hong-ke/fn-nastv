@@ -21,6 +21,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -58,7 +60,7 @@ public class DanmuRepository {
      * 使用弹幕服务器 (http://192.168.3.20:13401)
      * 
      * API: GET /danmu/get?title=xxx&season_number=1&episode_number=1
-     * 响应格式: { "1": [...] } - key 是集数，value 是该集所有弹幕
+     * 响应格式: { "第4集 xxx": [...], "第5集 xxx": [...] } - key 是剧集标题，需要从中提取集数
      * 
      * 注意：不传 guid/parent_guid，让服务器直接用 title 搜索第三方弹幕源
      * 如果传入 guid 但数据库没有记录，服务器会返回空数据
@@ -74,6 +76,8 @@ public class DanmuRepository {
             return;
         }
 
+        final int targetEpisode = episode;
+        
         try {
             // 使用弹幕专用 API 服务 (独立的弹幕服务器)
             // 不传 guid/parent_guid，直接用 title 搜索弹幕
@@ -96,23 +100,31 @@ public class DanmuRepository {
                             if (list != null) rawCount += list.size();
                         }
                         final int finalRawCount = rawCount;
-                        Log.d(TAG, "Danmaku API success for title=[" + cleanTitle + "], got " + rawCount + " raw danmaku items");
+                        Log.d(TAG, "Danmaku API success for title=[" + cleanTitle + "], got " + rawData.size() + " episodes, " + rawCount + " total danmaku items");
+                        
+                        // 打印所有返回的 key，便于调试
+                        for (String key : rawData.keySet()) {
+                            List<DanmakuMapResponse.DanmakuItem> items = rawData.get(key);
+                            int count = items != null ? items.size() : 0;
+                            Log.d(TAG, "  Episode key: [" + key + "] -> " + count + " danmaku");
+                        }
                         
                         // 如果返回 0 条弹幕，记录警告
                         if (rawCount == 0) {
-                            Log.w(TAG, "No danmaku found for title=[" + cleanTitle + "], season=" + season + ", episode=" + episode + 
+                            Log.w(TAG, "No danmaku found for title=[" + cleanTitle + "], season=" + season + ", episode=" + targetEpisode + 
                                   ". Possible reasons: 1) Title mismatch, 2) No danmaku data for this video, 3) Server-side issue");
                         }
                         
                         // Process in background
                         backgroundExecutor.execute(() -> {
                             try {
-                                Map<String, List<DanmakuEntity>> data = processDanmakuMap(rawData);
+                                // 传入目标集数，只处理匹配的弹幕
+                                Map<String, List<DanmakuEntity>> data = processDanmakuMap(rawData, targetEpisode);
                                 int totalCount = 0;
                                 for (List<DanmakuEntity> list : data.values()) {
                                     totalCount += list.size();
                                 }
-                                Log.d(TAG, "Processed " + totalCount + " danmaku items into " + data.size() + " buckets (filtered from " + finalRawCount + ")");
+                                Log.d(TAG, "Processed " + totalCount + " danmaku items into " + data.size() + " buckets for episode " + targetEpisode + " (filtered from " + finalRawCount + " total)");
                                 mainHandler.post(() -> callback.onSuccess(data));
                             } catch (OutOfMemoryError e) {
                                 Log.e(TAG, "OOM while processing danmaku, returning empty", e);
@@ -165,8 +177,86 @@ public class DanmuRepository {
         notifyError(callback, new UnsupportedOperationException("Using legacy ID not supported in new API"));
     }
     
+    // 正则匹配 "第X集" 格式
+    private static final Pattern EPISODE_PATTERN = Pattern.compile("^第(\\d+)集");
+    
     /**
-     * 处理弹幕 Map 响应
+     * 处理弹幕 Map 响应（带集数过滤）
+     * 
+     * 服务器返回格式可能是：
+     * 1. 数字字符串 key: { "1": [...], "2": [...] }
+     * 2. 标题格式 key: { "第1集 xxx": [...], "第2集 xxx": [...] }
+     * 
+     * 此方法会根据 targetEpisode 过滤出对应集数的弹幕
+     */
+    private Map<String, List<DanmakuEntity>> processDanmakuMap(Map<String, List<DanmakuMapResponse.DanmakuItem>> rawData, int targetEpisode) {
+        if (rawData == null || rawData.isEmpty()) {
+            return new HashMap<>();
+        }
+        
+        String targetEpStr = String.valueOf(targetEpisode);
+        List<DanmakuMapResponse.DanmakuItem> matchedItems = null;
+        
+        // 1. 先尝试直接用数字字符串匹配
+        if (rawData.containsKey(targetEpStr)) {
+            matchedItems = rawData.get(targetEpStr);
+            Log.d(TAG, "直接匹配到集数 key: " + targetEpStr);
+        }
+        
+        // 2. 如果没有，尝试从标题中提取集数
+        if (matchedItems == null) {
+            for (Map.Entry<String, List<DanmakuMapResponse.DanmakuItem>> entry : rawData.entrySet()) {
+                String key = entry.getKey();
+                int extractedEp = extractEpisodeNumber(key);
+                if (extractedEp == targetEpisode) {
+                    matchedItems = entry.getValue();
+                    Log.d(TAG, "从标题匹配到集数: " + key + " -> episode " + extractedEp);
+                    break;
+                }
+            }
+        }
+        
+        // 3. 如果还是没有匹配到，返回空
+        if (matchedItems == null || matchedItems.isEmpty()) {
+            Log.w(TAG, "未找到第 " + targetEpisode + " 集的弹幕数据");
+            return new HashMap<>();
+        }
+        
+        // 4. 处理匹配到的弹幕
+        Map<String, List<DanmakuMapResponse.DanmakuItem>> filteredData = new HashMap<>();
+        filteredData.put(targetEpStr, matchedItems);
+        return processDanmakuMapInternal(filteredData);
+    }
+    
+    /**
+     * 从 key 中提取集数
+     * 支持格式: "第2集 xxx", "2", "02"
+     */
+    private int extractEpisodeNumber(String key) {
+        if (key == null) return -1;
+        
+        // 先尝试直接解析数字
+        try {
+            return Integer.parseInt(key.trim());
+        } catch (NumberFormatException e) {
+            // 继续尝试正则匹配
+        }
+        
+        // 尝试正则匹配 "第X集"
+        Matcher matcher = EPISODE_PATTERN.matcher(key);
+        if (matcher.find()) {
+            try {
+                return Integer.parseInt(matcher.group(1));
+            } catch (NumberFormatException e) {
+                // ignore
+            }
+        }
+        
+        return -1;
+    }
+    
+    /**
+     * 处理弹幕 Map 响应（内部实现）
      * 
      * 优化：
      * 1. 先去重（相同文本的弹幕只保留一个）
@@ -174,7 +264,7 @@ public class DanmuRepository {
      * 3. 总数限制（最多 MAX_TOTAL_DANMAKU 条）
      * 4. 按60秒分桶存储
      */
-    private Map<String, List<DanmakuEntity>> processDanmakuMap(Map<String, List<DanmakuMapResponse.DanmakuItem>> rawData) {
+    private Map<String, List<DanmakuEntity>> processDanmakuMapInternal(Map<String, List<DanmakuMapResponse.DanmakuItem>> rawData) {
         Map<String, List<DanmakuEntity>> result = new HashMap<>();
         
         if (rawData == null) return result;

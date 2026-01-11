@@ -6,24 +6,30 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.bumptech.glide.Glide;
 import com.mynas.nastv.R;
 import com.mynas.nastv.feature.danmaku.api.IDanmuController;
 import com.mynas.nastv.feature.danmaku.logic.DanmuControllerImpl;
 import com.mynas.nastv.manager.MediaManager;
+import com.mynas.nastv.model.EpisodeListResponse;
 import com.mynas.nastv.model.PlayStartInfo;
 import com.mynas.nastv.player.Media3VideoPlayer;
 import com.mynas.nastv.utils.SharedPreferencesManager;
 import com.mynas.nastv.utils.ToastUtils;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +58,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private TextView infoText;
     private LinearLayout seekOverlay;
     private TextView seekTimeText;
+    private ImageView centerPlayIcon;  // 中央暂停图标
     
     // 底部菜单进度条
     private TextView progressCurrentTime;
@@ -59,6 +66,16 @@ public class VideoPlayerActivity extends AppCompatActivity {
     private android.widget.SeekBar progressSeekbar;
     private android.widget.ProgressBar bufferProgressbar;
     private android.widget.ProgressBar seekProgressBar;
+    
+    // 侧边面板
+    private View sidePanel;
+    private TextView sidePanelTitle;
+    private LinearLayout sidePanelContent;
+    private boolean isSidePanelVisible = false;
+    private String currentPanelType = null; // "speed", "episode", "settings"
+    
+    // 剧集列表
+    private List<EpisodeListResponse.Episode> episodeList = new ArrayList<>();
     
     // 弹幕控制器
     private IDanmuController danmuController;
@@ -77,6 +94,11 @@ public class VideoPlayerActivity extends AppCompatActivity {
     // 状态
     private boolean isPlayerReady = false;
     private boolean isDanmakuEnabled = true;
+    private float currentSpeed = 1.0f;
+    
+    // 倍速选项
+    private static final float[] SPEED_VALUES = {0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f};
+    private static final String[] SPEED_LABELS = {"0.5x", "0.75x", "1.0x", "1.25x", "1.5x", "1.75x", "2.0x"};
     
     // 快进快退
     private long seekAccumulatedTime = 0;
@@ -148,12 +170,27 @@ public class VideoPlayerActivity extends AppCompatActivity {
         seekOverlay = findViewById(R.id.seek_progress_overlay);
         seekTimeText = findViewById(R.id.seek_time_text);
         seekProgressBar = findViewById(R.id.seek_progress_bar);
+        centerPlayIcon = findViewById(R.id.center_play_icon);
         
         // 底部菜单进度条
         progressCurrentTime = findViewById(R.id.progress_current_time);
         progressTotalTime = findViewById(R.id.progress_total_time);
         progressSeekbar = findViewById(R.id.progress_seekbar);
         bufferProgressbar = findViewById(R.id.buffer_progressbar);
+        
+        // 侧边面板
+        sidePanel = findViewById(R.id.side_panel);
+        if (sidePanel != null) {
+            sidePanelTitle = sidePanel.findViewById(R.id.panel_title);
+            sidePanelContent = sidePanel.findViewById(R.id.panel_content);
+            // 点击背景关闭面板
+            sidePanel.setOnClickListener(v -> hideSidePanel());
+            // 阻止点击面板容器时关闭
+            View panelContainer = sidePanel.findViewById(R.id.panel_container);
+            if (panelContainer != null) {
+                panelContainer.setOnClickListener(v -> {});
+            }
+        }
         
         // 设置标题
         if (titleText != null) {
@@ -178,23 +215,19 @@ public class VideoPlayerActivity extends AppCompatActivity {
         // 下一集
         View menuNextEpisode = findViewById(R.id.menu_next_episode);
         if (menuNextEpisode != null) {
-            menuNextEpisode.setOnClickListener(v -> {
-                ToastUtils.show(this, "下一集功能待实现");
-            });
+            menuNextEpisode.setOnClickListener(v -> playNextEpisode());
         }
         
         // 倍速
         View menuSpeed = findViewById(R.id.menu_speed);
         if (menuSpeed != null) {
-            menuSpeed.setOnClickListener(v -> showSpeedDialog());
+            menuSpeed.setOnClickListener(v -> showSpeedPanel());
         }
         
         // 选集
         View menuEpisode = findViewById(R.id.menu_episode);
         if (menuEpisode != null) {
-            menuEpisode.setOnClickListener(v -> {
-                ToastUtils.show(this, "选集功能待实现");
-            });
+            menuEpisode.setOnClickListener(v -> showEpisodePanel());
         }
         
         // 画质
@@ -216,9 +249,7 @@ public class VideoPlayerActivity extends AppCompatActivity {
         // 音频
         View menuAudio = findViewById(R.id.menu_audio);
         if (menuAudio != null) {
-            menuAudio.setOnClickListener(v -> {
-                ToastUtils.show(this, "音频功能待实现");
-            });
+            menuAudio.setOnClickListener(v -> showAudioPanel());
         }
         
         // 弹幕
@@ -234,19 +265,304 @@ public class VideoPlayerActivity extends AppCompatActivity {
                 ToastUtils.show(this, "设置功能待实现");
             });
         }
+        
+        // 加载剧集列表
+        loadEpisodeList();
     }
     
-    private void showSpeedDialog() {
-        String[] speeds = {"0.5x", "0.75x", "1.0x", "1.25x", "1.5x", "2.0x"};
-        float[] speedValues = {0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
+    // ==================== 侧边面板 ====================
+    
+    private void showSpeedPanel() {
+        if (sidePanelContent == null) return;
         
-        new android.app.AlertDialog.Builder(this)
-            .setTitle("播放速度")
-            .setItems(speeds, (dialog, which) -> {
-                playerView.setSpeed(speedValues[which]);
-                ToastUtils.show(this, "播放速度: " + speeds[which]);
-            })
-            .show();
+        toggleMenu(); // 隐藏底部菜单
+        sidePanelContent.removeAllViews();
+        sidePanelTitle.setText("倍速");
+        
+        LayoutInflater inflater = LayoutInflater.from(this);
+        View firstFocusable = null;
+        
+        for (int i = 0; i < SPEED_VALUES.length; i++) {
+            final float speed = SPEED_VALUES[i];
+            final String label = SPEED_LABELS[i];
+            
+            View itemView = inflater.inflate(R.layout.item_panel_option, sidePanelContent, false);
+            TextView titleView = itemView.findViewById(R.id.option_title);
+            TextView valueView = itemView.findViewById(R.id.option_value);
+            
+            titleView.setText(label);
+            
+            // 当前选中的倍速显示勾选
+            if (Math.abs(speed - currentSpeed) < 0.01f) {
+                valueView.setText("✓");
+                valueView.setTextColor(0xFF23ADE5);
+                itemView.setSelected(true);
+            } else {
+                valueView.setText("");
+            }
+            
+            itemView.setOnClickListener(v -> {
+                currentSpeed = speed;
+                playerView.setSpeed(speed);
+                ToastUtils.show(this, "播放速度: " + label);
+                hideSidePanel();
+            });
+            
+            sidePanelContent.addView(itemView);
+            if (firstFocusable == null) firstFocusable = itemView;
+        }
+        
+        showSidePanel("speed", firstFocusable);
+    }
+    
+    private void showAudioPanel() {
+        if (sidePanelContent == null || playerView == null) return;
+        
+        List<Media3VideoPlayer.AudioTrackInfo> audioTracks = playerView.getAudioTracks();
+        
+        if (audioTracks.isEmpty()) {
+            ToastUtils.show(this, "暂无可用音轨");
+            return;
+        }
+        
+        toggleMenu(); // 隐藏底部菜单
+        sidePanelContent.removeAllViews();
+        sidePanelTitle.setText("音频 (" + audioTracks.size() + "条音轨)");
+        
+        LayoutInflater inflater = LayoutInflater.from(this);
+        View firstFocusable = null;
+        View selectedView = null;
+        
+        for (Media3VideoPlayer.AudioTrackInfo track : audioTracks) {
+            View itemView = inflater.inflate(R.layout.item_panel_option, sidePanelContent, false);
+            TextView titleView = itemView.findViewById(R.id.option_title);
+            TextView valueView = itemView.findViewById(R.id.option_value);
+            
+            titleView.setText(track.getDisplayName());
+            
+            // 不支持的格式显示灰色
+            if (!track.isSupported) {
+                titleView.setTextColor(0x80FFFFFF);  // 半透明白色
+            }
+            
+            // 当前选中的音轨显示勾选
+            if (track.isSelected) {
+                valueView.setText("✓");
+                valueView.setTextColor(0xFF23ADE5);
+                itemView.setSelected(true);
+                selectedView = itemView;
+            } else {
+                valueView.setText("");
+            }
+            
+            final int groupIndex = track.groupIndex;
+            final int trackIndex = track.trackIndex;
+            final String displayName = track.getDisplayName();
+            final boolean isSupported = track.isSupported;
+            
+            itemView.setOnClickListener(v -> {
+                if (!isSupported) {
+                    ToastUtils.show(this, "该音轨格式不支持: " + displayName);
+                    return;
+                }
+                playerView.selectAudioTrack(groupIndex, trackIndex);
+                ToastUtils.show(this, "已切换音轨: " + displayName);
+                hideSidePanel();
+            });
+            
+            sidePanelContent.addView(itemView);
+            if (firstFocusable == null) firstFocusable = itemView;
+        }
+        
+        // 优先让当前选中的音轨获取焦点
+        showSidePanel("audio", selectedView != null ? selectedView : firstFocusable);
+    }
+    
+    private void showEpisodePanel() {
+        if (sidePanelContent == null) return;
+        
+        if (episodeList.isEmpty()) {
+            ToastUtils.show(this, "暂无剧集信息");
+            return;
+        }
+        
+        toggleMenu(); // 隐藏底部菜单
+        sidePanelContent.removeAllViews();
+        sidePanelTitle.setText("选集 (" + episodeList.size() + "集)");
+        
+        LayoutInflater inflater = LayoutInflater.from(this);
+        View firstFocusable = null;
+        View currentEpisodeView = null;
+        String baseUrl = SharedPreferencesManager.getServerBaseUrl();
+        
+        for (EpisodeListResponse.Episode episode : episodeList) {
+            View itemView = inflater.inflate(R.layout.item_episode_grid, sidePanelContent, false);
+            ImageView thumbView = itemView.findViewById(R.id.episode_thumb);
+            ImageView iconView = itemView.findViewById(R.id.episode_icon);
+            ImageView checkView = itemView.findViewById(R.id.episode_check);
+            TextView numberView = itemView.findViewById(R.id.episode_number);
+            TextView titleView = itemView.findViewById(R.id.episode_title);
+            
+            int epNum = episode.getEpisodeNumber();
+            numberView.setText("第" + epNum + "集");
+            
+            // 设置标题
+            String epTitle = episode.getTitle();
+            if (epTitle != null && !epTitle.isEmpty()) {
+                titleView.setText(epTitle);
+                titleView.setVisibility(View.VISIBLE);
+            } else {
+                titleView.setVisibility(View.GONE);
+            }
+            
+            // 加载缩略图
+            String stillPath = episode.getStillPath();
+            if (stillPath != null && !stillPath.isEmpty()) {
+                String thumbUrl = baseUrl + "/v/api/v1/sys/img" + stillPath + "?w=200";
+                Glide.with(this).load(thumbUrl).into(thumbView);
+            }
+            
+            // 当前集高亮
+            if (epNum == episodeNumber) {
+                itemView.setSelected(true);
+                iconView.setVisibility(View.VISIBLE);
+                checkView.setVisibility(View.VISIBLE);
+                currentEpisodeView = itemView;
+            } else {
+                iconView.setVisibility(View.GONE);
+                checkView.setVisibility(View.GONE);
+            }
+            
+            final String epGuid = episode.getGuid();
+            final int targetEpNum = epNum;
+            itemView.setOnClickListener(v -> {
+                if (targetEpNum != episodeNumber) {
+                    playEpisode(epGuid, targetEpNum);
+                }
+                hideSidePanel();
+            });
+            
+            sidePanelContent.addView(itemView);
+            if (firstFocusable == null) firstFocusable = itemView;
+        }
+        
+        // 优先让当前集获取焦点
+        showSidePanel("episode", currentEpisodeView != null ? currentEpisodeView : firstFocusable);
+    }
+    
+    private void showSidePanel(String type, View firstFocusable) {
+        currentPanelType = type;
+        isSidePanelVisible = true;
+        if (sidePanel != null) {
+            sidePanel.setVisibility(View.VISIBLE);
+            if (firstFocusable != null) {
+                firstFocusable.requestFocus();
+            }
+        }
+    }
+    
+    private void hideSidePanel() {
+        isSidePanelVisible = false;
+        currentPanelType = null;
+        if (sidePanel != null) {
+            sidePanel.setVisibility(View.GONE);
+        }
+    }
+    
+    private void loadEpisodeList() {
+        if (parentGuid == null || parentGuid.isEmpty()) {
+            Log.d(TAG, "No parent guid, skip loading episode list");
+            return;
+        }
+        
+        mediaManager.getEpisodeList(parentGuid, new MediaManager.MediaCallback<List<EpisodeListResponse.Episode>>() {
+            @Override
+            public void onSuccess(List<EpisodeListResponse.Episode> episodes) {
+                if (episodes != null && !episodes.isEmpty()) {
+                    episodeList.clear();
+                    episodeList.addAll(episodes);
+                    Log.d(TAG, "Loaded " + episodes.size() + " episodes");
+                }
+            }
+            
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "Failed to load episodes: " + error);
+            }
+        });
+    }
+    
+    private void playNextEpisode() {
+        if (episodeList.isEmpty()) {
+            ToastUtils.show(this, "暂无下一集");
+            return;
+        }
+        
+        // 找到下一集
+        for (int i = 0; i < episodeList.size(); i++) {
+            if (episodeList.get(i).getEpisodeNumber() == episodeNumber) {
+                if (i + 1 < episodeList.size()) {
+                    EpisodeListResponse.Episode nextEp = episodeList.get(i + 1);
+                    playEpisode(nextEp.getGuid(), nextEp.getEpisodeNumber());
+                    return;
+                }
+            }
+        }
+        
+        ToastUtils.show(this, "已是最后一集");
+    }
+    
+    private void playEpisode(String epGuid, int epNum) {
+        ToastUtils.show(this, "正在加载第" + epNum + "集...");
+        
+        // 停止当前播放
+        if (playerView != null) {
+            playerView.pause();
+        }
+        if (danmuController != null) {
+            danmuController.pausePlayback();
+        }
+        
+        // 获取新剧集的播放信息
+        mediaManager.getPlayInfo(epGuid, new MediaManager.MediaCallback<com.mynas.nastv.model.PlayInfoResponse>() {
+            @Override
+            public void onSuccess(com.mynas.nastv.model.PlayInfoResponse data) {
+                if (data.getData() != null) {
+                    String mediaGuidNew = data.getData().getMediaGuid();
+                    if (mediaGuidNew != null && !mediaGuidNew.isEmpty()) {
+                        runOnUiThread(() -> {
+                            // 更新状态
+                            episodeGuid = epGuid;
+                            episodeNumber = epNum;
+                            mediaGuid = mediaGuidNew;
+                            resumePositionMs = 0;
+                            
+                            // 更新标题
+                            String newTitle = tvTitle + " 第" + epNum + "集";
+                            mediaTitle = newTitle;
+                            if (titleText != null) {
+                                titleText.setText(newTitle);
+                            }
+                            
+                            // 构建新的播放URL
+                            String baseUrl = SharedPreferencesManager.getServerBaseUrl();
+                            videoUrl = baseUrl + mediaManager.getPlayUrl(mediaGuidNew);
+                            
+                            // 重新开始播放
+                            isPlayerReady = false;
+                            startPlayback();
+                        });
+                    } else {
+                        runOnUiThread(() -> ToastUtils.show(VideoPlayerActivity.this, "获取播放地址失败"));
+                    }
+                }
+            }
+            
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> ToastUtils.show(VideoPlayerActivity.this, "加载失败: " + error));
+            }
+        });
     }
     
     private void toggleDanmaku() {
@@ -518,6 +834,23 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        // 侧边面板显示时的按键处理
+        if (isSidePanelVisible) {
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_BACK:
+                case KeyEvent.KEYCODE_ESCAPE:
+                    hideSidePanel();
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                    // 右键关闭面板
+                    hideSidePanel();
+                    return true;
+                default:
+                    // 其他按键让系统处理焦点
+                    return super.onKeyDown(keyCode, event);
+            }
+        }
+        
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
@@ -582,10 +915,18 @@ public class VideoPlayerActivity extends AppCompatActivity {
         if (playerView.isPlaying()) {
             playerView.pause();
             if (danmuController != null) danmuController.pausePlayback();
-            ToastUtils.show(this, "已暂停");
+            // 显示暂停图标
+            if (centerPlayIcon != null) {
+                centerPlayIcon.setImageResource(R.drawable.ic_pause);
+                centerPlayIcon.setVisibility(View.VISIBLE);
+            }
         } else {
             playerView.start();
             if (danmuController != null) danmuController.startPlayback();
+            // 隐藏暂停图标
+            if (centerPlayIcon != null) {
+                centerPlayIcon.setVisibility(View.GONE);
+            }
         }
     }
     

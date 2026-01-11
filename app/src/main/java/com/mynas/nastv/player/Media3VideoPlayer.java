@@ -158,8 +158,8 @@ public class Media3VideoPlayer extends FrameLayout implements Player.Listener {
         exoPlayer = new ExoPlayer.Builder(context, renderersFactory)
             .setLoadControl(loadControl)
             .setMediaSourceFactory(new DefaultMediaSourceFactory(dataSourceFactory))
-            // 使用 SCALE_TO_FIT_WITH_CROPPING 保持原始画质，避免模糊
-            .setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+            // 默认使用适应模式 - 保持原始比例，可能有黑边
+            .setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
             // 设置 Seek 步进
             .setSeekBackIncrementMs(5000)
             .setSeekForwardIncrementMs(10000)
@@ -242,6 +242,9 @@ public class Media3VideoPlayer extends FrameLayout implements Player.Listener {
             Log.e(TAG, "ExoPlayer 未初始化");
             return;
         }
+        
+        // 重置准备状态，确保切换视频时能重新触发 onPrepared
+        isPrepared = false;
         
         this.originalUrl = originUrl;
         this.useProxyCache = true;
@@ -374,6 +377,335 @@ public class Media3VideoPlayer extends FrameLayout implements Player.Listener {
         }
     }
     
+    // ==================== 视频轨道选择 ====================
+    
+    /**
+     * 视频轨道信息
+     */
+    public static class VideoTrackInfo {
+        public int groupIndex;
+        public int trackIndex;
+        public String codec;
+        public String mimeType;
+        public int width;
+        public int height;
+        public int frameRate;
+        public int bitrate;
+        public boolean isSelected;
+        public boolean isSupported;
+        public String colorInfo;  // HDR 信息
+        
+        public String getDisplayName() {
+            StringBuilder sb = new StringBuilder();
+            // 分辨率
+            if (width > 0 && height > 0) {
+                sb.append(width).append("x").append(height);
+            }
+            // 编码格式
+            if (codec != null && !codec.isEmpty()) {
+                sb.append(" ").append(codec);
+            }
+            // HDR 信息
+            if (colorInfo != null && !colorInfo.isEmpty()) {
+                sb.append(" ").append(colorInfo);
+            }
+            // 帧率
+            if (frameRate > 0) {
+                sb.append(" ").append(frameRate).append("fps");
+            }
+            // 码率
+            if (bitrate > 0) {
+                sb.append(" ").append(bitrate / 1000000).append("Mbps");
+            }
+            if (!isSupported) {
+                sb.append(" [不支持]");
+            }
+            return sb.toString().trim();
+        }
+    }
+    
+    /**
+     * 获取所有视频轨道
+     */
+    public java.util.List<VideoTrackInfo> getVideoTracks() {
+        java.util.List<VideoTrackInfo> tracks = new java.util.ArrayList<>();
+        if (exoPlayer == null) return tracks;
+        
+        androidx.media3.common.Tracks currentTracks = exoPlayer.getCurrentTracks();
+        int groupIndex = 0;
+        
+        for (androidx.media3.common.Tracks.Group group : currentTracks.getGroups()) {
+            if (group.getType() == C.TRACK_TYPE_VIDEO) {
+                for (int i = 0; i < group.length; i++) {
+                    androidx.media3.common.Format format = group.getTrackFormat(i);
+                    VideoTrackInfo info = new VideoTrackInfo();
+                    info.groupIndex = groupIndex;
+                    info.trackIndex = i;
+                    info.mimeType = format.sampleMimeType;
+                    info.codec = getVideoCodecName(format.sampleMimeType);
+                    info.width = format.width;
+                    info.height = format.height;
+                    info.frameRate = (int) format.frameRate;
+                    info.bitrate = format.bitrate;
+                    info.isSelected = group.isTrackSelected(i);
+                    info.isSupported = group.isTrackSupported(i);
+                    info.colorInfo = getColorInfoString(format);
+                    tracks.add(info);
+                    Log.d(TAG, "视频轨道: " + info.getDisplayName() + ", selected=" + info.isSelected + ", supported=" + info.isSupported);
+                }
+            }
+            groupIndex++;
+        }
+        
+        return tracks;
+    }
+    
+    /**
+     * 获取视频编解码器友好名称
+     */
+    private String getVideoCodecName(String mimeType) {
+        if (mimeType == null) return "";
+        switch (mimeType) {
+            case "video/hevc": return "HEVC";
+            case "video/avc": return "H.264";
+            case "video/av01": return "AV1";
+            case "video/vp9": return "VP9";
+            case "video/vp8": return "VP8";
+            case "video/dolby-vision": return "Dolby Vision";
+            case "video/x-vnd.on2.vp9": return "VP9";
+            default: return mimeType.replace("video/", "").toUpperCase();
+        }
+    }
+    
+    /**
+     * 获取 HDR/色彩信息字符串
+     */
+    private String getColorInfoString(androidx.media3.common.Format format) {
+        if (format.colorInfo == null) return "";
+        
+        androidx.media3.common.ColorInfo colorInfo = format.colorInfo;
+        StringBuilder sb = new StringBuilder();
+        
+        // 检查 HDR 类型
+        int colorTransfer = colorInfo.colorTransfer;
+        int colorSpace = colorInfo.colorSpace;
+        
+        // HDR10
+        if (colorTransfer == C.COLOR_TRANSFER_ST2084) {
+            sb.append("HDR10");
+        }
+        // HLG
+        else if (colorTransfer == C.COLOR_TRANSFER_HLG) {
+            sb.append("HLG");
+        }
+        // Dolby Vision
+        else if (colorTransfer == C.COLOR_TRANSFER_LINEAR) {
+            // 可能是 Dolby Vision
+        }
+        
+        // BT.2020 色域
+        if (colorSpace == C.COLOR_SPACE_BT2020) {
+            if (sb.length() > 0) sb.append(" ");
+            sb.append("BT.2020");
+        }
+        
+        return sb.toString();
+    }
+    
+    /**
+     * 选择视频轨道
+     */
+    public void selectVideoTrack(int groupIndex, int trackIndex) {
+        if (exoPlayer == null) return;
+        
+        androidx.media3.common.Tracks currentTracks = exoPlayer.getCurrentTracks();
+        int currentGroupIndex = 0;
+        
+        for (androidx.media3.common.Tracks.Group group : currentTracks.getGroups()) {
+            if (group.getType() == C.TRACK_TYPE_VIDEO && currentGroupIndex == groupIndex) {
+                TrackSelectionParameters.Builder builder = exoPlayer.getTrackSelectionParameters().buildUpon();
+                builder.clearOverridesOfType(C.TRACK_TYPE_VIDEO);
+                
+                androidx.media3.common.TrackSelectionOverride override = 
+                    new androidx.media3.common.TrackSelectionOverride(
+                        group.getMediaTrackGroup(), 
+                        java.util.Collections.singletonList(trackIndex)
+                    );
+                builder.addOverride(override);
+                
+                exoPlayer.setTrackSelectionParameters(builder.build());
+                Log.d(TAG, "已选择视频轨道: groupIndex=" + groupIndex + ", trackIndex=" + trackIndex);
+                return;
+            }
+            if (group.getType() == C.TRACK_TYPE_VIDEO) {
+                currentGroupIndex++;
+            }
+        }
+    }
+    
+    /**
+     * 检查当前视频轨道是否支持
+     * @return null 如果支持，否则返回不支持的原因
+     */
+    public String checkVideoTrackSupport() {
+        java.util.List<VideoTrackInfo> tracks = getVideoTracks();
+        if (tracks.isEmpty()) {
+            return "未检测到视频轨道";
+        }
+        
+        // 检查是否有选中的轨道
+        for (VideoTrackInfo track : tracks) {
+            if (track.isSelected) {
+                if (!track.isSupported) {
+                    return "视频格式不支持: " + track.getDisplayName();
+                }
+                return null; // 支持
+            }
+        }
+        
+        // 没有选中的轨道，检查是否有任何支持的轨道
+        for (VideoTrackInfo track : tracks) {
+            if (track.isSupported) {
+                return null; // 有支持的轨道
+            }
+        }
+        
+        return "所有视频轨道均不支持";
+    }
+    
+    // ==================== 音频轨道选择 ====================
+    
+    /**
+     * 音频轨道信息
+     */
+    public static class AudioTrackInfo {
+        public int groupIndex;
+        public int trackIndex;
+        public String language;
+        public String label;
+        public String codec;
+        public String mimeType;
+        public int channelCount;
+        public int sampleRate;
+        public boolean isSelected;
+        public boolean isSupported;  // 是否支持该格式
+        
+        public String getDisplayName() {
+            StringBuilder sb = new StringBuilder();
+            if (label != null && !label.isEmpty()) {
+                sb.append(label);
+            } else if (language != null && !language.isEmpty()) {
+                sb.append(language);
+            } else {
+                sb.append("音轨 " + (trackIndex + 1));
+            }
+            if (codec != null && !codec.isEmpty()) {
+                sb.append(" (").append(codec);
+                if (channelCount > 0) {
+                    sb.append(" ").append(channelCount).append("ch");
+                }
+                sb.append(")");
+            }
+            if (!isSupported) {
+                sb.append(" [不支持]");
+            }
+            return sb.toString();
+        }
+    }
+    
+    /**
+     * 获取所有音频轨道
+     */
+    public java.util.List<AudioTrackInfo> getAudioTracks() {
+        java.util.List<AudioTrackInfo> tracks = new java.util.ArrayList<>();
+        if (exoPlayer == null) return tracks;
+        
+        androidx.media3.common.Tracks currentTracks = exoPlayer.getCurrentTracks();
+        int groupIndex = 0;
+        
+        for (androidx.media3.common.Tracks.Group group : currentTracks.getGroups()) {
+            if (group.getType() == C.TRACK_TYPE_AUDIO) {
+                for (int i = 0; i < group.length; i++) {
+                    androidx.media3.common.Format format = group.getTrackFormat(i);
+                    AudioTrackInfo info = new AudioTrackInfo();
+                    info.groupIndex = groupIndex;
+                    info.trackIndex = i;
+                    info.language = format.language;
+                    info.label = format.label;
+                    info.mimeType = format.sampleMimeType;
+                    info.codec = getCodecName(format.sampleMimeType);
+                    info.channelCount = format.channelCount;
+                    info.sampleRate = format.sampleRate;
+                    info.isSelected = group.isTrackSelected(i);
+                    // 检查格式是否支持
+                    info.isSupported = group.isTrackSupported(i);
+                    tracks.add(info);
+                    Log.d(TAG, "音频轨道: " + info.getDisplayName() + ", selected=" + info.isSelected + ", supported=" + info.isSupported);
+                }
+            }
+            groupIndex++;
+        }
+        
+        return tracks;
+    }
+    
+    /**
+     * 选择音频轨道
+     */
+    public void selectAudioTrack(int groupIndex, int trackIndex) {
+        if (exoPlayer == null) return;
+        
+        androidx.media3.common.Tracks currentTracks = exoPlayer.getCurrentTracks();
+        int currentGroupIndex = 0;
+        
+        for (androidx.media3.common.Tracks.Group group : currentTracks.getGroups()) {
+            if (group.getType() == C.TRACK_TYPE_AUDIO && currentGroupIndex == groupIndex) {
+                // 构建轨道选择覆盖
+                TrackSelectionParameters.Builder builder = exoPlayer.getTrackSelectionParameters().buildUpon();
+                
+                // 清除之前的音频轨道覆盖
+                builder.clearOverridesOfType(C.TRACK_TYPE_AUDIO);
+                
+                // 设置新的音频轨道覆盖
+                androidx.media3.common.TrackSelectionOverride override = 
+                    new androidx.media3.common.TrackSelectionOverride(
+                        group.getMediaTrackGroup(), 
+                        java.util.Collections.singletonList(trackIndex)
+                    );
+                builder.addOverride(override);
+                
+                exoPlayer.setTrackSelectionParameters(builder.build());
+                Log.d(TAG, "已选择音频轨道: groupIndex=" + groupIndex + ", trackIndex=" + trackIndex);
+                return;
+            }
+            if (group.getType() == C.TRACK_TYPE_AUDIO) {
+                currentGroupIndex++;
+            }
+        }
+    }
+    
+    /**
+     * 获取编解码器友好名称
+     */
+    private String getCodecName(String mimeType) {
+        if (mimeType == null) return "";
+        switch (mimeType) {
+            case "audio/eac3": return "EAC3";
+            case "audio/ac3": return "AC3";
+            case "audio/mp4a-latm": return "AAC";
+            case "audio/mpeg": return "MP3";
+            case "audio/opus": return "Opus";
+            case "audio/vorbis": return "Vorbis";
+            case "audio/flac": return "FLAC";
+            case "audio/raw": return "PCM";
+            case "audio/true-hd": return "TrueHD";
+            case "audio/mlp": return "TrueHD";
+            case "audio/vnd.dts": return "DTS";
+            case "audio/vnd.dts.hd": return "DTS-HD";
+            default: return mimeType.replace("audio/", "").toUpperCase();
+        }
+    }
+    
     public int getVideoWidth() {
         return videoWidth;
     }
@@ -393,6 +725,50 @@ public class Media3VideoPlayer extends FrameLayout implements Player.Listener {
     }
     
     // ==================== Player.Listener ====================
+    
+    @Override
+    public void onTracksChanged(@NonNull androidx.media3.common.Tracks tracks) {
+        Log.d(TAG, "========== 轨道信息变化 ==========");
+        int videoTrackCount = 0;
+        int audioTrackCount = 0;
+        
+        for (androidx.media3.common.Tracks.Group group : tracks.getGroups()) {
+            int trackType = group.getType();
+            String typeName = trackType == C.TRACK_TYPE_VIDEO ? "VIDEO" : 
+                             trackType == C.TRACK_TYPE_AUDIO ? "AUDIO" : 
+                             trackType == C.TRACK_TYPE_TEXT ? "TEXT" : "OTHER(" + trackType + ")";
+            
+            Log.d(TAG, "轨道组: " + typeName + ", 轨道数: " + group.length);
+            
+            for (int i = 0; i < group.length; i++) {
+                androidx.media3.common.Format format = group.getTrackFormat(i);
+                boolean isSelected = group.isTrackSelected(i);
+                boolean isSupported = group.isTrackSupported(i);
+                
+                if (trackType == C.TRACK_TYPE_VIDEO) {
+                    videoTrackCount++;
+                    String colorInfo = "";
+                    if (format.colorInfo != null) {
+                        colorInfo = ", colorTransfer=" + format.colorInfo.colorTransfer + 
+                                   ", colorSpace=" + format.colorInfo.colorSpace;
+                    }
+                    Log.d(TAG, "  视频轨道[" + i + "]: " + format.width + "x" + format.height + 
+                          ", codec=" + format.sampleMimeType + 
+                          ", selected=" + isSelected + 
+                          ", supported=" + isSupported + colorInfo);
+                } else if (trackType == C.TRACK_TYPE_AUDIO) {
+                    audioTrackCount++;
+                    Log.d(TAG, "  音频轨道[" + i + "]: " + format.sampleMimeType + 
+                          ", ch=" + format.channelCount + 
+                          ", selected=" + isSelected + 
+                          ", supported=" + isSupported);
+                }
+            }
+        }
+        
+        Log.d(TAG, "总计: 视频轨道=" + videoTrackCount + ", 音频轨道=" + audioTrackCount);
+        Log.d(TAG, "========================================");
+    }
     
     @Override
     public void onPlaybackStateChanged(int playbackState) {

@@ -915,15 +915,29 @@ public class MainActivity extends AppCompatActivity {
                 showSettingsMenu();
                 return true;
             case KeyEvent.KEYCODE_DPAD_LEFT:
-                // 左键 - 如果当前焦点在主内容区域，移动到侧边栏
+                // 左键 - 只有当焦点在主内容区域的最左边项目时，才移动到侧边栏
                 View currentFocus = getCurrentFocus();
                 if (currentFocus != null) {
                     // 检查当前焦点是否在主内容区域
                     if (isViewInMainContent(currentFocus)) {
-                        // 将焦点移动到侧边栏
-                        if (navHome != null) {
-                            navHome.requestFocus();
-                            return true;
+                        // 检查是否在RecyclerView的第一个项目
+                        RecyclerView parentRecyclerView = findParentRecyclerView(currentFocus);
+                        if (parentRecyclerView != null) {
+                            int position = parentRecyclerView.getChildAdapterPosition(currentFocus);
+                            // 只有在第一个位置时才跳到侧边栏
+                            if (position == 0) {
+                                if (navHome != null) {
+                                    navHome.requestFocus();
+                                    return true;
+                                }
+                            }
+                            // 否则让系统处理左移
+                        } else {
+                            // 不在RecyclerView中，直接跳到侧边栏
+                            if (navHome != null) {
+                                navHome.requestFocus();
+                                return true;
+                            }
                         }
                     }
                 }
@@ -994,6 +1008,24 @@ public class MainActivity extends AppCompatActivity {
         }
         if (mediaContentContainer != null && mediaContentContainer.getChildCount() > 0) {
             return findFirstFocusableInViewGroup(mediaContentContainer);
+        }
+        return null;
+    }
+    
+    /**
+     * 查找视图的父RecyclerView
+     */
+    private RecyclerView findParentRecyclerView(View view) {
+        View parent = view;
+        while (parent != null) {
+            if (parent.getParent() instanceof RecyclerView) {
+                return (RecyclerView) parent.getParent();
+            }
+            if (parent.getParent() instanceof View) {
+                parent = (View) parent.getParent();
+            } else {
+                break;
+            }
         }
         return null;
     }

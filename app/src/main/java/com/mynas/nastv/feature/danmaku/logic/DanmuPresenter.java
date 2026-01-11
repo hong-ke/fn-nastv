@@ -49,9 +49,9 @@ public class DanmuPresenter {
     private long lastFpsCalculationTimeMs = 0;
     
     // Choreographer 帧回调 - 在渲染线程执行
-    // 优化：每3帧更新一次弹幕位置（约20fps），减少绘制调用
+    // 优化：每帧更新弹幕位置，与视频帧率同步（约60fps或设备刷新率）
     private int frameSkipCounter = 0;
-    private static final int FRAME_SKIP = 3; // 每3帧计算一次位置（60/3=20fps）
+    private static final int FRAME_SKIP = 1; // 每帧都计算位置，与视频同步
     private float accumulatedDeltaMs = 0; // 累积的时间差
     
     private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {
@@ -87,7 +87,7 @@ public class DanmuPresenter {
                 lastFpsCalculationTimeMs = now;
             }
             
-            // 每3帧更新一次弹幕（约20fps）
+            // 每帧更新弹幕（与视频同步）
             frameSkipCounter++;
             if (frameSkipCounter >= FRAME_SKIP) {
                 frameSkipCounter = 0;

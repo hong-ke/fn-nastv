@@ -123,15 +123,18 @@ public class DanmakuSurfaceView extends SurfaceView implements SurfaceHolder.Cal
             return;
         }
         
+        // 优化：如果没有弹幕，跳过绘制
+        if (danmakuList == null || danmakuList.isEmpty()) {
+            return;
+        }
+        
         // 写入 writeBuffer（不阻塞）
         // 优化：不再深拷贝，直接复用对象，只更新位置
         synchronized (swapLock) {
             writeBuffer.clear();
-            if (danmakuList != null && !danmakuList.isEmpty()) {
-                // 直接添加引用，不创建新对象
-                // 因为 DanmuRenderer 已经管理了对象生命周期
-                writeBuffer.addAll(danmakuList);
-            }
+            // 直接添加引用，不创建新对象
+            // 因为 DanmuRenderer 已经管理了对象生命周期
+            writeBuffer.addAll(danmakuList);
             
             // 交换缓冲区
             List<DanmakuEntity> temp = writeBuffer;

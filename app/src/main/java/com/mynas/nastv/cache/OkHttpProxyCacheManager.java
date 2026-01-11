@@ -586,17 +586,129 @@ public class OkHttpProxyCacheManager {
     
     /**
      * 下载并缓存单个块（写入独立文件）
+     * 优化：流式下载直接写入文件，避免 2MB 大对象分配
      */
     private void downloadAndCacheChunk(int chunkIndex) {
         if (cachedChunks.containsKey(chunkIndex)) return;
         
+        // 检查文件是否已存在
+        if (currentVideoDir != null) {
+            File chunkFile = new File(currentVideoDir, "chunk_" + chunkIndex + ".cache");
+            if (chunkFile.exists() && chunkFile.length() > 100) {
+                cachedChunks.put(chunkIndex, true);
+                return;
+            }
+        }
+        
+        if (currentContentLength <= 0) return;
+        
         long start = (long) chunkIndex * CHUNK_SIZE;
         long end = Math.min(start + CHUNK_SIZE - 1, currentContentLength - 1);
         
-        byte[] data = downloadChunk(start, end);
-        if (data != null && data.length > 0) {
-            writeChunkToFile(chunkIndex, data);
-            Log.d(TAG, "Prefetch chunk " + chunkIndex + " (" + (data.length/1024) + "KB)");
+        // 流式下载到文件
+        boolean success = downloadChunkToFile(chunkIndex, start, end);
+        if (success) {
+            Log.d(TAG, "Prefetch chunk " + chunkIndex + " (stream)");
+        }
+    }
+    
+    /**
+     * 流式下载 chunk 直接写入文件，避免大对象分配
+     */
+    private boolean downloadChunkToFile(int chunkIndex, long start, long end) {
+        if (currentVideoDir == null) return false;
+        
+        File chunkFile = new File(currentVideoDir, "chunk_" + chunkIndex + ".cache");
+        if (chunkFile.exists() && chunkFile.length() > 100) {
+            cachedChunks.put(chunkIndex, true);
+            return true;
+        }
+        
+        // 使用唯一临时文件名避免并发冲突
+        File tempFile = new File(currentVideoDir, "chunk_" + chunkIndex + "_" + Thread.currentThread().getId() + ".tmp");
+        Map<String, String> headers = getCurrentHeaders();
+        
+        try {
+            Request.Builder builder = new Request.Builder()
+                .url(currentOriginUrl)
+                .header("Range", "bytes=" + start + "-" + end);
+            
+            if (headers != null) {
+                for (Map.Entry<String, String> entry : headers.entrySet()) {
+                    builder.addHeader(entry.getKey(), entry.getValue());
+                }
+            }
+            
+            try {
+                String signature = com.mynas.nastv.utils.SignatureUtils.generateSignature("GET", currentOriginUrl, "", null);
+                if (signature != null) builder.header("authx", signature);
+            } catch (Exception e) {}
+            
+            Response response = null;
+            java.io.FileOutputStream fos = null;
+            java.io.InputStream inputStream = null;
+            
+            try {
+                response = httpClient.newCall(builder.build()).execute();
+                
+                if (response.code() != 206 && (response.code() < 200 || response.code() >= 300)) {
+                    return false;
+                }
+                
+                okhttp3.ResponseBody body = response.body();
+                if (body == null) return false;
+                
+                // 64KB 缓冲区流式写入
+                inputStream = body.byteStream();
+                fos = new java.io.FileOutputStream(tempFile);
+                
+                byte[] buffer = new byte[64 * 1024];
+                int bytesRead;
+                long totalWritten = 0;
+                
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    fos.write(buffer, 0, bytesRead);
+                    totalWritten += bytesRead;
+                }
+                
+                fos.flush();
+                fos.close();
+                fos = null;
+                
+                if (totalWritten < 100) {
+                    tempFile.delete();
+                    return false;
+                }
+                
+                // 重命名为正式文件
+                if (chunkFile.exists() && chunkFile.length() > 100) {
+                    tempFile.delete();
+                    cachedChunks.put(chunkIndex, true);
+                    return true;
+                }
+                
+                if (tempFile.renameTo(chunkFile)) {
+                    cachedChunks.put(chunkIndex, true);
+                    return true;
+                } else {
+                    if (chunkFile.exists() && chunkFile.length() > 100) {
+                        tempFile.delete();
+                        cachedChunks.put(chunkIndex, true);
+                        return true;
+                    }
+                    tempFile.delete();
+                    return false;
+                }
+                
+            } finally {
+                if (fos != null) try { fos.close(); } catch (Exception e) {}
+                if (inputStream != null) try { inputStream.close(); } catch (Exception e) {}
+                if (response != null) try { response.close(); } catch (Exception e) {}
+            }
+            
+        } catch (Exception e) {
+            tempFile.delete();
+            return false;
         }
     }
     
@@ -607,13 +719,12 @@ public class OkHttpProxyCacheManager {
         if (currentVideoDir == null) return;
         
         File chunkFile = new File(currentVideoDir, "chunk_" + chunkIndex + ".cache");
-        synchronized (cacheLock) {
-            try (RandomAccessFile raf = new RandomAccessFile(chunkFile, "rw")) {
-                raf.write(data);
-                cachedChunks.put(chunkIndex, true);
-            } catch (Exception e) {
-                Log.e(TAG, "Write chunk error: " + e.getMessage());
-            }
+        // 移除全局锁，每个文件独立写入
+        try (RandomAccessFile raf = new RandomAccessFile(chunkFile, "rw")) {
+            raf.write(data);
+            cachedChunks.put(chunkIndex, true);
+        } catch (Exception e) {
+            Log.e(TAG, "Write chunk error: " + e.getMessage());
         }
     }
     
@@ -668,47 +779,40 @@ public class OkHttpProxyCacheManager {
             return null;
         }
         
-        synchronized (cacheLock) {
-            RandomAccessFile raf = null;
-            try {
-                raf = new RandomAccessFile(chunkFile, "r");
-                byte[] data = new byte[availableLength];
-                raf.seek(offsetInChunk);
-                int bytesRead = raf.read(data);
-                
-                if (bytesRead <= 0) {
-                    Log.w(TAG, "Read chunk " + chunkIndex + " returned 0 bytes");
-                    return null;
-                }
-                
-                if (bytesRead < availableLength) {
-                    Log.w(TAG, "Read less than expected: " + bytesRead + "/" + availableLength);
-                    // 返回实际读取的数据
-                    byte[] actualData = new byte[bytesRead];
-                    System.arraycopy(data, 0, actualData, 0, bytesRead);
-                    return actualData;
-                }
-                return data;
-            } catch (java.io.FileNotFoundException e) {
-                Log.w(TAG, "Chunk file not found (may have been deleted): " + chunkIndex);
-                cachedChunks.remove(chunkIndex);
+        // 移除全局锁：chunk 文件写入完成后才会标记为已缓存，读取时文件已经完整
+        RandomAccessFile raf = null;
+        try {
+            raf = new RandomAccessFile(chunkFile, "r");
+            byte[] data = new byte[availableLength];
+            raf.seek(offsetInChunk);
+            int bytesRead = raf.read(data);
+            
+            if (bytesRead <= 0) {
+                Log.w(TAG, "Read chunk " + chunkIndex + " returned 0 bytes");
                 return null;
-            } catch (java.io.IOException e) {
-                Log.e(TAG, "Read chunk " + chunkIndex + " IO error: " + e.getMessage());
-                // 不删除缓存，可能是临时 IO 错误
-                return null;
-            } catch (Exception e) {
-                Log.e(TAG, "Read chunk " + chunkIndex + " error: " + e.getMessage(), e);
-                cachedChunks.remove(chunkIndex);
-                return null;
-            } finally {
-                if (raf != null) {
-                    try {
-                        raf.close();
-                    } catch (Exception e) {
-                        // ignore
-                    }
-                }
+            }
+            
+            if (bytesRead < availableLength) {
+                Log.w(TAG, "Read less than expected: " + bytesRead + "/" + availableLength);
+                byte[] actualData = new byte[bytesRead];
+                System.arraycopy(data, 0, actualData, 0, bytesRead);
+                return actualData;
+            }
+            return data;
+        } catch (java.io.FileNotFoundException e) {
+            Log.w(TAG, "Chunk file not found (may have been deleted): " + chunkIndex);
+            cachedChunks.remove(chunkIndex);
+            return null;
+        } catch (java.io.IOException e) {
+            Log.e(TAG, "Read chunk " + chunkIndex + " IO error: " + e.getMessage());
+            return null;
+        } catch (Exception e) {
+            Log.e(TAG, "Read chunk " + chunkIndex + " error: " + e.getMessage(), e);
+            cachedChunks.remove(chunkIndex);
+            return null;
+        } finally {
+            if (raf != null) {
+                try { raf.close(); } catch (Exception e) {}
             }
         }
     }

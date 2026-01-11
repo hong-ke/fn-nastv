@@ -417,11 +417,15 @@ public class VideoPlayerActivity extends AppCompatActivity {
             public void run() {
                 updateDanmakuPosition();
                 updateProgressUI();
-                progressHandler.postDelayed(this, 100);
+                // 优化：降低 UI 更新频率到 250ms，减少 UI 线程负担
+                progressHandler.postDelayed(this, 250);
             }
         };
         progressHandler.post(progressRunnable);
     }
+    
+    private long lastDisplayedPosition = -1;
+    private int lastDisplayedProgress = -1;
     
     private void updateProgressUI() {
         if (!isPlayerReady || playerView == null) return;
@@ -432,14 +436,25 @@ public class VideoPlayerActivity extends AppCompatActivity {
         if (duration > 0) {
             int progress = (int) (currentPosition * 100 / duration);
             
-            if (progressSeekbar != null) {
-                progressSeekbar.setProgress(progress);
+            // 优化：只在进度变化时更新 UI
+            if (progress != lastDisplayedProgress) {
+                lastDisplayedProgress = progress;
+                if (progressSeekbar != null) {
+                    progressSeekbar.setProgress(progress);
+                }
             }
-            if (progressCurrentTime != null) {
-                progressCurrentTime.setText(formatTime(currentPosition));
-            }
-            if (progressTotalTime != null) {
-                progressTotalTime.setText(formatTime(duration));
+            
+            // 优化：只在秒数变化时更新时间显示
+            long currentSeconds = currentPosition / 1000;
+            long lastSeconds = lastDisplayedPosition / 1000;
+            if (currentSeconds != lastSeconds || lastDisplayedPosition < 0) {
+                lastDisplayedPosition = currentPosition;
+                if (progressCurrentTime != null) {
+                    progressCurrentTime.setText(formatTime(currentPosition));
+                }
+                if (progressTotalTime != null) {
+                    progressTotalTime.setText(formatTime(duration));
+                }
             }
             
             // 更新缓冲进度

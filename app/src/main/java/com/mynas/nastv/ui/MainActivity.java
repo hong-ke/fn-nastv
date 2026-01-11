@@ -802,6 +802,7 @@ public class MainActivity extends AppCompatActivity {
         intent.putExtra("video_url", playUrl);
         intent.putExtra("video_title", mediaItem.getTitle());
         intent.putExtra("episode_guid", mediaItem.getGuid());
+        intent.putExtra("item_guid", mediaItem.getGuid());  // 用于获取版本列表
         
         // 传递播放进度上报所需的信息
         intent.putExtra("media_guid", mediaGuid);

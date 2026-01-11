@@ -862,6 +862,7 @@ public class MediaDetailActivity extends AppCompatActivity {
         intent.putExtra("video_title", title);
         intent.putExtra("media_title", mediaTitle);
         intent.putExtra("episode_guid", itemGuid);
+        intent.putExtra("item_guid", itemGuid);  // 用于获取版本列表
         intent.putExtra("resume_position", playInfo.getResumePositionSeconds());
         intent.putExtra("video_guid", playInfo.getVideoGuid());
         intent.putExtra("audio_guid", playInfo.getAudioGuid());

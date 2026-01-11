@@ -52,13 +52,13 @@ public class OkHttpProxyCacheManager {
     private static final String CACHE_DIR = "okhttp_video_cache";
     private static final int CHUNK_SIZE = 2 * 1024 * 1024; // 2MB per chunk
     private static final int PROXY_PORT_START = 39500;
-    private static final int PREFETCH_HEAD_CHUNKS = 3; // 预缓存头部 3 个块 (6MB)
+    private static final int PREFETCH_HEAD_CHUNKS = 10; // 预缓存头部 10 个块 (20MB)
     private static final int PREFETCH_TAIL_CHUNKS = 2; // 预缓存尾部 2 个块 (4MB)
     
     // 智能预缓存配置
-    private static final int PREFETCH_AHEAD_MB = 50; // 提前缓存 50MB
-    private static final int PREFETCH_AHEAD_CHUNKS = PREFETCH_AHEAD_MB / 2; // 25 个块
-    private static final int PREFETCH_TRIGGER_CHUNKS = 5; // 当缓存剩余 5 个块时触发预缓存
+    private static final int PREFETCH_AHEAD_MB = 100; // 提前缓存 100MB（增加）
+    private static final int PREFETCH_AHEAD_CHUNKS = PREFETCH_AHEAD_MB / 2; // 50 个块
+    private static final int PREFETCH_TRIGGER_CHUNKS = 10; // 当缓存剩余 10 个块时触发预缓存（增加）
     
     // 已播放 chunk 清理配置
     private static final int KEEP_BEHIND_CHUNKS = 3; // 保留当前位置前 3 个 chunk（支持回退）

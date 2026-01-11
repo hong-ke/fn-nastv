@@ -138,10 +138,16 @@ public class Media3VideoPlayer extends FrameLayout implements Player.Listener {
         
         DataSource.Factory dataSourceFactory = new DefaultDataSource.Factory(context, httpFactory);
         
-        // 创建 LoadControl - 优化缓冲策略
+        // 创建 LoadControl - 优化缓冲策略（针对高码率 4K HDR 视频）
+        // 72GB / 156分钟 ≈ 62 Mbps 平均码率，峰值可能更高
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
-            .setBufferDurationsMs(15_000, 60_000, 5_000, 5_000)
-            .setTargetBufferBytes(C.LENGTH_UNSET)
+            .setBufferDurationsMs(
+                30_000,   // minBufferMs: 最小缓冲 30 秒
+                120_000,  // maxBufferMs: 最大缓冲 120 秒（2分钟）
+                10_000,   // bufferForPlaybackMs: 开始播放需要 10 秒缓冲
+                15_000    // bufferForPlaybackAfterRebufferMs: 重新缓冲后需要 15 秒
+            )
+            .setTargetBufferBytes(100 * 1024 * 1024)  // 目标缓冲 100MB
             .setPrioritizeTimeOverSizeThresholds(false)
             .build();
         

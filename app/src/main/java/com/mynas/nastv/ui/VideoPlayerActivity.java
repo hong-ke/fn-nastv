@@ -24,7 +24,9 @@ import com.mynas.nastv.feature.danmaku.logic.DanmuControllerImpl;
 import com.mynas.nastv.manager.MediaManager;
 import com.mynas.nastv.model.EpisodeListResponse;
 import com.mynas.nastv.model.PlayStartInfo;
+import com.mynas.nastv.model.StreamListResponse;
 import com.mynas.nastv.player.Media3VideoPlayer;
+import com.mynas.nastv.utils.FormatUtils;
 import com.mynas.nastv.utils.SharedPreferencesManager;
 import com.mynas.nastv.utils.ToastUtils;
 
@@ -76,6 +78,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
     
     // 剧集列表
     private List<EpisodeListResponse.Episode> episodeList = new ArrayList<>();
+    
+    // 版本列表（多文件）
+    private List<StreamListResponse.FileStream> versionList = new ArrayList<>();
+    private String itemGuid;  // 用于获取版本列表
     
     // 弹幕控制器
     private IDanmuController danmuController;
@@ -140,6 +146,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
         episodeGuid = intent.getStringExtra("episode_guid");
         parentGuid = intent.getStringExtra("season_guid");
         if (parentGuid == null) parentGuid = intent.getStringExtra("parent_guid");
+        
+        // itemGuid 用于获取版本列表
+        itemGuid = intent.getStringExtra("item_guid");
+        if (itemGuid == null) itemGuid = episodeGuid;
         
         episodeNumber = intent.getIntExtra("episode_number", 1);
         seasonNumber = intent.getIntExtra("season_number", 1);
@@ -230,12 +240,10 @@ public class VideoPlayerActivity extends AppCompatActivity {
             menuEpisode.setOnClickListener(v -> showEpisodePanel());
         }
         
-        // 画质
+        // 版本（多文件选择）
         View menuQuality = findViewById(R.id.menu_quality);
         if (menuQuality != null) {
-            menuQuality.setOnClickListener(v -> {
-                ToastUtils.show(this, "画质功能待实现");
-            });
+            menuQuality.setOnClickListener(v -> showVersionPanel());
         }
         
         // 字幕
@@ -268,6 +276,9 @@ public class VideoPlayerActivity extends AppCompatActivity {
         
         // 加载剧集列表
         loadEpisodeList();
+        
+        // 加载版本列表（多文件）
+        loadVersionList();
     }
     
     // ==================== 侧边面板 ====================
@@ -376,6 +387,93 @@ public class VideoPlayerActivity extends AppCompatActivity {
         
         // 优先让当前选中的音轨获取焦点
         showSidePanel("audio", selectedView != null ? selectedView : firstFocusable);
+    }
+    
+    private void showVersionPanel() {
+        if (sidePanelContent == null) return;
+        
+        if (versionList.isEmpty()) {
+            ToastUtils.show(this, "暂无其他版本");
+            return;
+        }
+        
+        // 只有一个版本时也提示
+        if (versionList.size() == 1) {
+            ToastUtils.show(this, "只有一个版本");
+            return;
+        }
+        
+        toggleMenu(); // 隐藏底部菜单
+        sidePanelContent.removeAllViews();
+        sidePanelTitle.setText("版本 (" + versionList.size() + "个文件)");
+        
+        LayoutInflater inflater = LayoutInflater.from(this);
+        View firstFocusable = null;
+        View selectedView = null;
+        
+        for (int i = 0; i < versionList.size(); i++) {
+            StreamListResponse.FileStream file = versionList.get(i);
+            View itemView = inflater.inflate(R.layout.item_panel_option, sidePanelContent, false);
+            TextView titleView = itemView.findViewById(R.id.option_title);
+            TextView valueView = itemView.findViewById(R.id.option_value);
+            
+            // 显示文件名和大小
+            String displayName = file.getDisplayName();
+            String sizeStr = FormatUtils.formatFileSize(file.getSize());
+            titleView.setText(displayName);
+            valueView.setText(sizeStr);
+            
+            // 当前播放的版本高亮
+            boolean isCurrent = file.getGuid().equals(mediaGuid);
+            if (isCurrent) {
+                titleView.setTextColor(0xFF23ADE5);
+                valueView.setTextColor(0xFF23ADE5);
+                itemView.setSelected(true);
+                selectedView = itemView;
+            }
+            
+            final String fileGuid = file.getGuid();
+            final String fileName = displayName;
+            
+            itemView.setOnClickListener(v -> {
+                if (!fileGuid.equals(mediaGuid)) {
+                    playVersion(fileGuid, fileName);
+                }
+                hideSidePanel();
+            });
+            
+            sidePanelContent.addView(itemView);
+            if (firstFocusable == null) firstFocusable = itemView;
+        }
+        
+        // 优先让当前版本获取焦点
+        showSidePanel("version", selectedView != null ? selectedView : firstFocusable);
+    }
+    
+    private void playVersion(String newMediaGuid, String fileName) {
+        ToastUtils.show(this, "正在切换版本...");
+        
+        // 停止当前播放
+        if (playerView != null) {
+            playerView.pause();
+        }
+        if (danmuController != null) {
+            danmuController.pausePlayback();
+        }
+        
+        // 更新状态
+        mediaGuid = newMediaGuid;
+        resumePositionMs = 0;
+        
+        // 构建新的播放URL
+        String baseUrl = SharedPreferencesManager.getServerBaseUrl();
+        videoUrl = baseUrl + mediaManager.getPlayUrl(newMediaGuid);
+        
+        Log.d(TAG, "切换版本: " + fileName + ", URL: " + videoUrl);
+        
+        // 重新开始播放
+        isPlayerReady = false;
+        startPlayback();
     }
     
     private void showEpisodePanel() {
@@ -488,6 +586,32 @@ public class VideoPlayerActivity extends AppCompatActivity {
             @Override
             public void onError(String error) {
                 Log.e(TAG, "Failed to load episodes: " + error);
+            }
+        });
+    }
+    
+    private void loadVersionList() {
+        if (itemGuid == null || itemGuid.isEmpty()) {
+            Log.d(TAG, "No item guid, skip loading version list");
+            return;
+        }
+        
+        mediaManager.getStreamList(itemGuid, new MediaManager.MediaCallback<StreamListResponse>() {
+            @Override
+            public void onSuccess(StreamListResponse response) {
+                if (response != null && response.getData() != null) {
+                    List<StreamListResponse.FileStream> files = response.getData().getFiles();
+                    if (files != null && !files.isEmpty()) {
+                        versionList.clear();
+                        versionList.addAll(files);
+                        Log.d(TAG, "Loaded " + files.size() + " versions");
+                    }
+                }
+            }
+            
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "Failed to load versions: " + error);
             }
         });
     }

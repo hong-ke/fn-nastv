@@ -495,6 +495,9 @@ public class StreamListResponse {
         @SerializedName("path")
         private String path;
         
+        @SerializedName("file_name")
+        private String fileName;
+        
         @SerializedName("size")
         private long size;
         
@@ -506,6 +509,12 @@ public class StreamListResponse {
         
         @SerializedName("update_time")
         private long updateTime;
+        
+        @SerializedName("can_play")
+        private int canPlay;
+        
+        @SerializedName("play_error")
+        private String playError;
         
         // Getters and setters
         public String getGuid() {
@@ -522,6 +531,14 @@ public class StreamListResponse {
         
         public void setPath(String path) {
             this.path = path;
+        }
+        
+        public String getFileName() {
+            return fileName;
+        }
+        
+        public void setFileName(String fileName) {
+            this.fileName = fileName;
         }
         
         public long getSize() {
@@ -554,6 +571,39 @@ public class StreamListResponse {
         
         public void setUpdateTime(long updateTime) {
             this.updateTime = updateTime;
+        }
+        
+        public boolean canPlay() {
+            return canPlay == 1;
+        }
+        
+        public void setCanPlay(int canPlay) {
+            this.canPlay = canPlay;
+        }
+        
+        public String getPlayError() {
+            return playError;
+        }
+        
+        public void setPlayError(String playError) {
+            this.playError = playError;
+        }
+        
+        /**
+         * 获取显示名称（从文件名提取）
+         */
+        public String getDisplayName() {
+            if (fileName != null && !fileName.isEmpty()) {
+                return fileName;
+            }
+            if (path != null && !path.isEmpty()) {
+                int lastSlash = path.lastIndexOf('/');
+                if (lastSlash >= 0 && lastSlash < path.length() - 1) {
+                    return path.substring(lastSlash + 1);
+                }
+                return path;
+            }
+            return "未知文件";
         }
     }
 }
